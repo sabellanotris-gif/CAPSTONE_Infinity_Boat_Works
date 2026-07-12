@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Video Report Generator</title>
+
+<link rel="stylesheet" href="aivideo.css">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+</head>
+<body>
+<script type="module" src="aivideo.js"></script>
+
+<div class="video-generator">
+
+    <div class="page-header">
+
+        <h1>
+            <i class="fa-solid fa-video"></i>
+            AI Video Report Generator
+        </h1>
+
+        <p>
+            Create professional AI-generated video reports and
+            automatically save them to customer accounts.
+        </p>
+
+    </div>
+
+   <button class="close-btn" onclick="window.location.href='dashboard.html'">
+      ×
+     </button>
+
+    <div class="generator-grid">
+
+        <div class="upload-panel">
+
+            <h2>Generate New Video</h2>
+
+            <div class="upload-box">
+
+                <label>Select Customer</label>
+
+                <select id="customerSelect">
+                    <option>Select Customer</option>
+                </select>
+
+            </div>
+
+            <div class="upload-box">
+
+                <label>Report Title</label>
+
+                <input id="reportTitle"
+                type="text"
+                placeholder="Progress">
+
+            </div>
+
+            <div class="upload-box">
+
+                <label>Upload Images</label>
+
+                <input type="file" id="boatImages" accept="image/*" multiple>
+
+                <div class="preview-container" id="preview-container"></div>
+
+            </div>
+
+            <div class="upload-box">
+
+                <label>Upload PDF Report</label>
+
+                <input
+                type="file">
+
+            </div>
+
+            <div class="upload-box">
+
+                <label>Video Theme</label>
+
+                <select id="videoTheme">
+                    <option>Luxury Marine</option>
+                    <option>Corporate Blue</option>
+                    <option>Business Modern</option>
+                </select>
+
+            </div>
+
+            <button class="generate-btn" id="generateBtn">
+
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+
+                Generate AI Video
+
+            </button>
+
+
+            <div class="progress-section">
+
+                <p>Generation Progress</p>
+
+                <div class="progress-bar">
+
+                    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+
+                </div>
+
+                <span id="progressText">0%</span>
+
+            </div>
+
+        </div>
+
+
+        <div class="preview-panel">
+
+            <h2>Video Preview</h2>
+
+            <video autoplay muted loop playsinline preload="auto">
+
+                <source src="./images/progressR.mp4" type="video/mp4">
+
+            </video>
+
+            <div class="preview-info">
+
+                <h3 id="previewTitle">Monthly Sales Report</h3>
+
+                <p id="previewDuration">Duration: —</p>
+
+                <p id="previewStatus">Status: Ready</p>
+
+            </div>
+
+            <div class="preview-actions">
+
+                <button class="btn-view" id="previewBtn">
+
+                    <i class="fa-solid fa-play"></i>
+
+                    Preview
+
+                </button>
+
+                <button class="btn-download" id="uploadBtn">
+
+                    <i class="fa-solid fa-download"></i>
+
+                   Upload
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="history">
+
+        <div class="history-header">
+
+            <h2>Generated Videos</h2>
+
+        </div>
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>Customer</th>
+
+                    <th>Video Title</th>
+
+                    <th>Date Generated</th>
+
+                    <th>Status</th>
+
+                    <th>Action</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="historyBody">
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+</body>
+</html>

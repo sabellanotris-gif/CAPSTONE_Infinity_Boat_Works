@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+Boat Progress Tracking
+</title>
+
+<link rel="stylesheet"
+href="dashprogress.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+</head>
+
+<body>
+
+<div class="dashboard-layout">
+
+<aside class="sidebar">
+
+    <div>
+
+        <h1 class="logo">
+
+            BoatShop
+
+        </h1>
+
+
+         <nav class="sidebar-menu">
+
+    <a href="dashboard.html" >
+
+
+
+        Dashboard
+
+    </a>
+
+
+    <a href="dashorder.html">
+
+
+
+        Orders
+
+    </a>
+
+
+    <a href="dashcustomer.html">
+
+
+
+        Customers
+
+    </a>
+
+
+     <a href="dashsales.html">
+
+
+
+      Sales
+
+    </a>
+
+
+    <a href="dashpayment.html">
+
+
+
+        Payments
+
+    </a>
+
+
+    <a href="dashinventory.html" >
+
+
+
+        Inventory
+
+    </a>
+
+
+    <a href="dashanalytics.html" >
+
+
+
+        Analytics
+
+    </a>
+
+
+    <a href="dashprogress.html">
+
+        Boat Progress
+
+    </a>
+
+    <a href="dashapproval.html">
+
+        Approvals
+
+    </a>
+
+</nav>
+
+
+    </div>
+
+
+<button class="logout-btn" onclick="handleLogout();">
+
+        Logout
+
+</button>
+
+</aside>
+
+
+
+<main class="main-content">
+
+    <div class="topbar">
+
+        <div>
+
+            <h1>
+
+                Boat Progress
+
+            </h1>
+
+            <p>
+
+                Track real-time build progress for each customer order.
+
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="progress-controls">
+
+        <div class="customer-select-wrap">
+
+            <label>Select Customer / Order:</label>
+
+            <select id="orderSelect">
+
+                <option value="">— Select an order —</option>
+
+            </select>
+
+        </div>
+
+    </div>
+
+
+    <div id="progressDetail" class="progress-detail" style="display:none;">
+
+        <div class="progress-header">
+
+            <img id="detailBoatImage" src="./images/boat2.jpg" alt="Boat">
+
+            <div>
+
+                <h2 id="detailBoatName"></h2>
+
+                <p id="detailCustomerName"></p>
+
+                <span class="progress-status" id="detailStatus"></span>
+
+            </div>
+
+        </div>
+
+        <div class="progress-body">
+
+            <div class="progress-main">
+
+                <div class="progress-card">
+
+                    <h3>Build Progress</h3>
+
+                    <div class="big-progress-circle" id="progressCircle">
+
+                        <span id="progressPercent">0%</span>
+
+                    </div>
+
+                    <p class="build-stage" id="buildStage">—</p>
+
+                </div>
+
+                <div class="progress-card">
+
+                    <h3>Timeline</h3>
+
+                    <div class="tl" id="detailTimeline"></div>
+
+                </div>
+
+                <div class="progress-card">
+
+                    <h3><i class="fa-solid fa-chart-bar"></i> Construction Gantt Chart</h3>
+
+                    <div id="ganttChartContainer" class="gantt-container"></div>
+
+                </div>
+
+                <div class="progress-card" id="tasksCard">
+                    <h3><i class="fa-solid fa-list-check"></i> Task Management Board</h3>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+                        <input type="text" id="taskTitleInput" placeholder="Task title" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                        <textarea id="taskDescInput" placeholder="Description" rows="2" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;resize:vertical;"></textarea>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <input type="text" id="taskAssignInput" placeholder="Assign to" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;min-width:100px;">
+                            <select id="taskPriorityInput" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;">
+                                <option value="High">High</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                            <input type="date" id="taskDueInput" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                        </div>
+                        <button id="addTaskBtn" style="border:none;background:#295dff;color:white;padding:10px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-plus"></i> Add Task</button>
+                    </div>
+                    <div id="tasksFilter" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+                        <button class="task-filter-btn active" data-filter="all" style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:50px;font-size:11px;background:white;cursor:pointer;font-family:'Poppins',sans-serif;">All</button>
+                        <button class="task-filter-btn" data-filter="Not Started" style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:50px;font-size:11px;background:white;cursor:pointer;font-family:'Poppins',sans-serif;">Not Started</button>
+                        <button class="task-filter-btn" data-filter="In Progress" style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:50px;font-size:11px;background:white;cursor:pointer;font-family:'Poppins',sans-serif;">In Progress</button>
+                        <button class="task-filter-btn" data-filter="Done" style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:50px;font-size:11px;background:white;cursor:pointer;font-family:'Poppins',sans-serif;">Done</button>
+                    </div>
+                    <div id="tasksList" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+                </div>
+
+                <div class="progress-card" id="workerManagerCard">
+                    <h3><i class="fa-solid fa-users-gear"></i> Manage Workers</h3>
+                    <div style="display:flex;gap:8px;margin-bottom:10px;">
+                        <select id="workerNameInput" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;cursor:pointer;">
+                            <option value="">— Select a worker —</option>
+                        </select>
+                        <select id="workerRoleInput" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;">
+                            <option value="builder">Builder</option>
+                            <option value="engineer">Engineer</option>
+                            <option value="welder">Welder</option>
+                            <option value="electrician">Electrician</option>
+                        </select>
+                        <button id="addWorkerBtn" style="border:none;background:#295dff;color:white;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                    <div id="storedWorkersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:10px 0;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="registryNameInput" placeholder="New worker name" style="flex:1;padding:8px;border:2px solid #e2e8f0;border-radius:8px;font-family:'Poppins',sans-serif;font-size:12px;outline:none;">
+                        <input type="text" id="registrySpecialtyInput" placeholder="Specialty" style="flex:1;padding:8px;border:2px solid #e2e8f0;border-radius:8px;font-family:'Poppins',sans-serif;font-size:12px;outline:none;">
+                        <button id="addRegistryBtn" style="border:none;background:#16a34a;color:white;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;white-space:nowrap;"><i class="fa-solid fa-plus"></i> Add to Registry</button>
+                    </div>
+                    <div id="registryList" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;max-height:120px;overflow-y:auto;"></div>
+                </div>
+
+                <div class="progress-card" id="documentsCard">
+                    <h3><i class="fa-solid fa-folder-open"></i> Project Documents</h3>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                        <div style="display:flex;gap:8px;">
+                            <select id="docCategoryInput" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;">
+                                <option value="Contract">Contract</option>
+                                <option value="Permit">Permit</option>
+                                <option value="Specification Sheet">Specification Sheet</option>
+                                <option value="Drawing">Drawing</option>
+                                <option value="Invoice">Invoice</option>
+                                <option value="Inspection Report">Inspection Report</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <input type="text" id="docNameInput" placeholder="Document name" style="flex:2;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <input type="file" id="docFileInput" style="flex:1;padding:8px;border:2px dashed #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            <button id="uploadDocBtn" style="border:none;background:#295dff;color:white;padding:10px 18px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-upload"></i> Upload</button>
+                        </div>
+                    </div>
+                    <div id="documentsList" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+                </div>
+
+                <div class="progress-card" id="phaseProgressCard">
+                    <h3><i class="fa-solid fa-chart-simple"></i> Phase Progress Breakdown</h3>
+                    <div id="phaseProgressList" style="display:flex;flex-direction:column;gap:8px;"></div>
+                </div>
+
+                <div class="progress-card" id="progressPhotosCard">
+                    <h3><i class="fa-solid fa-camera"></i> Progress Photos</h3>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                        <div style="display:flex;gap:8px;">
+                            <input type="file" id="progressPhotoInput" accept="image/*" style="flex:1;padding:8px;border:2px dashed #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;">
+                            <input type="text" id="progressPhotoCaption" placeholder="Caption (optional)" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                        </div>
+                        <button id="uploadProgressPhotoBtn" style="border:none;background:#295dff;color:white;padding:10px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-upload"></i> Upload Photo</button>
+                    </div>
+                    <div id="progressPhotosGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;"></div>
+                </div>
+
+                <div class="progress-card" id="budgetCard">
+                    <h3><i class="fa-solid fa-coins"></i> Budget & Resources</h3>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <label style="font-size:13px;font-weight:600;white-space:nowrap;">Total Budget:</label>
+                            <input type="number" id="budgetTotalInput" placeholder="0" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                            <button id="setBudgetBtn" style="border:none;background:#295dff;color:white;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;">Set</button>
+                        </div>
+                        <div id="budgetBarContainer" style="display:none;">
+                            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                                <span id="budgetSpentLabel">Spent: ₱0</span>
+                                <span id="budgetRemainingLabel">Remaining: ₱0</span>
+                            </div>
+                            <div style="height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden;">
+                                <div id="budgetBarFill" style="height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#eab308,#ef4444);border-radius:5px;transition:width 0.3s;"></div>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-top:2px;">
+                                <span id="budgetPctLabel">0% spent</span>
+                                <span id="budgetTotalLabel">of ₱0</span>
+                            </div>
+                        </div>
+                        <hr style="border:none;border-top:1px solid #e2e8f0;margin:2px 0;">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <select id="expenseCategoryInput" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;min-width:90px;">
+                                <option value="Materials">Materials</option>
+                                <option value="Labor">Labor</option>
+                                <option value="Equipment">Equipment</option>
+                                <option value="Transport">Transport</option>
+                                <option value="Permits">Permits</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <input type="text" id="expenseDescInput" placeholder="Description" style="flex:2;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;min-width:120px;">
+                            <input type="number" id="expenseAmountInput" placeholder="Amount" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;min-width:80px;">
+                            <button id="addExpenseBtn" style="border:none;background:#295dff;color:white;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;"><i class="fa-solid fa-plus"></i> Add</button>
+                        </div>
+                    </div>
+                    <div id="expenseList" style="display:flex;flex-direction:column;gap:6px;margin-top:12px;max-height:250px;overflow-y:auto;"></div>
+                </div>
+
+                <div class="progress-card" id="activityLogCard">
+                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Activity Log</h3>
+                    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                        <input type="text" id="activityTitleInput" placeholder="Update title (e.g. Hull construction completed)" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                        <textarea id="activityDescInput" placeholder="Description of what was accomplished..." rows="2" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;resize:vertical;"></textarea>
+                        <select id="activityPresetSelect" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;cursor:pointer;">
+                            <option value="">— Use a preset —</option>
+                        </select>
+                        <div style="display:flex;gap:8px;">
+                            <input type="text" id="activityPersonnelInput" placeholder="Personnel name" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;">
+                            <select id="activityRoleInput" style="padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;">
+                                <option value="Administrator">Administrator</option>
+                                <option value="Engineer">Engineer</option>
+                                <option value="Production Staff">Production Staff</option>
+                                <option value="Quality Control">Quality Control</option>
+                            </select>
+                        </div>
+                        <button id="addActivityBtn" style="border:none;background:#295dff;color:white;padding:10px;border-radius:10px;cursor:pointer;font-weight:600;width:100%;"><i class="fa-solid fa-plus"></i> Post Update</button>
+                    </div>
+                    <div id="activityFeed" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
+                </div>
+
+            </div>
+
+            <div class="progress-side">
+
+                <div class="progress-card">
+
+                    <h3>Order Details</h3>
+
+                    <div class="detail-rows">
+
+                        <div><span>Price</span><strong id="detailPrice"></strong></div>
+
+                        <div><span>Build Time</span><strong id="detailBuildTime"></strong></div>
+
+                        <div><span>Payment</span><strong id="detailPayment"></strong></div>
+
+                        <div><span>Remaining</span><strong id="detailRemaining"></strong></div>
+
+                        <div><span>Build Type</span><strong id="detailBuildType"></strong></div>
+
+                    </div>
+
+                </div>
+
+                <div class="progress-card">
+
+                    <h3>Workers</h3>
+
+                    <div id="detailWorkers" class="workers-list"></div>
+
+                </div>
+
+                <div class="progress-card">
+                    <h3>Update Progress</h3>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="number" id="progressInput" min="0" max="100" value="10" style="flex:1;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-size:16px;font-family:'Poppins',sans-serif;outline:none;text-align:center;">
+                        <span style="font-weight:600;color:#475569;">%</span>
+                    </div>
+                    <button class="update-progress-btn" id="updateProgressBtn" style="margin-top:10px;"><i class="fa-solid fa-arrow-up"></i> Update Progress</button>
+                    <div id="progressLockMsg" style="display:none;padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;font-size:13px;color:#991b1b;text-align:center;margin-top:10px;">
+                        <i class="fa-solid fa-users-gear"></i> Assign workers first to unlock progress updates.
+                    </div>
+                </div>
+
+                <div class="progress-card" id="milestonesCard">
+                    <h3><i class="fa-solid fa-flag-checkered"></i> Project Milestones</h3>
+                    <div id="milestonesList" style="display:flex;flex-direction:column;gap:8px;"></div>
+                </div>
+
+                <div class="progress-card" id="documentsSideCard">
+                    <h3><i class="fa-solid fa-file-lines"></i> Documents Summary</h3>
+                    <div id="documentsSideList" style="display:flex;flex-direction:column;gap:4px;"></div>
+                </div>
+
+                <div class="progress-card" id="photosSideCard">
+                    <h3><i class="fa-solid fa-image"></i> Photo Gallery</h3>
+                    <div id="photosSideGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;"></div>
+                </div>
+
+                <div class="progress-card" id="budgetSideCard">
+                    <h3><i class="fa-solid fa-chart-pie"></i> Budget Summary</h3>
+                    <div id="budgetSideContent" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+
+                <div id="cancelInfo" style="display:none;"></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</main>
+
+</div>
+
+<script type="module" src="dashprogress.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+
+</body>
+
+</html>

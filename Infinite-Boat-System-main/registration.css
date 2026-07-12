@@ -1,0 +1,606 @@
+*
+{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins', sans-serif;
+}
+
+html, body
+{
+    width:100%;
+    overflow-x:hidden;
+}
+
+body
+{
+    background:#ececec;
+    padding:30px 15px;
+}
+
+
+.close-btn
+{
+    position:absolute;
+    top:20px;
+    right:20px;
+
+    width:40px;
+    height:40px;
+
+    border:none;
+
+    background:#fff;
+    color:#333;
+
+    font-size:30px;
+
+    border-radius:50%;
+
+    cursor:pointer;
+
+    box-shadow:0 2px 8px rgba(0,0,0,0.2);
+
+    z-index:100;
+}
+
+
+.container
+{
+    width:1120px;
+    max-width:100%;
+
+    min-height:1000px;
+
+    margin:40px auto;
+
+    background:#fff;
+
+    border-radius:30px;
+
+    overflow:hidden;
+
+    display:flex;
+
+    box-shadow:0 15px 40px rgba(0,0,0,0.1);
+}
+
+
+.left-side
+{
+    width:55%;
+
+    padding:55px;
+
+    background:#fff;
+}
+
+.logo img
+{
+    width:90px;
+
+    margin-bottom:35px;
+}
+
+.left-side h1
+{
+    font-size:40px;
+
+    color:#173f78;
+
+    font-weight:720;
+
+    margin-bottom:12px;
+
+    line-height:1.2;
+}
+
+.left-side p
+{
+    color:#666;
+
+    font-size:18px;
+
+    margin-bottom:30px;
+
+    line-height:1.7;
+}
+
+
+
+.social-login
+{
+    display:flex;
+
+    gap:16px;
+
+    margin-bottom:30px;
+
+    flex-wrap:wrap;
+}
+
+.social-login button
+{
+    width:66px;
+    height:66px;
+
+    border:1px solid #ddd;
+
+    border-radius:14px;
+
+    background:#fff;
+
+    font-size:30px;
+
+    cursor:pointer;
+
+    transition:0.3s;
+}
+
+.social-login button:hover
+{
+    background:#284062;
+    color:#fff;
+}
+
+
+.divider
+{
+    text-align:center;
+
+    position:relative;
+
+    margin-bottom:28px;
+
+    color:#777;
+
+    font-size:24px;
+}
+
+.divider::before,
+.divider::after
+{
+    content:'';
+
+    position:absolute;
+
+    top:50%;
+
+    width:32%;
+    height:1px;
+
+    background:#ddd;
+}
+
+.divider::before
+{
+    left:0;
+}
+
+.divider::after
+{
+    right:0;
+}
+
+
+input
+{
+    border:1px solid #ccc;
+
+    transition:0.3s;
+}
+
+input:focus
+{
+    border:1px solid #1f4c8f;
+
+    box-shadow:0 0 5px rgba(31,76,143,0.4);
+
+    outline:none;
+}
+
+form label
+{
+    display:block;
+
+    margin-bottom:10px;
+
+    color:#173f78;
+
+    font-size:26px;
+
+    font-weight:600;
+}
+
+form input
+{
+    width:100%;
+
+    height:58px;
+
+    border:1px solid #ddd;
+
+    border-radius:15px;
+
+    padding:0 18px;
+
+    font-size:22px;
+
+    margin-bottom:18px;
+}
+
+
+.checkbox
+{
+    display:flex;
+
+    align-items:center;
+
+    gap:10px;
+
+    margin:10px 0 25px;
+
+    flex-wrap:wrap;
+}
+
+.checkbox input
+{
+    width:18px;
+    height:18px;
+}
+
+.checkbox span
+{
+    font-size:20px;
+
+    color:#555;
+}
+
+
+.signup-btn
+{
+    width:100%;
+
+    height:62px;
+
+    border:none;
+
+    border-radius:16px;
+
+    background:#295385;
+
+    color:#fff;
+
+    font-size:30px;
+
+    cursor:pointer;
+
+    margin-bottom:22px;
+
+    transition:0.3s;
+}
+
+.signup-btn:hover
+{
+    background:#0450a7;
+}
+
+
+.login-link
+{
+    text-align:center;
+
+    font-size:22px;
+}
+
+.login-link a
+{
+    color:#244dff;
+
+    text-decoration:none;
+}
+
+
+.right-side
+{
+    width:45%;
+
+    background:url("images/mainboat.jpg") center/cover no-repeat;
+
+    position:relative;
+}
+
+
+.overlay
+{
+    width:100%;
+    height:100%;
+
+    background:rgba(27,55,139,0.65);
+
+    color:#fff;
+
+    padding:70px 50px;
+
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+}
+
+.overlay h2
+{
+    font-size:55px;
+
+    line-height:1.25;
+
+    margin-bottom:40px;
+}
+
+.overlay p
+{
+    font-size:26px;
+
+    line-height:1.7;
+}
+
+
+.features
+{
+    display:flex;
+
+    justify-content:space-between;
+
+    text-align:center;
+
+    gap:20px;
+}
+
+.box
+{
+    width:30%;
+}
+
+.box i
+{
+    font-size:38px;
+
+    margin-bottom:12px;
+}
+
+.box span
+{
+    display:block;
+
+    font-size:24px;
+
+    line-height:1.4;
+}
+
+
+
+@media(max-width:1200px)
+{
+    .container
+    {
+        width:100%;
+    }
+
+    .left-side
+    {
+        padding:45px;
+    }
+
+    .overlay
+    {
+        padding:50px 35px;
+    }
+
+    .overlay h2
+    {
+        font-size:42px;
+    }
+
+    .overlay p
+    {
+        font-size:20px;
+    }
+
+    .box span
+    {
+        font-size:18px;
+    }
+}
+
+
+
+@media(max-width:992px)
+{
+    .container
+    {
+        flex-direction:column;
+
+        min-height:auto;
+    }
+
+    .left-side,
+    .right-side
+    {
+        width:100%;
+    }
+
+    .right-side
+    {
+        min-height:500px;
+    }
+
+    .left-side
+    {
+        padding:40px;
+    }
+
+    .left-side h1
+    {
+        font-size:34px;
+    }
+
+    .left-side p
+    {
+        font-size:16px;
+    }
+
+    .overlay h2
+    {
+        font-size:38px;
+    }
+
+    .overlay p
+    {
+        font-size:18px;
+        margin-bottom:40px;
+    }
+
+    .features
+    {
+        justify-content:center;
+
+        flex-wrap:wrap;
+    }
+
+    .box
+    {
+        width:45%;
+    }
+
+    form label
+    {
+        font-size:22px;
+    }
+
+    form input
+    {
+        font-size:18px;
+    }
+}
+
+
+
+@media(max-width:768px)
+{
+    body
+    {
+        padding:15px;
+    }
+
+    .container
+    {
+        border-radius:22px;
+    }
+
+    .left-side
+    {
+        padding:30px 22px;
+    }
+
+    .logo img
+    {
+        width:70px;
+    }
+
+    .left-side h1
+    {
+        font-size:28px;
+    }
+
+    .left-side p
+    {
+        font-size:15px;
+    }
+
+    .social-login
+    {
+        justify-content:center;
+    }
+
+    .social-login button
+    {
+        width:58px;
+        height:58px;
+
+        font-size:24px;
+    }
+
+    .divider
+    {
+        font-size:18px;
+    }
+
+    form label
+    {
+        font-size:18px;
+    }
+
+    form input
+    {
+        height:52px;
+
+        font-size:16px;
+    }
+
+    .checkbox span
+    {
+        font-size:16px;
+    }
+
+    .signup-btn
+    {
+        height:55px;
+
+        font-size:22px;
+    }
+
+    .login-link
+    {
+        font-size:18px;
+    }
+
+    .right-side
+    {
+        min-height:420px;
+    }
+
+    .overlay
+    {
+        padding:40px 25px;
+    }
+
+    .overlay h2
+    {
+        font-size:30px;
+    }
+
+    .overlay p
+    {
+        font-size:15px;
+    }
+
+    .features
+    {
+        gap:25px;
+    }
+
+    .box
+    {
+        width:100%;
+    }
+
+    .box i
+    {
+        font-size:30px;
+    }
+
+    .box span
+    {
+        font-size:16px;
+    }
+
+}

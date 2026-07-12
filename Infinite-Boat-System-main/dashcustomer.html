@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+Customers Dashboard
+</title>
+
+<link rel="stylesheet"
+href="dashcustomer.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+</head>
+
+<body>
+
+
+<div class="dashboard-layout">
+
+
+
+<aside class="sidebar">
+
+    <div>
+
+        <h1 class="logo">
+
+            BoatShop
+
+        </h1>
+
+         <nav class="sidebar-menu">
+
+    <a href="dashboard.html" >
+
+
+
+        Dashboard
+
+    </a>
+
+    <a href="dashorder.html">
+   
+
+
+        Orders
+
+    </a>
+
+    <a href="dashcustomer.html">
+
+   
+
+        Customers
+
+    </a>
+
+     
+     <a href="dashsales.html">
+
+        
+
+      Sales
+
+    </a>
+
+    <a href="dashpayment.html">
+
+        
+
+        Payments
+
+    </a>
+
+    <a href="dashinventory.html" >
+
+
+
+        Inventory
+
+    </a>
+
+    <a href="dashanalytics.html" >
+
+    
+
+        Analytics
+
+    </a>
+
+
+    <a href="dashprogress.html">
+
+        Boat Progress
+
+    </a>
+
+    <a href="dashapproval.html">
+
+        Approvals
+
+    </a>
+
+</nav>
+
+
+    </div>
+
+
+<button class="logout-btn" onclick="handleLogout();">
+
+        Logout
+
+</button>
+
+</aside>
+
+
+<main class="main-content">
+
+    <div class="topbar">
+
+        <div>
+
+            <h1>
+
+                Customers
+
+            </h1>
+
+            <p>
+
+                Manage customer accounts,
+                orders, and verification.
+
+            </p>
+
+        </div>
+
+    </div>
+
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+
+            <h3>
+
+                Total Customers
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+        </div>
+
+        <div class="stat-card">
+
+            <h3>
+
+                Verified Accounts
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+        </div>
+
+        <div class="stat-card">
+
+            <h3>
+
+                Pending Verification
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+        </div>
+
+    </div>
+
+    <div class="table-card">
+
+        <div class="table-header">
+
+            <h2>
+
+                Customer List
+
+            </h2>
+
+            <input type="text"
+            placeholder="Search customer..."
+            id="searchInput">
+
+        </div>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+
+                            Customer
+
+                        </th>
+
+                        <th>
+
+                            Phone
+
+                        </th>
+
+                        <th>
+
+                            Boat Ordered
+
+                        </th>
+
+                        <th>
+
+                            Status
+
+                        </th>
+
+                        <th>
+
+                            Action
+
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="customerTable">
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</main>
+
+<div class="view-modal" id="customerModal">
+    <div class="modal-content">
+        <button class="close-modal" onclick="document.getElementById('customerModal').classList.remove('show')">×</button>
+        <h2>Customer Details</h2>
+        <div class="modal-body" id="customerModalBody"></div>
+    </div>
+</div>
+
+<script>
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+function viewCustomerModal(name, email, phone, boat) {
+    document.getElementById('customerModalBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><strong>Full Name</strong><p>${escapeHtml(name)}</p></div>
+        <div><strong>Email</strong><p>${escapeHtml(email)}</p></div>
+        <div><strong>Phone</strong><p>${escapeHtml(phone)}</p></div>
+        <div><strong>Boat Ordered</strong><p>${escapeHtml(boat)}</p></div>
+    </div>`;
+    document.getElementById('customerModal').classList.add('show');
+}
+</script>
+<script type="module" src="dashcustomer.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+
+</body>
+
+</html>

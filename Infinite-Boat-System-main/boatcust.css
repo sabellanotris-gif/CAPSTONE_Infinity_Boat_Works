@@ -1,0 +1,894 @@
+
+/* =========================================================
+   RESET
+========================================================= */
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html,
+body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    font-family:'Poppins',sans-serif;
+    background:#eef2f7;
+}
+
+/* =========================================================
+   APP LAYOUT
+========================================================= */
+
+.app-container{
+
+    width:100%;
+    height:100vh;
+
+    display:grid;
+
+    grid-template-columns:
+    320px
+    1fr
+    340px;
+
+    gap:18px;
+
+    padding:14px;
+}
+
+/* =========================================================
+   SIDEBARS
+========================================================= */
+
+.sidebar{
+
+    background:white;
+
+    border-radius:26px;
+
+    padding:24px;
+
+    overflow-y:auto;
+
+    box-shadow:
+    0 10px 30px rgba(0,0,0,0.06);
+}
+
+/* =========================================================
+   LEFT PANEL
+========================================================= */
+
+.left-sidebar h1{
+
+    font-size:34px;
+
+    font-weight:800;
+
+    line-height:1.1;
+
+    margin-bottom:30px;
+}
+
+/* =========================================================
+   BOAT PREVIEW
+========================================================= */
+
+.boat-preview-card{
+
+    background:#f8fafc;
+
+    border-radius:20px;
+
+    padding:16px;
+
+    margin-bottom:28px;
+
+    border:2px solid #dbeafe;
+}
+
+.boat-preview-card h3{
+
+    font-size:15px;
+
+    margin-bottom:16px;
+
+    font-weight:700;
+}
+
+.boat-preview-card img{
+
+    width:100%;
+
+    height:220px;
+
+    object-fit:contain;
+
+    border-radius:16px;
+
+    background:#e5e7eb;
+}
+
+.boat-preview-card p{
+
+    margin-top:12px;
+
+    font-weight:600;
+}
+
+/* =========================================================
+   CONTROLS
+========================================================= */
+
+.control-group{
+
+    margin-bottom:16px;
+}
+
+.control-group label{
+
+    display:block;
+
+    margin-bottom:10px;
+
+    font-size:14px;
+
+    font-weight:700;
+}
+
+.range-box{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:12px;
+}
+
+.range-box input{
+
+    flex:1;
+
+    accent-color:#2563eb;
+}
+
+.range-box span{
+
+    min-width:70px;
+
+    text-align:center;
+
+    padding:8px 12px;
+
+    border-radius:10px;
+
+    background:#f3f4f6;
+
+    font-size:14px;
+
+    font-weight:600;
+}
+
+select{
+
+    width:100%;
+
+    height:44px;
+
+    border:none;
+
+    border-radius:12px;
+
+    background:#f3f4f6;
+
+    padding:0 14px;
+
+    font-size:13px;
+
+    font-weight:500;
+
+    outline:none;
+}
+
+/* =========================================================
+   COLORS
+========================================================= */
+
+.color-picker{
+
+    margin-top:16px;
+}
+
+.color-picker label{
+
+    display:block;
+
+    margin-bottom:10px;
+
+    font-weight:700;
+
+    font-size:13px;
+}
+
+.colors{
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    gap:8px;
+}
+
+.color{
+
+    width:36px;
+
+    height:36px;
+
+    border-radius:10px;
+
+    cursor:pointer;
+
+    transition:0.25s;
+
+    border:3px solid transparent;
+}
+
+.color:hover{
+
+    transform:scale(1.1);
+
+    box-shadow:0 2px 8px rgba(0,0,0,0.2);
+}
+
+.color.active{
+
+    transform:scale(1.08);
+
+    border-color:#2563eb;
+}
+
+.color.default{
+    position:relative;
+}
+
+.color.default::after{
+    content:'DEF';
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-size:9px;
+    font-weight:800;
+    color:#fff;
+    letter-spacing:1px;
+    pointer-events:none;
+}
+
+.white{
+    background:#ffffff;
+}
+
+.blue{
+    background:#2563eb;
+}
+
+.dark{
+    background:#111827;
+}
+
+.red{
+    background:#b91c1c;
+}
+
+.green{
+    background:#dcfce7;
+    color:#166534;
+    padding:2px 10px;
+    border-radius:6px;
+    font-weight:600;
+}
+
+/* =========================================================
+   RESET BUTTON
+========================================================= */
+
+.reset-btn{
+
+    width:100%;
+
+    height:56px;
+
+    margin-top:28px;
+
+    border:none;
+
+    border-radius:18px;
+
+    background:#2563eb;
+
+    color:white;
+
+    font-size:16px;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:0.3s;
+}
+
+.reset-btn:hover{
+
+    transform:translateY(-2px);
+}
+
+/* =========================================================
+   CENTER AREA
+========================================================= */
+
+.viewer-section{
+
+    height:100%;
+
+    display:flex;
+
+    flex-direction:column;
+
+    overflow:hidden;
+}
+
+/* =========================================================
+   TOP TOOLBAR
+========================================================= */
+
+.top-toolbar{
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:14px;
+
+    margin-bottom:14px;
+}
+
+.top-toolbar button{
+
+    border:none;
+
+    background:white;
+
+    padding:14px 24px;
+
+    border-radius:18px;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:0.25s;
+
+    box-shadow:
+    0 5px 20px rgba(0,0,0,0.05);
+}
+
+.top-toolbar button:hover{
+
+    transform:translateY(-2px);
+
+    background:#2563eb;
+
+    color:white;
+}
+
+/* =========================================================
+   MAIN 3D VIEWER
+========================================================= */
+
+.viewer-wrapper{
+
+    flex:1;
+
+    width:100%;
+
+    min-height:850px;
+
+    background:white;
+
+    border-radius:32px;
+
+    position:relative;
+
+    overflow:hidden;
+
+    box-shadow:
+    0 12px 35px rgba(0,0,0,0.08);
+}
+
+/* =========================================================
+   THREE.JS CANVAS
+========================================================= */
+
+#boatCanvas{
+
+    width:100% !important;
+
+    height:100% !important;
+
+    display:block;
+}
+
+/* =========================================================
+   VIEW BUTTONS
+========================================================= */
+
+.view-buttons{
+
+    display:flex;
+
+    justify-content:center;
+
+    flex-wrap:wrap;
+
+    gap:10px;
+
+    margin-top:16px;
+}
+
+.view-buttons button{
+
+    border:none;
+
+    background:white;
+
+    padding:12px 18px;
+
+    border-radius:14px;
+
+    cursor:pointer;
+
+    font-weight:600;
+
+    font-size:13px;
+
+    transition:0.25s;
+}
+
+.view-buttons .active{
+
+    background:#2563eb;
+
+    color:white;
+}
+
+/* =========================================================
+   REMOVE EXTRA PREVIEW SPACE
+========================================================= */
+
+.led-preview-section{
+    display:none;
+}
+
+.preview-grid{
+    display:none;
+}
+
+.preview-card{
+    display:none;
+}
+
+/* =========================================================
+   BOTTOM INFO CARDS
+========================================================= */
+
+.bottom-cards{
+
+    display:grid;
+
+    grid-template-columns:
+    repeat(3,1fr);
+
+    gap:16px;
+
+    margin-top:18px;
+}
+
+.info-card{
+
+    background:white;
+
+    border-radius:22px;
+
+    padding:24px;
+
+    min-height:150px;
+
+    box-shadow:
+    0 5px 20px rgba(0,0,0,0.05);
+}
+
+.info-card h3{
+
+    margin-bottom:12px;
+
+    font-size:18px;
+}
+
+.info-card p{
+
+    color:#475569;
+
+    line-height:1.6;
+}
+
+/* =========================================================
+   RIGHT PANEL
+========================================================= */
+
+.right-sidebar h2{
+
+    font-size:22px;
+
+    font-weight:800;
+
+    margin-bottom:22px;
+}
+
+/* =========================================================
+   SAFETY CARD
+========================================================= */
+
+.safety-card{
+
+    background:white;
+
+    border-radius:24px;
+
+    padding:22px;
+
+    margin-bottom:20px;
+
+    box-shadow:
+    0 5px 20px rgba(0,0,0,0.05);
+}
+
+.safety-card h3{
+
+    margin-bottom:12px;
+}
+
+.safety-card p{
+
+    line-height:1.7;
+
+    margin-bottom:22px;
+}
+
+/* =========================================================
+   SCORE
+========================================================= */
+
+.score-circle{
+
+    width:160px;
+
+    height:160px;
+
+    border-radius:50%;
+
+    border:10px solid #22c55e;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    margin:auto;
+
+    font-size:42px;
+
+    font-weight:800;
+
+    color:#111827;
+}
+
+/* =========================================================
+   SUMMARY CARDS
+========================================================= */
+
+.summary-card{
+
+    background:white;
+
+    border-radius:24px;
+
+    padding:22px;
+
+    margin-bottom:20px;
+
+    box-shadow:
+    0 5px 20px rgba(0,0,0,0.05);
+}
+
+.summary-card h3{
+
+    margin-bottom:18px;
+}
+
+.summary-row{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    margin-bottom:14px;
+
+    font-size:15px;
+}
+
+
+
+/* =========================================================
+   PRICE
+========================================================= */
+
+.total-price{
+
+    font-size:46px;
+
+    font-weight:800;
+
+    color:#2563eb;
+
+    margin:26px 0;
+}
+
+/* =========================================================
+   QUOTE BUTTON
+========================================================= */
+
+.quote-btn{
+
+    width:100%;
+
+    height:58px;
+
+    border:none;
+
+    border-radius:18px;
+
+    background:#2563eb;
+
+    color:white;
+
+    font-size:17px;
+
+    font-weight:700;
+
+    cursor:pointer;
+
+    transition:0.25s;
+}
+
+.quote-btn:hover{
+
+    transform:translateY(-2px);
+}
+
+.submit-review-btn
+{
+    width:100%;
+    height:58px;
+    border:none;
+    border-radius:18px;
+    background:linear-gradient(90deg,#7c3aed,#6d28d9);
+    color:white;
+    font-size:17px;
+    font-weight:700;
+    cursor:pointer;
+    transition:0.25s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin-top:12px;
+}
+
+.submit-review-btn:hover
+{
+    transform:translateY(-2px);
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar{
+
+    width:8px;
+
+    height:8px;
+}
+
+::-webkit-scrollbar-thumb{
+
+    background:#cbd5e1;
+
+    border-radius:20px;
+}
+
+::-webkit-scrollbar-track{
+
+    background:transparent;
+}
+
+/* =========================================================
+   TIMELINE SIDEBAR
+========================================================= */
+
+.timeline-sidebar
+{
+    margin-top:20px;
+    background:#f8fafc;
+    border-radius:16px;
+    border:1px solid #e2e8f0;
+    overflow:hidden;
+}
+
+.timeline-sidebar-header
+{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px;
+    cursor:pointer;
+    user-select:none;
+    transition:0.2s;
+}
+
+.timeline-sidebar-header:hover
+{
+    background:#eef2f7;
+}
+
+.timeline-sidebar-header h3
+{
+    font-size:14px;
+    font-weight:700;
+    color:#1f3760;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:0;
+}
+
+.timeline-toggle-icon
+{
+    font-size:12px;
+    color:#64748b;
+    transition:transform 0.3s;
+}
+
+.timeline-sidebar-body
+{
+    padding:0 16px 16px;
+}
+
+.timeline-sidebar-body .timeline-duration
+{
+    font-size:13px;
+    color:#475569;
+    margin-bottom:12px;
+}
+
+.timeline-sidebar-body .timeline-duration strong
+{
+    color:#1f3760;
+}
+
+.timeline-sidebar-body .timeline-phases
+{
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    position:relative;
+    padding-left:4px;
+}
+
+.timeline-sidebar-body .timeline-phases::before
+{
+    content:'';
+    position:absolute;
+    left:9px;
+    top:6px;
+    bottom:6px;
+    width:2px;
+    background:linear-gradient(to bottom,#295aa8,#1f3760);
+    border-radius:2px;
+}
+
+.timeline-sidebar-body .timeline-step
+{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:6px 10px;
+    background:white;
+    border-radius:8px;
+    border:1px solid #e2e8f0;
+    transition:0.2s;
+    position:relative;
+}
+
+.timeline-sidebar-body .timeline-step:hover
+{
+    border-color:#295aa8;
+}
+
+.timeline-sidebar-body .timeline-dot
+{
+    width:20px;
+    height:20px;
+    min-width:20px;
+    border-radius:50%;
+    background:linear-gradient(135deg,#295aa8,#1f3760);
+    border:2px solid white;
+    box-shadow:0 0 0 2px #295aa8;
+    margin-top:1px;
+}
+
+.timeline-sidebar-body .timeline-content
+{
+    display:flex;
+    flex-direction:column;
+    gap:1px;
+}
+
+.timeline-sidebar-body .timeline-phase-name
+{
+    font-size:12px;
+    font-weight:600;
+    color:#1e293b;
+}
+
+.timeline-sidebar-body .timeline-phase-dur
+{
+    font-size:11px;
+    color:#64748b;
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media(max-width:1400px){
+
+    .app-container{
+
+        grid-template-columns:
+        280px
+        1fr
+        300px;
+    }
+}
+
+@media(max-width:1200px){
+
+    .app-container{
+
+        grid-template-columns:1fr;
+    }
+
+    .sidebar{
+        display:none;
+    }
+
+    .bottom-cards{
+
+        grid-template-columns:1fr;
+    }
+}

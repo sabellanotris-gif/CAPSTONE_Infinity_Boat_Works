@@ -1,0 +1,1644 @@
+import { supabase, supabaseUrl, handleDbError, API_BASE } from "./supabase.js";
+import { BOAT_MILESTONES, BOAT_TIMELINE } from "./boatData.js";
+
+window.handleLogout = async function () {
+  await supabase.auth.signOut();
+  localStorage.clear();
+  window.location.href = "index.html";
+};
+
+const STORAGE_BUCKET = "boat-files";
+
+const WORKER_REGISTRY = [
+  { name: "Juan dela Cruz", specialty: "Builder" },
+  { name: "Carlos Dimagiba", specialty: "Builder" },
+  { name: "Ramon Salazar", specialty: "Welder" },
+  { name: "Francisco Lopez", specialty: "Welder" },
+  { name: "Engr. Maria Santos", specialty: "Engineer" },
+  { name: "Engr. Robert Lim", specialty: "Engineer" },
+  { name: "Pedro Reyes", specialty: "Electrician" },
+  { name: "Jose Mercado", specialty: "Electrician" },
+  { name: "Antonio Bautista", specialty: "Painter" },
+  { name: "Miguel Torres", specialty: "Fiberglass Specialist" },
+  { name: "Ricardo Navarro", specialty: "Fiberglass Specialist" },
+  { name: "Jorge Villanueva", specialty: "Painter" },
+];
+
+async function ensureWorkerRegistry() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch(API_BASE + "/workers/seed", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {})
+      },
+      body: JSON.stringify({ workers: [] })
+    });
+    const result = await res.json();
+    if (result.seeded) {
+      console.log("[WORKERS] Seeded " + result.count + " workers");
+    } else if (result.reason === "already seeded") {
+      // already seeded
+    } else {
+      console.error("[WORKERS] Seed failed:", result.error || result);
+    }
+  } catch (err) {
+    console.error("[WORKERS] Seed error:", err);
+  }
+}
+
+async function fetchMasterWorkers() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch(API_BASE + "/workers/master", {
+      headers: token ? { Authorization: "Bearer " + token } : {}
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to load worker list:", e);
+    return [];
+  }
+}
+
+async function addWorkerToRegistry(name, specialty) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch(API_BASE + "/workers/master", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {})
+      },
+      body: JSON.stringify({ name, specialty })
+    });
+    if (!res.ok) { showToast("Failed to add worker", "error"); return false; }
+    showToast("Worker added to registry.", "success");
+    return true;
+  } catch (e) {
+    showToast("Failed to add worker", "error");
+    return false;
+  }
+}
+
+async function removeWorkerFromRegistry(workerId) {
+  if (!confirm("Remove this worker from registry?")) return false;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch(API_BASE + "/workers/master/" + workerId, {
+      method: "DELETE",
+      headers: token ? { Authorization: "Bearer " + token } : {}
+    });
+    if (!res.ok) { showToast("Failed to remove worker", "error"); return false; }
+    showToast("Worker removed from registry.", "success");
+    return true;
+  } catch (e) {
+    showToast("Failed to remove worker", "error");
+    return false;
+  }
+}
+
+let orders = [];
+const select = document.getElementById("orderSelect");
+
+function getBoatMilestones(boatName) {
+  if (boatName && BOAT_MILESTONES[boatName]) return BOAT_MILESTONES[boatName];
+  const match = Object.keys(BOAT_MILESTONES).find(k => boatName && boatName.toLowerCase().includes(k.toLowerCase().split(" ")[0]));
+  return match ? BOAT_MILESTONES[match] : BOAT_MILESTONES["Passenger Boat"];
+}
+
+function getBuildStage(progress, status, order) {
+    if (status === "Rejected") return "Order Rejected";
+    if (status === "Under Review") return "Under Engineering Review";
+    if (status === "Revision Required") return "Revision Requested";
+    if (status === "Pending Signing") return "Awaiting Contract Signing";
+    if (status === "Cancellation Requested") return "Cancellation Requested";
+    if (status === "Cancelled") return "Cancelled";
+    if (status === "Pending" || progress === 0) {
+        if (order && order.paymentMethod === "Full Payment") return "Waiting For Full Payment";
+        return "Waiting For Downpayment";
+    }
+    if (progress >= 100) return "Boat Completed - Ready for Delivery";
+    if (progress >= 70) return "Painting & Finishing";
+    if (progress >= 45) return "Interior Installation";
+    if (progress >= 25) return "Engine Assembly";
+    return "Hull Construction";
+}
+
+function getStatusClass(status) {
+    if (status === "Approved" || status === "Completed") return "approved";
+    if (status === "Rejected" || status === "Cancelled") return "rejected";
+    return "pending";
+}
+
+async function getDBWorkers(orderId) {
+    if (!orderId) return [];
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers/" + orderId, {
+            headers: token ? { Authorization: "Bearer " + token } : {}
+        });
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (e) {
+        console.error("Failed to load workers:", e);
+        return [];
+    }
+}
+
+async function addDBWorker(orderId, name, role, type) {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers", {
+          method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            },
+            body: JSON.stringify({ orderId, name, role, status: "Active" })
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        console.error("Failed to add worker:", e);
+        return null;
+    }
+}
+
+async function removeDBWorker(workerId) {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        await fetch(API_BASE + "/workers/" + workerId, {
+            method: "DELETE",
+            headers: token ? { Authorization: "Bearer " + token } : {}
+        });
+    } catch (e) {
+        console.error("Failed to remove worker:", e);
+    }
+}
+
+async function renderRegistryList() {
+  const container = document.getElementById("registryList");
+  if (!container) return;
+  const workers = await loadWorkerList();
+  if (workers.length === 0) {
+    container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">No workers in registry.</span>';
+    return;
+  }
+  container.innerHTML = workers.map(w =>
+    '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:#f1f5f9;border-radius:6px;font-size:11px;">' +
+    w.name + ' — <strong>' + w.specialty + '</strong>' +
+    ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;font-size:12px;" onclick="window.deleteRegistryWorker(\'' + w.id + '\')"></i></span>'
+  ).join("");
+}
+
+window.deleteRegistryWorker = async function(id) {
+  const ok = await removeWorkerFromRegistry(id);
+  if (ok) await renderRegistryList();
+};
+
+document.getElementById("addRegistryBtn")?.addEventListener("click", async () => {
+  const nameInput = document.getElementById("registryNameInput");
+  const specInput = document.getElementById("registrySpecialtyInput");
+  const name = nameInput.value.trim();
+  const specialty = specInput.value.trim() || "Builder";
+  if (!name) { showToast("Please enter a worker name.", "warning"); return; }
+  const ok = await addWorkerToRegistry(name, specialty);
+  if (ok) {
+    nameInput.value = "";
+    specInput.value = "";
+    await renderRegistryList();
+    await populateWorkerSelect();
+  }
+});
+
+function getOrderMilestones(order) {
+  if (order.milestones && order.milestones.length > 0) {
+    return order.milestones;
+  }
+  const presets = getBoatMilestones(order.boatName);
+  const ms = presets.map((p, i) => ({
+    label: p.label,
+    percentage: p.percentage,
+    key: p.key,
+    completed: order.progress >= p.percentage,
+    completedDate: order.progress >= p.percentage ? (order.projectCompletedDate || new Date().toISOString()) : null,
+    history: []
+  }));
+  order.milestones = ms;
+  return ms;
+}
+
+function getOrderActivityLog(order) {
+  return order.activityLog || [];
+}
+
+async function saveOrderMilestones(order, milestones) {
+  order.milestones = milestones;
+  await handleDbError(
+    supabase.from("boat_orders").update({ milestones }).eq("orderId", order.orderId),
+    "Save milestones"
+  );
+}
+
+async function saveOrderActivityLog(order, log) {
+  order.activityLog = log;
+  await handleDbError(
+    supabase.from("boat_orders").update({ activityLog: log }).eq("orderId", order.orderId),
+    "Save activity log"
+  );
+}
+
+function renderMilestones(order, readonly = false) {
+  const container = document.getElementById("milestonesList");
+  if (!container) return;
+  const milestones = getOrderMilestones(order);
+  if (!order || order.status !== "Approved") {
+    container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">Milestones available once order is Approved.</span>';
+    return;
+  }
+  if (readonly) {
+    container.innerHTML = `
+      <div style="padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;font-size:13px;color:#991b1b;text-align:center;">
+        <i class="fa-solid fa-users-gear"></i> Assign workers first to unlock milestone tracking.
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = milestones.map((m, i) => {
+    const completed = m.completed;
+    return `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:${completed ? '#f0fdf4' : '#f8fafc'};border:1px solid ${completed ? '#bbf7d0' : '#e2e8f0'};cursor:pointer;" onclick="toggleMilestone(${i})">
+      <div style="width:22px;height:22px;border-radius:50%;background:${completed ? '#22c55e' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:12px;flex-shrink:0;">
+        ${completed ? '<i class="fa-solid fa-check"></i>' : ''}
+      </div>
+      <div style="flex:1;">
+        <strong style="font-size:13px;color:${completed ? '#16a34a' : '#334155'};display:block;">${m.label}</strong>
+        <span style="font-size:11px;color:#64748b;">${m.percentage}% — ${completed ? (m.completedDate ? new Date(m.completedDate).toLocaleDateString() : 'Completed') : 'Pending'}</span>
+      </div>
+      ${m.history && m.history.length > 0 ? `<span style="font-size:11px;color:#2563eb;"><i class="fa-solid fa-clock-rotate-left"></i> ${m.history.length}</span>` : ''}
+    </div>`;
+  }).join("");
+}
+
+async function toggleMilestone(index) {
+  const order = getSelectedOrder();
+  if (!order || order.status !== "Approved") return;
+  const ww = await getDBWorkers(order.orderId);
+  if (ww.length === 0) {
+    showToast("Assign workers first before updating milestones.", "warning");
+    return;
+  }
+  const milestones = getOrderMilestones(order);
+  const m = milestones[index];
+  m.completed = !m.completed;
+  if (m.completed) {
+    m.completedDate = new Date().toISOString();
+    order.progress = m.percentage;
+    if (m.percentage === 100) {
+      order.status = "Completed";
+      order.orderPhase = "Completed";
+      order.projectCompletedDate = new Date().toISOString();
+    } else if (m.percentage >= 70) {
+      order.orderPhase = "Painting & Finishing";
+    } else if (m.percentage >= 45) {
+      order.orderPhase = "Interior Installation";
+    } else if (m.percentage >= 25) {
+      order.orderPhase = "Engine Assembly";
+    } else {
+      order.orderPhase = m.label;
+    }
+    addAutoActivityLog(order, m);
+  } else {
+    // Deselect all milestones with >= this one's percentage
+    milestones.forEach((ms, i) => {
+      if (i >= index) {
+        ms.completed = false;
+        ms.completedDate = null;
+      }
+    });
+    const firstRemaining = milestones.find(ms => !ms.completed);
+    order.progress = firstRemaining ? Math.max(0, firstRemaining.percentage - 1) : 0;
+    order.status = "Approved";
+    order.orderPhase = "Approved";
+  }
+  order.milestones = milestones;
+  const result = await handleDbError(
+    supabase.from("boat_orders").update({
+      status: order.status, progress: order.progress, orderPhase: order.orderPhase,
+      milestones, projectCompletedDate: order.projectCompletedDate || null
+    }).eq("orderId", order.orderId),
+    "Toggle milestone"
+  );
+  if (result?.error) return;
+  await renderDetail(order);
+  renderActivityLog(order);
+  updateProgressInput(order);
+}
+
+const BOAT_ACTIVITY_PRESETS = {
+  "Passenger Boat": {
+    "Design": [
+      "Initial hull and cabin layout design completed",
+      "Passenger capacity and seating arrangement finalized",
+      "Aesthetic and color scheme approved by customer"
+    ],
+    "Engineering": [
+      "Structural analysis of hull and cabin completed",
+      "MARINA compliance check passed",
+      "Electrical system and plumbing schematics approved"
+    ],
+    "Marina": [
+      "MARINA passenger vessel application submitted",
+      "Safety equipment checklist filed with MARINA",
+      "Certificate of Public Convenience documentation prepared"
+    ],
+    "Construction": [
+      "Fiberglass hull lay-up completed",
+      "Cabin framing and roofing installed",
+      "Engine bed alignment and mounting completed"
+    ],
+    "Outfitting": [
+      "Interior seating and flooring installation completed",
+      "HVAC and electrical system wiring completed",
+      "Plumbing and sanitation fixtures installed"
+    ],
+    "Sea Trial": [
+      "Stability and maneuverability test conducted",
+      "Engine performance and fuel consumption tested",
+      "Passenger safety systems verified"
+    ],
+    "Delivery": [
+      "Final inspection and touch-up completed",
+      "Owner orientation and handover completed",
+      "Delivery documentation signed"
+    ]
+  },
+  "Patrol Boat": {
+    "Design": [
+      "Patrol vessel hull design and layout approved",
+      "Weapon mount and equipment placement finalized",
+      "Crew accommodation layout completed"
+    ],
+    "Engineering": [
+      "Reinforced hull stress analysis completed",
+      "Navigation and communication systems designed",
+      "Engine and propulsion system specified"
+    ],
+    "Marina": [
+      "MARINA patrol vessel registration filed",
+      "Coast guard compliance documents submitted",
+      "Armed vessel endorsement application completed"
+    ],
+    "Construction": [
+      "Heavy-duty fiberglass hull lay-up completed",
+      "Cockpit and helm station framed",
+      "Engine room and fuel tank installation completed"
+    ],
+    "Systems": [
+      "Radar, GPS and comms integration completed",
+      "Weapon mount and safety systems installed",
+      "Night navigation lighting installed"
+    ],
+    "Sea Trial": [
+      "High-speed maneuverability test completed",
+      "Weapon system safety check conducted",
+      "Communication and radar range verified"
+    ],
+    "Delivery": [
+      "Final inspection and systems check completed",
+      "Crew training on patrol operations conducted",
+      "Delivery acceptance signed"
+    ]
+  },
+  "Speed Boat": {
+    "Design": [
+      "Sleek hull design and deck layout finalized",
+      "Engine and propulsion configuration approved",
+      "Upholstery and color scheme selected"
+    ],
+    "Engineering": [
+      "High-speed hull stress analysis completed",
+      "Engine cooling and exhaust system designed",
+      "Electrical and instrumentation layout finalized"
+    ],
+    "Marina": [
+      "MARINA speed craft registration submitted",
+      "Safety gear compliance checklist completed",
+      "Registration documents processed"
+    ],
+    "Construction": [
+      "Fiberglass hull and deck lay-up completed",
+      "Engine stringers and transom reinforcement completed",
+      "Gel coat finish applied"
+    ],
+    "Outfitting": [
+      "Engine and sterndrive installation completed",
+      "Electrical panel and dashboard wiring completed",
+      "Interior upholstery and carpeting installed"
+    ],
+    "Sea Trial": [
+      "Top speed and acceleration test conducted",
+      "Handling and turning radius verified",
+      "Trim and balance adjustment completed"
+    ],
+    "Delivery": [
+      "Final detail and polish completed",
+      "Owner orientation and safety briefing completed",
+      "Warranty documents handed over"
+    ]
+  },
+  "Parasail Boat": {
+    "Design": [
+      "Parasail vessel hull design approved",
+      "Winch and tow pylon placement finalized",
+      "Passenger seating and boarding layout completed"
+    ],
+    "Engineering": [
+      "Winch system load and stress analysis completed",
+      "Tow pylon reinforcement design approved",
+      "Hydraulic and electrical winch schematics finalized"
+    ],
+    "Marina": [
+      "MARINA commercial tow vessel registration filed",
+      "Parasail operations permit application submitted",
+      "Safety equipment and harness inspection completed"
+    ],
+    "Construction": [
+      "Hull lay-up and deck molding completed",
+      "Engine and jet drive installation completed",
+      "Tow pylon base reinforcement completed"
+    ],
+    "Winch": [
+      "Winch drum and hydraulic motor installed",
+      "Tow line and swivel assembly rigged",
+      "Roller and guide system installed"
+    ],
+    "Sea Trial": [
+      "Winch load test under tow conducted",
+      "Parasail deployment and recovery tested",
+      "Stability under tow verified"
+    ],
+    "Delivery": [
+      "Final safety inspection completed",
+      "Crew training on parasail operations conducted",
+      "Commercial operations documentation signed"
+    ]
+  }
+};
+
+function getActivityPresets(boatName) {
+  if (boatName && BOAT_ACTIVITY_PRESETS[boatName]) return BOAT_ACTIVITY_PRESETS[boatName];
+  const match = Object.keys(BOAT_ACTIVITY_PRESETS).find(k => boatName && boatName.toLowerCase().includes(k.toLowerCase().split(" ")[0]));
+  return match ? BOAT_ACTIVITY_PRESETS[match] : BOAT_ACTIVITY_PRESETS["Passenger Boat"];
+}
+
+function getAutoDescription(milestoneKey, boatName) {
+  const presets = getActivityPresets(boatName);
+  const phaseMap = {
+    "design": "Design",
+    "engineering": "Engineering",
+    "marina": "Marina",
+    "construction": "Construction",
+    "outfitting": "Outfitting",
+    "systems": "Systems",
+    "winch": "Winch",
+    "seatrial": "Sea Trial",
+    "delivery": "Delivery"
+  };
+  const phase = phaseMap[milestoneKey];
+  if (phase && presets[phase] && presets[phase].length > 0) {
+    return presets[phase][0];
+  }
+  return "Milestone achieved: " + milestoneKey;
+}
+
+function addAutoActivityLog(order, milestone) {
+  const log = getOrderActivityLog(order);
+  const entry = {
+    title: milestone.label,
+    description: getAutoDescription(milestone.key, order.boatName),
+    date: new Date().toISOString(),
+    personnel: "System",
+    role: "Automated"
+  };
+  log.push(entry);
+  saveOrderActivityLog(order, log);
+}
+
+function renderActivityLog(order) {
+  const container = document.getElementById("activityFeed");
+  if (!container) return;
+  const log = getOrderActivityLog(order);
+  if (!log || log.length === 0) {
+    container.innerHTML = '<span style="color:#94a3b8;font-size:13px;text-align:center;padding:16px;">No activity entries yet. Post updates above.</span>';
+    return;
+  }
+  container.innerHTML = log.slice().reverse().map(e =>
+    `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <strong style="font-size:13px;color:#0f172a;">${e.title}</strong>
+        <span style="font-size:11px;color:#94a3b8;white-space:nowrap;">${new Date(e.date).toLocaleString()}</span>
+      </div>
+      <p style="font-size:12px;color:#475569;margin-bottom:4px;">${e.description || ''}</p>
+      <span style="font-size:11px;color:#64748b;">${e.personnel || 'System'} — ${e.role || ''}</span>
+    </div>`
+  ).join("");
+}
+
+function updateProgressInput(order) {
+  const updateBtn = document.getElementById("updateProgressBtn");
+  const progressInput = document.getElementById("progressInput");
+  if (order && order.status === "Approved" && (order.progress || 0) < 100) {
+    updateBtn.style.display = "block";
+    progressInput.style.display = "";
+    updateBtn.disabled = false;
+  } else {
+    updateBtn.style.display = "none";
+    progressInput.style.display = "none";
+  }
+}
+
+function populateSelect() {
+    const active = orders.filter(o => o.status !== "Completed" && o.status !== "Cancelled" && o.status !== "Rejected");
+    active.forEach(o => {
+        const opt = document.createElement("option");
+        opt.value = orders.indexOf(o);
+        opt.textContent = o.boatName + " — " + (o.customerName || "Unknown") + " (" + o.status + ")";
+        select.appendChild(opt);
+    });
+    if (active.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No active orders";
+        opt.disabled = true;
+        select.appendChild(opt);
+    }
+}
+
+async function renderWorkers(orderId) {
+    const container = document.getElementById("storedWorkersList");
+    if (!container) return;
+    const workers = await getDBWorkers(orderId);
+    if (workers.length === 0) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned.</span>';
+        return;
+    }
+    container.innerHTML = workers.map(w =>
+        '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '">' +
+        '<i class="fa-solid fa-user"></i>' +
+        w.name + ' — <strong>' + w.role + '</strong>' +
+        ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i></span>'
+    ).join('');
+}
+
+async function removeWorker(workerId) {
+    await removeDBWorker(workerId);
+    const order = getSelectedOrder();
+    if (order) {
+        await renderWorkers(order.orderId);
+        await renderDetail(order);
+    }
+}
+
+async function populateWorkerSelect() {
+  const sel = document.getElementById("workerNameInput");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select a worker —</option>';
+  const workers = await loadWorkerList();
+  workers.forEach(w => {
+    const opt = document.createElement("option");
+    opt.value = w.name;
+    opt.textContent = w.name + ' — ' + w.specialty;
+    opt.dataset.specialty = w.specialty;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById("workerNameInput")?.addEventListener("change", function() {
+  const sel = document.getElementById("workerRoleInput");
+  if (!sel) return;
+  const selected = this.options[this.selectedIndex];
+  if (selected && selected.dataset.specialty) {
+    const idx = Array.from(sel.options).findIndex(o => o.text === selected.dataset.specialty);
+    if (idx >= 0) sel.selectedIndex = idx;
+  }
+});
+
+document.getElementById("addWorkerBtn")?.addEventListener("click", async () => {
+    const order = getSelectedOrder();
+    if (!order) return;
+    const id = order.orderId;
+    if (!id) return;
+    const sel = document.getElementById("workerNameInput");
+    if (!sel.value) { alert("Please select a worker."); return; }
+    const name = sel.value;
+    const roleLabel = document.getElementById("workerRoleInput").options[document.getElementById("workerRoleInput").selectedIndex].text;
+    await addDBWorker(id, name, roleLabel, document.getElementById("workerRoleInput").value);
+    sel.value = "";
+    await renderWorkers(id);
+    await renderDetail(order);
+});
+
+function parseDurationToDays(durationStr) {
+  const num = parseInt(durationStr);
+  if (durationStr.includes("Week")) return num * 7;
+  if (durationStr.includes("Day")) return num;
+  if (durationStr.includes("Month")) return num * 30;
+  return 7;
+}
+
+function getGanttData(order) {
+  const tl = BOAT_TIMELINE[order.boatName];
+  if (!tl) return null;
+  const phases = tl.phases.map(p => {
+    const parts = p.split(" - ");
+    const name = parts[0];
+    const duration = parts[1] || "";
+    const days = parseDurationToDays(duration);
+    return { name, duration, days };
+  });
+  const totalDays = phases.reduce((s, p) => s + p.days, 0);
+  const orderDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  let currentOffset = 0;
+  const progress = order.progress || 0;
+  const phaseCount = phases.length;
+  const step = 100 / phaseCount;
+  return phases.map((p, i) => {
+    const startOffset = currentOffset;
+    currentOffset += p.days;
+    const phaseStart = i * step;
+    const phaseEnd = (i + 1) * step;
+    const isCompleted = progress >= phaseEnd;
+    const isCurrent = !isCompleted && progress >= phaseStart;
+    const fillPct = isCompleted ? 100 : isCurrent ? ((progress - phaseStart) / step) * 100 : 0;
+    const startDate = new Date(orderDate.getTime() + startOffset * 86400000);
+    const endDate = new Date(orderDate.getTime() + (startOffset + p.days) * 86400000);
+    return { ...p, startOffset, pct: 100, fillPct, isCompleted, isCurrent, startDate, endDate };
+  });
+}
+
+function renderGanttChart(order) {
+  const container = document.getElementById("ganttChartContainer");
+  if (!container) return;
+  if (!order || order.status !== "Approved") {
+    container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">Gantt chart available once order is Approved.</span>';
+    return;
+  }
+  const ganttData = getGanttData(order);
+  if (!ganttData) {
+    container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No timeline data for this boat type.</span>';
+    return;
+  }
+  const totalDuration = BOAT_TIMELINE[order.boatName]?.totalDuration || "";
+  container.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px;color:#64748b;">Total Duration: <strong>${totalDuration}</strong></div>
+    <div class="gantt-chart">
+      ${ganttData.map(p => `
+        <div class="gantt-row">
+          <div class="gantt-label">
+            <strong>${p.name}</strong>
+            <span>${p.duration}</span>
+          </div>
+          <div class="gantt-track">
+            <div class="gantt-bar ${p.isCompleted ? 'completed' : p.isCurrent ? 'current' : ''}" style="width:${Math.round(p.fillPct)}%">
+              <span class="gantt-bar-label">${p.isCompleted ? '✓' : p.isCurrent ? Math.round(p.fillPct) + '%' : ''}</span>
+            </div>
+            <div class="gantt-pct">${p.isCompleted ? '100%' : p.isCurrent ? Math.round(p.fillPct) + '%' : '0%'}</div>
+          </div>
+          <div class="gantt-dates">
+            <span>${p.startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+            <span>${p.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+/* =============================================
+   TASK MANAGEMENT
+   ============================================= */
+
+let currentTaskFilter = "all";
+let allTasks = [];
+
+async function loadTasks(orderId) {
+  if (!orderId) { allTasks = []; return; }
+  const result = await handleDbError(
+    supabase.from("project_tasks").select("*").eq("orderId", orderId).order("createdAt", { ascending: false }),
+    "Load tasks"
+  );
+  allTasks = (result && !result.error ? result.data : []) || [];
+  return allTasks;
+}
+
+async function addTask(orderId) {
+  const title = document.getElementById("taskTitleInput").value.trim();
+  if (!title) { alert("Please enter a task title."); return; }
+  const description = document.getElementById("taskDescInput").value.trim();
+  const assignedTo = document.getElementById("taskAssignInput").value.trim();
+  const priority = document.getElementById("taskPriorityInput").value;
+  const dueDate = document.getElementById("taskDueInput").value || null;
+
+  const result = await handleDbError(
+    supabase.from("project_tasks").insert({
+      orderId, title, description, assignedTo, priority,
+      status: "Not Started", dueDate
+    }).select(),
+    "Add task"
+  );
+  if (result?.error) return;
+
+  document.getElementById("taskTitleInput").value = "";
+  document.getElementById("taskDescInput").value = "";
+  document.getElementById("taskAssignInput").value = "";
+  document.getElementById("taskDueInput").value = "";
+
+  await loadTasks(orderId);
+  renderTasks();
+}
+
+async function updateTaskStatus(taskId, newStatus) {
+  const result = await handleDbError(
+    supabase.from("project_tasks").update({ status: newStatus }).eq("id", taskId),
+    "Update task status"
+  );
+  if (result?.error) return;
+  const task = allTasks.find(t => t.id === taskId);
+  if (task) task.status = newStatus;
+  renderTasks();
+}
+
+async function deleteTask(taskId) {
+  if (!confirm("Delete this task?")) return;
+  const result = await handleDbError(
+    supabase.from("project_tasks").delete().eq("id", taskId),
+    "Delete task"
+  );
+  if (result?.error) return;
+  allTasks = allTasks.filter(t => t.id !== taskId);
+  renderTasks();
+}
+
+function setTaskFilter(filter) {
+  currentTaskFilter = filter;
+  document.querySelectorAll(".task-filter-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.filter === filter);
+  });
+  renderTasks();
+}
+
+function renderTasks() {
+  const container = document.getElementById("tasksList");
+  if (!container) return;
+
+  let filtered = allTasks;
+  if (currentTaskFilter !== "all") {
+    filtered = allTasks.filter(t => t.status === currentTaskFilter);
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<span style="color:#94a3b8;font-size:13px;text-align:center;padding:16px;">No tasks found.</span>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(t => {
+    const priorityColors = { High: "#ef4444", Medium: "#f59e0b", Low: "#22c55e" };
+    const pColor = priorityColors[t.priority] || "#94a3b8";
+    const statusNext = t.status === "Not Started" ? "In Progress" : t.status === "In Progress" ? "Done" : "Not Started";
+    const isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "Done";
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:${t.status === 'Done' ? '#f0fdf4' : '#f8fafc'};border:1px solid ${t.status === 'Done' ? '#bbf7d0' : isOverdue ? '#fca5a5' : '#e2e8f0'};">
+        <div style="cursor:pointer;width:20px;height:20px;border-radius:50%;background:${t.status === 'Done' ? '#22c55e' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;flex-shrink:0;" onclick="window.updateTaskStatus('${t.id}','${statusNext}')">
+          ${t.status === 'Done' ? '<i class="fa-solid fa-check"></i>' : ''}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <strong style="font-size:12px;color:${t.status === 'Done' ? '#16a34a' : '#0f172a'};display:block;text-decoration:${t.status === 'Done' ? 'line-through' : 'none'};">${t.title}</strong>
+          ${t.description ? `<span style="font-size:11px;color:#64748b;display:block;">${t.description}</span>` : ''}
+          <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;">
+            ${t.assignedTo ? `<span style="font-size:10px;color:#64748b;"><i class="fa-solid fa-user"></i> ${t.assignedTo}</span>` : ''}
+            <span style="font-size:10px;font-weight:600;color:${pColor};">${t.priority}</span>
+            ${t.dueDate ? `<span style="font-size:10px;color:${isOverdue ? '#dc2626' : '#64748b'};"><i class="fa-solid fa-calendar"></i> ${new Date(t.dueDate).toLocaleDateString()}${isOverdue ? ' (Overdue)' : ''}</span>` : ''}
+            <span style="font-size:10px;padding:1px 6px;border-radius:50px;background:${t.status === 'Done' ? '#dcfce7' : t.status === 'In Progress' ? '#dbeafe' : '#f1f5f9'};color:${t.status === 'Done' ? '#16a34a' : t.status === 'In Progress' ? '#2563eb' : '#64748b'};">${t.status}</span>
+          </div>
+        </div>
+        <i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:11px;cursor:pointer;flex-shrink:0;" onclick="window.deleteTask('${t.id}')"></i>
+      </div>
+    `;
+  }).join("");
+}
+
+function getSelectedOrder() {
+    const idx = parseInt(select.value);
+    if (isNaN(idx)) return null;
+    return orders[idx];
+}
+
+async function renderDetail(order) {
+    if (!order) {
+        document.getElementById("progressDetail").style.display = "none";
+        return;
+    }
+    document.getElementById("progressDetail").style.display = "block";
+
+    const progress = Number(order.progress) || 0;
+    const statusClass = getStatusClass(order.status);
+    const stage = getBuildStage(progress, order.status, order);
+
+    document.getElementById("detailBoatImage").src = order.boatImage || "./images/boat2.jpg";
+    document.getElementById("detailBoatName").textContent = order.boatName || "Boat";
+    document.getElementById("detailCustomerName").textContent = "Customer: " + (order.customerName || "Unknown");
+    const statusEl = document.getElementById("detailStatus");
+    statusEl.textContent = order.status || "Pending";
+    statusEl.className = "progress-status " + statusClass;
+
+    const circle = document.getElementById("progressCircle");
+    circle.style.background = "conic-gradient(#295dff 0% " + progress + "%, #e2e8f0 " + progress + "% 100%)";
+    document.getElementById("progressPercent").textContent = progress + "%";
+    document.getElementById("buildStage").textContent = stage;
+
+    const isCustom = order.buildType === "custom";
+    const tlItems = isCustom
+        ? ["Design Submitted", "Under Review", "Approved", "Construction", "Delivery"]
+        : ["Order Submitted", "Contract Signing", "Approved", "Construction", "Delivery"];
+
+    const activeSteps = isCustom
+        ? [0, (order.status === "Under Review" || order.status === "Approved" || progress >= 5) ? 1 : -1, (order.status === "Approved" || progress >= 10) ? 2 : -1, progress >= 25 ? 3 : -1, progress >= 100 ? 4 : -1]
+        : [0, (order.status === "Pending Signing" || progress >= 5) ? 1 : -1, progress >= 10 ? 2 : -1, progress >= 25 ? 3 : -1, progress >= 100 ? 4 : -1];
+
+    const timeline = document.getElementById("detailTimeline");
+    timeline.innerHTML = tlItems.map((label, i) => {
+        const cls = activeSteps[i] === i ? "active" : (activeSteps[i] >= 0 ? "" : "");
+        return '<div class="tl-item ' + cls + '">' + label + '</div>';
+    }).join("");
+
+    document.getElementById("detailPrice").textContent = order.boatPrice || "N/A";
+    document.getElementById("detailBuildTime").textContent = order.buildTime || "N/A";
+    document.getElementById("detailPayment").textContent = order.paymentMethod || "N/A";
+    document.getElementById("detailRemaining").textContent = "₱" + Number(order.remainingBalance || 0).toLocaleString();
+    document.getElementById("detailBuildType").textContent = order.buildType === "custom" ? "Custom Build" : "Standard Build";
+
+    const orderId = order.orderId;
+    let workers = await getDBWorkers(orderId);
+
+    if (workers.length === 0 && order.status === "Approved") {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: "Bearer " + token } : {})
+          }
+        });
+        workers = await getDBWorkers(orderId);
+      } catch (e) {
+        console.error("Auto-assign error:", e);
+      }
+    }
+
+    const wContainer = document.getElementById("detailWorkers");
+    if (workers.length === 0) {
+        wContainer.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned. Use "Manage Workers" below.</span>';
+    } else {
+        wContainer.innerHTML = workers.map(w =>
+            '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '"><i class="fa-solid fa-user"></i>' + w.name + ' <span style="font-size:10px;color:#64748b;">— ' + w.role + '</span></span>'
+        ).join("");
+    }
+
+    renderWorkers(orderId);
+
+    const updateBtn = document.getElementById("updateProgressBtn");
+    const progressInput = document.getElementById("progressInput");
+    const progressLockMsg = document.getElementById("progressLockMsg");
+    if (order.status === "Approved" && progress < 100) {
+      if (workers.length > 0) {
+        updateBtn.style.display = "block";
+        progressInput.style.display = "";
+        progressLockMsg.style.display = "none";
+        updateBtn.disabled = false;
+      } else {
+        updateBtn.style.display = "none";
+        progressInput.style.display = "none";
+        progressLockMsg.style.display = "block";
+      }
+    } else {
+        updateBtn.style.display = "none";
+        progressInput.style.display = "none";
+        progressLockMsg.style.display = "none";
+    }
+
+    document.getElementById("tasksCard") ? document.getElementById("tasksCard").style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none" : null;
+    if (order.status === "Approved" || order.status === "Completed") {
+      loadTasks(order.orderId).then(() => renderTasks());
+    } else {
+      allTasks = [];
+      const tc = document.getElementById("tasksList");
+      if (tc) tc.innerHTML = "";
+    }
+
+    document.getElementById("workerManagerCard").style.display = (order.status === "Approved" && progress < 100) ? "block" : "none";
+
+    document.getElementById("ganttCard") ? document.getElementById("ganttCard").style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none" : null;
+    if (order.status === "Approved" || order.status === "Completed") {
+      renderGanttChart(order);
+    }
+
+    document.getElementById("milestonesCard").style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    if (order.status === "Approved" || order.status === "Completed") {
+      renderMilestones(order, workers.length === 0);
+    }
+    document.getElementById("activityLogCard").style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    if (order.status === "Approved" || order.status === "Completed") {
+      renderActivityLog(order);
+    }
+
+    const cancelDiv = document.getElementById("cancelInfo");
+    if (order.status === "Cancellation Requested") {
+        cancelDiv.style.display = "block";
+        cancelDiv.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:14px;padding:14px;margin-top:12px;"><h4 style="font-size:13px;color:#dc2626;"><i class="fa-solid fa-clock"></i> Cancellation Requested</h4><p style="font-size:13px;color:#991b1b;margin-top:4px;">Reason: ' + (order.cancelReason || "N/A") + '</p><p style="font-size:13px;color:#991b1b;">Handle in Orders page.</p></div>';
+    } else if (order.status === "Cancelled") {
+        cancelDiv.style.display = "block";
+        cancelDiv.innerHTML = '<div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:14px;padding:14px;margin-top:12px;"><h4 style="font-size:13px;color:#475569;"><i class="fa-solid fa-ban"></i> Order Cancelled</h4></div>';
+    } else {
+        cancelDiv.style.display = "none";
+    }
+    populateActivityPresets(order);
+
+    const docCard = document.getElementById("documentsCard");
+    const docSideCard = document.getElementById("documentsSideCard");
+    if (docCard) docCard.style.display = (order.status === "Approved" || order.status === "Completed" || order.status === "Pending Signing") ? "block" : "none";
+    if (docSideCard) docSideCard.style.display = (order.status === "Approved" || order.status === "Completed" || order.status === "Pending Signing") ? "block" : "none";
+    await loadDocuments(order);
+
+    const phaseCard = document.getElementById("phaseProgressCard");
+    const photoCard = document.getElementById("progressPhotosCard");
+    const photoSideCard = document.getElementById("photosSideCard");
+    if (phaseCard) phaseCard.style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    if (photoCard) photoCard.style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    if (photoSideCard) photoSideCard.style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    renderPhaseProgress(order);
+    await loadPhotos(order);
+
+    const budgetCard = document.getElementById("budgetCard");
+    const budgetSideCard = document.getElementById("budgetSideCard");
+    if (budgetCard) budgetCard.style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    if (budgetSideCard) budgetSideCard.style.display = (order.status === "Approved" || order.status === "Completed") ? "block" : "none";
+    const budgetInput = document.getElementById("budgetTotalInput");
+    if (budgetInput && order.budgetInfo && order.budgetInfo.totalBudget) {
+        budgetInput.value = order.budgetInfo.totalBudget;
+    } else if (budgetInput) {
+        budgetInput.value = parseFloat(String(order.boatPrice || "0").replace(/[^0-9.]/g, "")) || 0;
+    }
+    await loadBudget(order);
+}
+
+select.addEventListener("change", async function() {
+    await renderDetail(getSelectedOrder());
+    populateActivityPresets(getSelectedOrder());
+});
+
+document.getElementById("updateProgressBtn").addEventListener("click", async function() {
+    const order = getSelectedOrder();
+    if (!order || order.status !== "Approved") return;
+
+    const ww = await getDBWorkers(order.orderId);
+    if (ww.length === 0) {
+      showToast("Assign workers first before updating progress.", "warning");
+      return;
+    }
+
+    const input = document.getElementById("progressInput");
+    let progress = parseInt(input.value);
+    if (isNaN(progress) || progress < 0) { alert("Enter a valid progress value."); return; }
+    if (progress > 100) progress = 100;
+
+    order.progress = progress;
+
+    if (progress >= 100) {
+        order.status = "Completed";
+        order.orderPhase = "Completed";
+    } else if (progress >= 70) {
+        order.orderPhase = "Painting & Finishing";
+    } else if (progress >= 45) {
+        order.orderPhase = "Interior Installation";
+    } else if (progress >= 25) {
+        order.orderPhase = "Engine Assembly";
+    } else {
+        order.orderPhase = "Hull Construction";
+    }
+
+    const milestones = getOrderMilestones(order);
+    const presets = getBoatMilestones(order.boatName);
+    presets.forEach((p, i) => {
+      if (i < milestones.length) {
+        milestones[i].completed = progress >= p.percentage;
+        if (milestones[i].completed && !milestones[i].completedDate) {
+          milestones[i].completedDate = new Date().toISOString();
+          addAutoActivityLog(order, milestones[i]);
+        }
+      }
+    });
+    order.milestones = milestones;
+
+    await handleDbError(
+      supabase.from("boat_orders").update({
+        status: order.status, progress: order.progress, orderPhase: order.orderPhase,
+        milestones: order.milestones, projectCompletedDate: order.projectCompletedDate || null
+      }).eq("orderId", order.orderId),
+      "Update progress"
+    );
+    await renderDetail(order);
+    renderMilestones(order);
+    renderActivityLog(order);
+});
+
+document.getElementById("addActivityBtn")?.addEventListener("click", () => {
+  const order = getSelectedOrder();
+  if (!order) return;
+  const title = document.getElementById("activityTitleInput").value.trim();
+  const desc = document.getElementById("activityDescInput").value.trim();
+  const personnel = document.getElementById("activityPersonnelInput").value.trim();
+  const role = document.getElementById("activityRoleInput").value;
+  if (!title) { alert("Please enter an update title."); return; }
+  if (!desc) { alert("Please enter a description."); return; }
+  if (!personnel) { alert("Please enter the personnel name."); return; }
+  const log = getOrderActivityLog(order);
+  log.push({
+    title,
+    description: desc,
+    date: new Date().toISOString(),
+    personnel,
+    role
+  });
+  saveOrderActivityLog(order, log);
+  document.getElementById("activityTitleInput").value = "";
+  document.getElementById("activityDescInput").value = "";
+  document.getElementById("activityPersonnelInput").value = "";
+  renderActivityLog(order);
+});
+
+function populateActivityPresets(order) {
+  const sel = document.getElementById("activityPresetSelect");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Use a preset —</option>';
+  if (!order || order.status !== "Approved") return;
+  const presets = getActivityPresets(order.boatName);
+  const phaseOrder = ["Design","Engineering","Marina","Construction","Outfitting","Systems","Winch","Sea Trial","Delivery"];
+  phaseOrder.forEach(phase => {
+    if (presets[phase] && presets[phase].length > 0) {
+      const grp = document.createElement("optgroup");
+      grp.label = phase;
+      presets[phase].forEach((desc, i) => {
+        const opt = document.createElement("option");
+        opt.value = phase + "|" + i;
+        opt.textContent = desc;
+        grp.appendChild(opt);
+      });
+      sel.appendChild(grp);
+    }
+  });
+}
+
+document.getElementById("activityPresetSelect")?.addEventListener("change", function() {
+  const val = this.value;
+  if (!val) return;
+  const [phase, idx] = val.split("|");
+  const order = getSelectedOrder();
+  if (!order) return;
+  const presets = getActivityPresets(order.boatName);
+  if (presets[phase] && presets[phase][parseInt(idx)]) {
+    document.getElementById("activityTitleInput").value = phase + " – " + presets[phase][parseInt(idx)];
+    document.getElementById("activityDescInput").value = presets[phase][parseInt(idx)];
+  }
+});
+
+/* =============================================
+   DOCUMENT MANAGEMENT
+   ============================================= */
+
+let currentDocuments = [];
+
+async function uploadDocument(orderId) {
+    const fileInput = document.getElementById("docFileInput");
+    const nameInput = document.getElementById("docNameInput");
+    const categorySelect = document.getElementById("docCategoryInput");
+
+    const file = fileInput.files[0];
+    const name = nameInput.value.trim();
+    const category = categorySelect.value;
+
+    if (!file) { showToast("Please select a file to upload.", "warning"); return; }
+    if (!name) { showToast("Please enter a document name.", "warning"); return; }
+
+    try {
+        const filePath = "documents/" + orderId + "/" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const { error: uploadError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(filePath, file, { contentType: file.type, upsert: true });
+
+        if (uploadError) {
+            showToast("Upload failed: " + uploadError.message + ". Make sure the '" + STORAGE_BUCKET + "' bucket exists in Supabase Storage and is set to public.", "error");
+            return;
+        }
+
+        const publicUrl = supabase.storage
+            .from(STORAGE_BUCKET)
+            .getPublicUrl(filePath).data?.publicUrl
+            || supabaseUrl.replace(/\/+$/, "") + "/storage/v1/object/public/" + STORAGE_BUCKET + "/" + filePath;
+
+        const doc = {
+            id: "doc-" + Date.now(),
+            name: name,
+            category: category,
+            fileUrl: publicUrl,
+            filename: file.name,
+            fileSize: file.size,
+            uploadedBy: "Admin",
+            uploadedAt: new Date().toISOString()
+        };
+
+        currentDocuments.push(doc);
+        await saveDocuments(orderId);
+        renderDocuments();
+        renderDocumentsSide();
+        fileInput.value = "";
+        nameInput.value = "";
+        showToast("Document uploaded successfully.", "success");
+    } catch (err) {
+        showToast("Upload error: " + err.message, "error");
+    }
+}
+
+async function saveDocuments(orderId) {
+    await handleDbError(
+        supabase.from("boat_orders").update({ documents: currentDocuments, updatedAt: new Date().toISOString() }).eq("orderId", orderId),
+        "Save documents"
+    );
+}
+
+async function loadDocuments(order) {
+    if (order && order.documents && Array.isArray(order.documents)) {
+        currentDocuments = order.documents;
+    } else {
+        currentDocuments = [];
+    }
+    renderDocuments();
+    renderDocumentsSide();
+}
+
+function renderDocuments() {
+    const container = document.getElementById("documentsList");
+    if (!container) return;
+    if (currentDocuments.length === 0) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:13px;text-align:center;padding:16px;">No documents uploaded yet.</span>';
+        return;
+    }
+    container.innerHTML = currentDocuments.map(d => `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;">
+            <i class="fa-solid fa-file" style="color:#295dff;font-size:16px;"></i>
+            <div style="flex:1;min-width:0;">
+                <strong style="font-size:13px;color:#0f172a;display:block;">${d.name}</strong>
+                <span style="font-size:11px;color:#64748b;">
+                    ${d.category} ${d.fileSize ? '• ' + Math.round(d.fileSize / 1024) + ' KB' : ''} ${d.uploadedAt ? '• ' + new Date(d.uploadedAt).toLocaleDateString() : ''}
+                </span>
+            </div>
+            <a href="${d.fileUrl}" target="_blank" style="color:#295dff;font-size:14px;padding:4px 8px;text-decoration:none;" title="View"><i class="fa-solid fa-eye"></i></a>
+            <i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:12px;cursor:pointer;padding:4px;" onclick="deleteDocument('${d.id}')" title="Delete"></i>
+        </div>
+    `).join("");
+}
+
+function renderDocumentsSide() {
+    const container = document.getElementById("documentsSideList");
+    if (!container) return;
+    const count = currentDocuments.length;
+    const byCategory = {};
+    currentDocuments.forEach(d => {
+        byCategory[d.category] = (byCategory[d.category] || 0) + 1;
+    });
+    const categorySummary = Object.entries(byCategory).map(([cat, cnt]) =>
+        `<span style="font-size:12px;">${cat}: <strong>${cnt}</strong></span>`
+    ).join("");
+
+    container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+            <span style="font-size:13px;color:#64748b;">Total Documents</span>
+            <strong style="font-size:16px;color:#0f172a;">${count}</strong>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;padding-top:8px;border-top:1px solid #e2e8f0;">
+            ${categorySummary || '<span style="font-size:12px;color:#94a3b8;">No documents</span>'}
+        </div>
+    `;
+}
+
+async function deleteDocument(docId) {
+    if (!confirm("Delete this document?")) return;
+    const order = getSelectedOrder();
+    if (!order) return;
+    currentDocuments = currentDocuments.filter(d => d.id !== docId);
+    await saveDocuments(order.orderId);
+    renderDocuments();
+    renderDocumentsSide();
+}
+
+window.deleteDocument = deleteDocument;
+
+document.getElementById("uploadDocBtn")?.addEventListener("click", () => {
+    const order = getSelectedOrder();
+    if (!order) { showToast("Please select an order first.", "warning"); return; }
+    uploadDocument(order.orderId);
+});
+
+/* =============================================
+   PHASE PROGRESS BREAKDOWN
+   ============================================= */
+
+function renderPhaseProgress(order) {
+    const container = document.getElementById("phaseProgressList");
+    if (!container) return;
+    if (!order || order.status !== "Approved") {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">Phase progress available once order is Approved.</span>';
+        return;
+    }
+
+    const tl = BOAT_TIMELINE[order.boatName];
+    if (!tl) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No timeline data for this boat type.</span>';
+        return;
+    }
+
+    const progress = order.progress || 0;
+    const phases = tl.phases.map(p => {
+        const parts = p.split(" - ");
+        return { name: parts[0], duration: parts[1] || "" };
+    });
+    const phaseCount = phases.length;
+    const step = 100 / phaseCount;
+
+    container.innerHTML = phases.map((phase, i) => {
+        const phaseStart = i * step;
+        const phaseEnd = (i + 1) * step;
+        const isCompleted = progress >= phaseEnd;
+        const isCurrent = !isCompleted && progress >= phaseStart;
+        const phasePct = isCompleted ? 100 : isCurrent ? ((progress - phaseStart) / step) * 100 : 0;
+
+        return `
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:28px;height:28px;border-radius:50%;background:${isCompleted ? '#22c55e' : isCurrent ? '#295dff' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:12px;flex-shrink:0;">
+                ${isCompleted ? '<i class="fa-solid fa-check"></i>' : isCurrent ? String(i + 1) : String(i + 1)}
+            </div>
+            <div style="flex:1;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                    <strong style="font-size:12px;color:${isCompleted ? '#16a34a' : isCurrent ? '#1d4ed8' : '#64748b'};">${phase.name}</strong>
+                    <span style="font-size:11px;color:#64748b;">${isCompleted ? '100%' : isCurrent ? Math.round(phasePct) + '%' : '0%'}${phase.duration ? ' • ' + phase.duration : ''}</span>
+                </div>
+                <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:${Math.round(phasePct)}%;background:${isCompleted ? '#22c55e' : '#295dff'};border-radius:3px;transition:width 0.3s;"></div>
+                </div>
+            </div>
+        </div>`;
+    }).join("");
+}
+
+/* =============================================
+   PROGRESS PHOTOS
+   ============================================= */
+
+let currentPhotos = [];
+
+async function uploadProgressPhoto(orderId) {
+    const fileInput = document.getElementById("progressPhotoInput");
+    const captionInput = document.getElementById("progressPhotoCaption");
+    const file = fileInput.files[0];
+    const caption = captionInput.value.trim();
+
+    if (!file) { showToast("Please select a photo to upload.", "warning"); return; }
+
+    try {
+        const filePath = "photos/" + orderId + "/" + Date.now() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const { error: uploadError } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(filePath, file, { contentType: file.type, upsert: true });
+
+        if (uploadError) {
+            showToast("Upload failed: " + uploadError.message + ". Make sure the '" + STORAGE_BUCKET + "' bucket exists in Supabase Storage and is set to public.", "error");
+            return;
+        }
+
+        const publicUrl = supabase.storage
+            .from(STORAGE_BUCKET)
+            .getPublicUrl(filePath).data?.publicUrl
+            || supabaseUrl.replace(/\/+$/, "") + "/storage/v1/object/public/" + STORAGE_BUCKET + "/" + filePath;
+
+        const photo = {
+            id: "photo-" + Date.now(),
+            caption: caption || "Progress update",
+            fileUrl: publicUrl,
+            filename: file.name,
+            uploadedAt: new Date().toISOString()
+        };
+
+        currentPhotos.push(photo);
+        await savePhotos(orderId);
+        renderPhotos();
+        renderPhotosSide();
+        fileInput.value = "";
+        captionInput.value = "";
+        showToast("Progress photo uploaded.", "success");
+    } catch (err) {
+        showToast("Upload error: " + err.message, "error");
+    }
+}
+
+async function savePhotos(orderId) {
+    await handleDbError(
+        supabase.from("boat_orders").update({ progressPhotos: currentPhotos, updatedAt: new Date().toISOString() }).eq("orderId", orderId),
+        "Save photos"
+    );
+}
+
+async function loadPhotos(order) {
+    if (order && order.progressPhotos && Array.isArray(order.progressPhotos)) {
+        currentPhotos = order.progressPhotos;
+    } else {
+        currentPhotos = [];
+    }
+    renderPhotos();
+    renderPhotosSide();
+}
+
+function renderPhotos() {
+    const container = document.getElementById("progressPhotosGrid");
+    if (!container) return;
+    if (currentPhotos.length === 0) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:13px;text-align:center;padding:16px;grid-column:1/-1;">No progress photos yet.</span>';
+        return;
+    }
+    container.innerHTML = currentPhotos.map(p => `
+        <div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;position:relative;">
+            <img src="${p.fileUrl}" alt="${p.caption}" style="width:100%;height:100px;object-fit:cover;display:block;cursor:pointer;" onclick="window.open('${p.fileUrl}','_blank')">
+            <div style="padding:4px 6px;font-size:10px;color:#64748b;background:white;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;">${p.caption} ${p.uploadedAt ? '• ' + new Date(p.uploadedAt).toLocaleDateString() : ''}</div>
+            <i class="fa-solid fa-trash-can" style="position:absolute;top:4px;right:4px;color:#ef4444;font-size:11px;cursor:pointer;background:rgba(255,255,255,0.9);padding:4px;border-radius:4px;" onclick="deleteProgressPhoto('${p.id}')" title="Delete"></i>
+        </div>
+    `).join("");
+}
+
+function renderPhotosSide() {
+    const container = document.getElementById("photosSideGrid");
+    if (!container) return;
+    if (currentPhotos.length === 0) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:12px;text-align:center;grid-column:1/-1;">No photos yet.</span>';
+        return;
+    }
+    container.innerHTML = currentPhotos.map(p => `
+        <img src="${p.fileUrl}" alt="${p.caption}" style="width:100%;height:70px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;" onclick="window.open('${p.fileUrl}','_blank')" title="${p.caption}">
+    `).join("");
+}
+
+async function deleteProgressPhoto(photoId) {
+    if (!confirm("Delete this photo?")) return;
+    const order = getSelectedOrder();
+    if (!order) return;
+    currentPhotos = currentPhotos.filter(p => p.id !== photoId);
+    await savePhotos(order.orderId);
+    renderPhotos();
+    renderPhotosSide();
+}
+
+window.deleteProgressPhoto = deleteProgressPhoto;
+
+document.getElementById("uploadProgressPhotoBtn")?.addEventListener("click", () => {
+    const order = getSelectedOrder();
+    if (!order) { showToast("Please select an order first.", "warning"); return; }
+    uploadProgressPhoto(order.orderId);
+});
+
+/* =============================================
+   BUDGET & RESOURCES
+   ============================================= */
+
+function getDefaultBudgetInfo(order) {
+    const price = parseFloat(String(order.boatPrice || "0").replace(/[^0-9.]/g, "")) || 0;
+    return {
+        totalBudget: price,
+        expenses: []
+    };
+}
+
+async function loadBudget(order) {
+    if (!order.budgetInfo || typeof order.budgetInfo !== "object" || !order.budgetInfo.expenses) {
+        order.budgetInfo = getDefaultBudgetInfo(order);
+    }
+    renderBudgetBar(order);
+    renderExpenseList(order);
+    renderBudgetSide(order);
+}
+
+function renderBudgetBar(order) {
+    const container = document.getElementById("budgetBarContainer");
+    if (!container) return;
+    const bi = order.budgetInfo || getDefaultBudgetInfo(order);
+    const total = bi.totalBudget || 0;
+    const expenses = bi.expenses || [];
+    const spent = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+    const pct = total > 0 ? Math.min(100, (spent / total) * 100) : 0;
+
+    if (total > 0) {
+        container.style.display = "block";
+        document.getElementById("budgetSpentLabel").textContent = "Spent: ₱" + spent.toLocaleString();
+        document.getElementById("budgetRemainingLabel").textContent = "Remaining: ₱" + Math.max(0, total - spent).toLocaleString();
+        document.getElementById("budgetBarFill").style.width = pct + "%";
+        document.getElementById("budgetPctLabel").textContent = Math.round(pct) + "% spent";
+        document.getElementById("budgetTotalLabel").textContent = "of ₱" + total.toLocaleString();
+    } else {
+        container.style.display = "none";
+    }
+}
+
+function renderExpenseList(order) {
+    const container = document.getElementById("expenseList");
+    if (!container) return;
+    const bi = order.budgetInfo || getDefaultBudgetInfo(order);
+    const expenses = bi.expenses || [];
+
+    if (expenses.length === 0) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:13px;text-align:center;padding:12px;">No expenses recorded yet.</span>';
+        return;
+    }
+
+    const categoryColors = {
+        Materials: "#dbeafe", Labor: "#fef3c7", Equipment: "#e0e7ff",
+        Transport: "#fce7f3", Permits: "#d1fae5", Other: "#f1f5f9"
+    };
+    const categoryTextColors = {
+        Materials: "#1e40af", Labor: "#92400e", Equipment: "#3730a3",
+        Transport: "#9d174d", Permits: "#065f46", Other: "#475569"
+    };
+
+    container.innerHTML = expenses.map((e, i) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+            <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:50px;background:${categoryColors[e.category] || '#f1f5f9'};color:${categoryTextColors[e.category] || '#475569'};white-space:nowrap;">${e.category || 'Other'}</span>
+            <div style="flex:1;min-width:0;">
+                <strong style="font-size:12px;color:#0f172a;display:block;">${e.description || ''}</strong>
+                <span style="font-size:11px;color:#64748b;">${e.date ? new Date(e.date).toLocaleDateString() : ''}</span>
+            </div>
+            <strong style="font-size:13px;color:#dc2626;">-₱${(parseFloat(e.amount) || 0).toLocaleString()}</strong>
+            <i class="fa-solid fa-trash-can" style="color:#94a3b8;font-size:12px;cursor:pointer;padding:4px;" onclick="deleteExpense(${i})" title="Delete"></i>
+        </div>
+    `).join("");
+}
+
+function renderBudgetSide(order) {
+    const container = document.getElementById("budgetSideContent");
+    if (!container) return;
+    const bi = order.budgetInfo || getDefaultBudgetInfo(order);
+    const total = bi.totalBudget || 0;
+    const expenses = bi.expenses || [];
+    const spent = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+
+    if (!total) {
+        container.innerHTML = '<span style="font-size:12px;color:#94a3b8;">No budget set.</span>';
+        return;
+    }
+
+    const pct = Math.min(100, (spent / total) * 100);
+    const remaining = Math.max(0, total - spent);
+    const statusColor = pct > 90 ? "#ef4444" : pct > 70 ? "#f59e0b" : "#22c55e";
+
+    container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+            <span style="color:#64748b;">Budget</span>
+            <strong style="color:#0f172a;">₱${total.toLocaleString()}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+            <span style="color:#64748b;">Spent</span>
+            <strong style="color:#dc2626;">₱${spent.toLocaleString()}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;">
+            <span style="color:#64748b;">Remaining</span>
+            <strong style="color:${statusColor};">₱${remaining.toLocaleString()}</strong>
+        </div>
+        <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:2px;">
+            <div style="height:100%;width:${pct}%;background:${statusColor};border-radius:3px;transition:width 0.3s;"></div>
+        </div>
+        <span style="font-size:11px;color:#64748b;text-align:center;">${Math.round(pct)}% of budget utilized</span>
+    `;
+}
+
+async function setBudget() {
+    const order = getSelectedOrder();
+    if (!order) { showToast("Please select an order first.", "warning"); return; }
+    const input = document.getElementById("budgetTotalInput");
+    const val = parseFloat(input.value);
+    if (isNaN(val) || val <= 0) { showToast("Enter a valid budget amount.", "warning"); return; }
+
+    if (!order.budgetInfo || typeof order.budgetInfo !== "object") {
+        order.budgetInfo = { expenses: [] };
+    }
+    order.budgetInfo.totalBudget = val;
+
+    await handleDbError(
+        supabase.from("boat_orders").update({ budgetInfo: order.budgetInfo, updatedAt: new Date().toISOString() }).eq("orderId", order.orderId),
+        "Set budget"
+    );
+    showToast("Budget set to ₱" + val.toLocaleString(), "success");
+    renderBudgetBar(order);
+    renderBudgetSide(order);
+}
+
+async function addExpense() {
+    const order = getSelectedOrder();
+    if (!order) { showToast("Please select an order first.", "warning"); return; }
+
+    const category = document.getElementById("expenseCategoryInput").value;
+    const desc = document.getElementById("expenseDescInput").value.trim();
+    const amount = parseFloat(document.getElementById("expenseAmountInput").value);
+
+    if (!desc) { showToast("Enter an expense description.", "warning"); return; }
+    if (isNaN(amount) || amount <= 0) { showToast("Enter a valid expense amount.", "warning"); return; }
+
+    if (!order.budgetInfo || typeof order.budgetInfo !== "object") {
+        order.budgetInfo = { totalBudget: 0, expenses: [] };
+    }
+    if (!order.budgetInfo.expenses) order.budgetInfo.expenses = [];
+
+    order.budgetInfo.expenses.push({
+        category, description: desc,
+        amount: amount,
+        date: new Date().toISOString()
+    });
+
+    await handleDbError(
+        supabase.from("boat_orders").update({ budgetInfo: order.budgetInfo, updatedAt: new Date().toISOString() }).eq("orderId", order.orderId),
+        "Add expense"
+    );
+    document.getElementById("expenseDescInput").value = "";
+    document.getElementById("expenseAmountInput").value = "";
+    showToast("Expense added.", "success");
+    renderBudgetBar(order);
+    renderExpenseList(order);
+    renderBudgetSide(order);
+}
+
+async function deleteExpense(index) {
+    if (!confirm("Delete this expense?")) return;
+    const order = getSelectedOrder();
+    if (!order) return;
+    if (!order.budgetInfo || !order.budgetInfo.expenses) return;
+
+    order.budgetInfo.expenses.splice(index, 1);
+    await handleDbError(
+        supabase.from("boat_orders").update({ budgetInfo: order.budgetInfo, updatedAt: new Date().toISOString() }).eq("orderId", order.orderId),
+        "Delete expense"
+    );
+    renderBudgetBar(order);
+    renderExpenseList(order);
+    renderBudgetSide(order);
+}
+
+window.deleteExpense = deleteExpense;
+
+document.getElementById("setBudgetBtn")?.addEventListener("click", setBudget);
+document.getElementById("addExpenseBtn")?.addEventListener("click", addExpense);
+
+window.toggleMilestone = toggleMilestone;
+window.removeWorker = removeWorker;
+window.updateTaskStatus = updateTaskStatus;
+window.deleteTask = deleteTask;
+
+document.getElementById("addTaskBtn")?.addEventListener("click", () => {
+  const order = getSelectedOrder();
+  if (order) addTask(order.orderId);
+});
+
+document.getElementById("tasksFilter")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".task-filter-btn");
+  if (btn) setTaskFilter(btn.dataset.filter);
+});
+
+(async function init() {
+    await ensureWorkerRegistry();
+    const result = await handleDbError(
+        supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
+        "Load orders"
+    );
+    orders = (result && !result.error ? result.data : []) || [];
+    populateSelect();
+    await populateWorkerSelect();
+    await renderRegistryList();
+    if (select.options.length > 1) {
+        select.value = select.options[1].value;
+        await renderDetail(getSelectedOrder());
+    }
+})();

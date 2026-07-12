@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BoatShop Login</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚤</text></svg>">
+
+<link rel="stylesheet" href="login.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+</head>
+<body>
+
+<button class="close-btn" onclick="window.location.href='index.html'">
+    ×
+</button>
+
+<div class="container">
+
+
+    <div class="left">
+
+        <div class="logo">
+         <img src="./images/Rlogo.jpg">
+        </div>
+
+        <h1>Welcome</h1>
+        <p>Login to your account and manage your boat.</p>
+
+        <div class="social">
+            <button type="button"
+               class="google-btn"
+                onclick="googleLogin()">
+                 <i class="fa-brands fa-google"></i>
+           </button>
+        </div>
+
+        <div class="divider">or continue with email</div>
+        
+        <form id="loginForm">
+        <div class="input-box">
+            <label>Email Address</label>
+            <input type="email" id="email" placeholder="john.doe@example.com" required>
+        </div>
+
+        <div class="input-box">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="••••••••" required>
+        </div>
+
+        <div class="remember">
+            <input type="checkbox" onclick="showPass()" >
+        </div>
+
+        <button type="submit" class="login-btn"> Login</button>
+
+        <div class="signup">
+            Don't have an account? <a href="registration.html">Sign Up</a>
+        </div>
+        <div class="switch-account">
+            <a href="login.html?switch=1"><i class="fa-solid fa-arrows-rotate"></i> Switch Account</a>
+        </div>
+        <div id="verifyMessage" style="display:none;text-align:center;margin-top:12px;padding:10px;background:#fef3c7;border-radius:8px;border:1px solid #f59e0b;font-size:13px;">
+            <p style="margin:0 0 6px;color:#92400e;"><strong>Email not yet confirmed.</strong></p>
+            <p style="margin:0 0 6px;color:#78350f;font-size:12px;">Check your inbox/spam for the verification email.</p>
+            <a id="resendLink" href="#" style="color:#1e3a5f;font-size:12px;text-decoration:underline;">Resend verification email</a>
+            <span id="resendStatus" style="display:none;font-size:12px;color:#22c55e;"></span>
+        </div>
+        </form>
+
+    </div>
+
+ 
+    <div class="right">
+
+        <div class="overlay">
+
+            <h2 >We Build Relation-Ship</h2>
+
+            <p>
+                All-in-one management system designed to simplify
+                boat sales, inventory, orders, and customers.
+            </p>
+
+            <div class="features">
+                <div>
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Track Sales & Inventory</span>
+                </div>
+
+                <div>
+                    <i class="fa-solid fa-users"></i>
+                    <span>Manage Customers</span>
+                </div>
+
+                <div>
+                    <i class="fa-solid fa-signal"></i>
+                    <span>Grow Business</span>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div id="confirmModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+        <h2>Login Confirmation</h2>
+        <p id="confirmEmail" style="margin:16px 0;font-size:18px;"></p>
+        <p style="color:#666;">Do you want to continue logging in with this account?</p>
+        <div style="display:flex;gap:12px;margin-top:20px;justify-content:center;">
+            <button id="confirmYes" class="login-btn" style="width:auto;padding:10px 32px;">Confirm</button>
+            <button id="confirmNo" class="login-btn" style="width:auto;padding:10px 32px;background:#888;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="login.js?v=1"></script>
+</body>
+</html>

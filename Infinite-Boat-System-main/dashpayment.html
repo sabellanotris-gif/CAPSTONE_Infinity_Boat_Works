@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+Payment Management
+</title>
+
+<link rel="stylesheet"
+href="dashpayment.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+</head>
+
+<body>
+<div class="dashboard-layout">
+
+<aside class="sidebar">
+
+    <div>
+
+        <h1 class="logo">
+
+            BoatShop
+
+        </h1>
+
+         <nav class="sidebar-menu">
+
+    <a href="dashboard.html" >
+
+        Dashboard
+
+    </a>
+
+    <a href="dashorder.html">
+   
+
+
+        Orders
+
+    </a>
+
+
+    <a href="dashcustomer.html">
+
+   
+
+        Customers
+
+    </a>
+
+     
+     <a href="dashsales.html">
+
+    
+      Sales
+
+    </a>
+
+
+    <a href="dashpayment.html">
+
+        
+
+        Payments
+
+    </a>
+
+
+    <a href="dashinventory.html" >
+
+        Inventory
+
+    </a>
+
+
+    <a href="dashanalytics.html" >
+
+    
+
+        Analytics
+
+    </a>
+
+
+
+    <a href="dashprogress.html">
+
+        Boat Progress
+
+    </a>
+
+    <a href="dashapproval.html">
+
+        Approvals
+
+    </a>
+
+</nav>
+
+
+    </div>
+
+
+<button class="logout-btn" onclick="handleLogout();">
+
+        Logout
+
+</button>
+
+</aside>
+
+
+<main class="main-content">
+
+
+
+
+    <div class="topbar">
+
+        <div>
+
+            <h1 id="dashboardTitle">
+
+                Payment Management
+
+            </h1>
+
+            <p id="dashboardDescription">
+
+                Verify customer payments
+                and uploaded proof of payment.
+
+            </p>
+
+        </div>
+
+        <button class="new-btn"
+        id="newPaymentBtn">
+
+            <i class="fa-solid fa-plus"></i>
+
+            New Payment
+
+        </button>
+
+    </div>
+
+
+    <div class="summary-grid">
+
+
+        <div class="summary-card">
+
+            <div class="summary-icon blue">
+
+                <i class="fa-solid fa-wallet"></i>
+
+            </div>
+
+            <div>
+
+                <h4>
+
+                    Total Payments
+
+                </h4>
+
+                <h2 id="totalPayments">
+
+                    ₱0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+        <div class="summary-card">
+
+            <div class="summary-icon green">
+
+                <i class="fa-solid fa-circle-check"></i>
+
+            </div>
+
+            <div>
+
+                <h4>
+
+                    Approved Payments
+
+                </h4>
+
+                <h2 id="approvedPayments">
+
+                    0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+        <div class="summary-card">
+
+            <div class="summary-icon orange">
+
+                <i class="fa-solid fa-clock"></i>
+
+            </div>
+
+            <div>
+
+                <h4>
+
+                    Pending Payments
+
+                </h4>
+
+                <h2 id="pendingPayments">
+
+                    0
+
+                </h2>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+    <div
+    id="paymentContainer"
+    class="payment-container">
+
+
+    </div>
+
+</main>
+
+<div class="view-modal" id="paymentModal">
+    <div class="modal-content">
+        <button class="close-modal" onclick="document.getElementById('paymentModal').classList.remove('show')">×</button>
+        <h2>Payment Details</h2>
+        <div class="modal-body" id="paymentModalBody"></div>
+    </div>
+</div>
+
+<script type="module" src="dashpayment.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+
+</div>
+
+</body>
+
+</html>

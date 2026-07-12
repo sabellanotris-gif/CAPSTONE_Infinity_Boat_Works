@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+Boat Registration
+</title>
+
+<link rel="stylesheet"
+href="registration.css">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+</head>
+
+<body>
+
+
+
+
+
+<!-- CLOSE BUTTON -->
+
+<button
+id="closeBtn"
+class="close-btn"
+onclick="window.location.href='index.html'">
+
+    ×
+
+</button>
+
+
+
+
+
+
+
+
+
+
+<!-- MAIN CONTAINER -->
+
+<div
+id="registerContainer"
+class="container">
+
+
+
+
+
+
+
+
+
+
+    <!-- LEFT SIDE -->
+
+    <div
+    id="leftSide"
+    class="left-side">
+
+
+
+
+
+
+
+
+
+
+        <!-- LOGO -->
+
+        <div
+        id="logoContainer"
+        class="logo">
+
+            <img
+            id="homeProfilePic"
+            src="./images/Rlogo.jpg"
+            alt="Logo">
+
+        </div>
+
+
+
+
+
+
+
+
+
+
+        <!-- HEADER -->
+
+        <h1 id="registerTitle">
+
+            Create Account!
+
+        </h1>
+
+        <p id="registerSubtitle">
+
+            Sign up and start managing your boat business.
+
+        </p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        <!-- DIVIDER -->
+
+        <div
+        id="divider"
+        class="divider">
+
+            <span>
+
+                or continue with email
+
+            </span>
+
+        </div>
+
+
+
+
+
+
+
+
+
+
+        <!-- REGISTER FORM -->
+
+        <form
+        id="registerForm">
+
+
+
+
+
+
+
+
+
+
+            <!-- FULL NAME -->
+
+            <div
+            id="fullnameGroup"
+            class="input-group">
+
+                <label for="fullname">
+
+                    Full Name
+
+                </label>
+
+                <input
+                type="text"
+                id="fullname"
+                name="fullname"
+                placeholder="John Doe"
+                autocomplete="name"
+                required>
+
+            </div>
+
+
+
+
+
+
+
+
+
+
+            <!-- EMAIL -->
+
+            <div
+            id="emailGroup"
+            class="input-group">
+
+                <label for="email">
+
+                    Email Address
+
+                </label>
+
+                <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="john.doe@example.com"
+autocomplete="email"
+                required>
+
+            </div>
+
+
+
+
+
+
+
+
+
+
+
+            <!-- PHONE NUMBER -->
+
+            <div
+            id="phoneGroup"
+            class="input-group">
+
+                <label for="phone">
+
+                    Phone Number
+
+                </label>
+
+                <input
+                type="tel"
+                id="phone"
+                name="phone"
+                placeholder="0917 123 4567"
+                autocomplete="tel"
+                required>
+
+            </div>
+
+
+
+
+
+
+
+
+
+
+
+            <!-- PASSWORD -->
+            <div
+            id="passwordGroup"
+            class="input-group">
+
+                <label for="password">
+
+                    Password
+
+                </label>
+
+                <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="••••••••"
+                autocomplete="new-password"
+                required>
+
+            </div>
+
+
+
+
+
+
+
+
+
+
+            <!-- CONFIRM PASSWORD -->
+
+            <div
+            id="confirmPasswordGroup"
+            class="input-group">
+
+                <label for="confirmPassword">
+
+                    Confirm Password
+
+                </label>
+
+                <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                placeholder="••••••••"
+                autocomplete="new-password"
+                required>
+
+            </div>
+
+
+
+
+
+
+
+
+
+
+            <!-- SHOW PASSWORD -->
+
+            <div
+            id="checkboxContainer"
+            class="checkbox">
+
+                <input
+                type="checkbox"
+                id="showPasswordCheckbox"
+                onclick="showPass()">
+
+                <span id="showPasswordText">
+
+                    Show Password
+
+                </span>
+
+            </div>
+
+
+
+
+
+
+
+
+
+
+            <!-- HIDDEN DEFAULT PROFILE -->
+
+            <input
+            type="hidden"
+            id="defaultProfileImage"
+            value="./images/user.png">
+
+            <input
+            type="hidden"
+            id="defaultRole"
+            value="customer">
+
+            <input
+            type="hidden"
+            id="accountStatus"
+            value="active">
+
+            <input
+            type="hidden"
+            id="customerPhase"
+            value="New Customer">
+
+
+
+
+
+
+
+
+
+
+            <!-- SIGNUP BUTTON -->
+
+            <button
+            type="submit"
+            id="signupBtn"
+            class="signup-btn">
+
+                Sign Up
+
+            </button>
+
+        </form>
+
+
+
+
+
+
+
+
+
+
+        <!-- LOGIN LINK -->
+
+        <p
+        id="loginText"
+        class="login-link">
+
+            Already have an account?
+
+            <a
+            id="loginLink"
+            href="login.html">
+
+                Login
+
+            </a>
+
+        </p>
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+    <!-- RIGHT SIDE -->
+
+    <div
+    id="rightSide"
+    class="right-side">
+
+
+
+
+
+
+
+
+
+
+        <!-- OVERLAY -->
+
+        <div
+        id="overlay"
+        class="overlay">
+
+
+
+
+
+
+
+
+
+
+            <!-- TITLE -->
+
+            <h2 id="heroTitle">
+
+                Manage Your
+                <br>
+                Boat Business
+                <br>
+                Easily
+
+            </h2>
+
+
+
+
+
+
+
+
+
+
+            <!-- DESCRIPTION -->
+
+            <p id="heroDescription">
+
+                All-in-one management system
+                designed to simplify
+                boat sales, inventory,
+                orders, and customers.
+
+            </p>
+
+
+
+
+
+
+
+
+
+
+            <!-- FEATURES -->
+
+            <div
+            id="featuresContainer"
+            class="features">
+
+
+
+
+
+
+
+
+
+
+                <!-- FEATURE 1 -->
+
+                <div
+                id="featureBox1"
+                class="box">
+
+                    <i class="fa-solid fa-chart-line"></i>
+
+                    <span>
+
+                        Track Sales &
+                        Inventory
+
+                    </span>
+
+                </div>
+
+
+
+
+
+
+
+
+
+
+                <!-- FEATURE 2 -->
+
+                <div
+                id="featureBox2"
+                class="box">
+
+                    <i class="fa-solid fa-users"></i>
+
+                    <span>
+
+                        Manage Customers
+
+                    </span>
+
+                </div>
+
+
+
+
+
+
+
+
+
+
+                <!-- FEATURE 3 -->
+
+                <div
+                id="featureBox3"
+                class="box">
+
+                    <i class="fa-solid fa-signal"></i>
+
+                    <span>
+
+                        Grow Business
+
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+<!-- SCRIPT -->
+
+<script type="module"
+src="registration.js"></script>
+
+</body>
+</html>

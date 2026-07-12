@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Boat Orders Dashboard</title>
+<link rel="stylesheet" href="dashorder.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+<script>
+window.onpageshow = function(e) {
+    if (e.persisted) window.location.reload();
+};
+</script>
+
+<div class="dashboard-layout">
+
+<aside class="sidebar">
+    <div>
+        <h1 class="logo">BoatShop</h1>
+        <nav class="sidebar-menu">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="dashorder.html">Orders</a>
+            <a href="dashcustomer.html">Customers</a>
+            <a href="dashsales.html">Sales</a>
+            <a href="dashpayment.html">Payments</a>
+            <a href="dashinventory.html">Inventory</a>
+            <a href="dashanalytics.html">Analytics</a>
+            <a href="dashprogress.html">Boat Progress</a>
+            <a href="dashapproval.html">Approvals</a>
+        </nav>
+    </div>
+    <button class="logout-btn" onclick="handleLogout();">Logout</button>
+</aside>
+
+<main class="main-content">
+
+    <div class="topbar">
+        <div>
+            <h1>Boat Orders</h1>
+            <p>Manage customer orders, approvals, payments, and verification documents.</p>
+        </div>
+        <button class="add-btn"><i class="fa-solid fa-plus"></i> + New Order</button>
+    </div>
+
+    <div class="filter-container">
+        <button class="filter-btn active">All</button>
+        <button class="filter-btn">Pending</button>
+        <button class="filter-btn">Approved</button>
+        <button class="filter-btn">Completed</button>
+        <button class="filter-btn">Rejected</button>
+        <button class="filter-btn">Under Review</button>
+        <button class="filter-btn">Pending Signing</button>
+        <button class="filter-btn">Cancellation Requested</button>
+        <button class="filter-btn">Cancelled</button>
+    </div>
+
+    <div class="dashboard-summary">
+        <div class="summary-card"><h3>Total Orders</h3><p id="totalOrders">0</p></div>
+        <div class="summary-card"><h3>Pending Approval</h3><p id="pendingOrders">0</p></div>
+        <div class="summary-card"><h3>Approved Orders</h3><p id="approvedOrders">0</p></div>
+        <div class="summary-card"><h3>Completed Boats</h3><p id="completedOrders">0</p></div>
+    </div>
+
+    <div class="orders-grid" id="ordersGrid"></div>
+
+</main>
+
+</div>
+
+<div class="view-modal" id="viewModal">
+    <div class="modal-content">
+        <button class="close-modal" id="closeModal">×</button>
+        <h2>Order Details</h2>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<div class="view-modal" id="revisionModal">
+    <div class="modal-content">
+        <button class="close-modal" id="closeRevisionModal">×</button>
+        <h2>Revision Feedback</h2>
+        <p style="color:#64748b;margin-bottom:16px;font-size:14px;">Provide feedback for the customer on what needs to be revised.</p>
+        <textarea id="revisionFeedback" placeholder="Describe the changes or corrections needed..."></textarea>
+        <div class="revision-actions">
+            <button class="close-modal" onclick="document.getElementById('revisionModal').classList.remove('show')">Cancel</button>
+            <button id="submitRevisionBtn">Send Revision Request</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="dashorder.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+</body>
+</html>

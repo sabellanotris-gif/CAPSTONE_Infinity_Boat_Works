@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<title>
+Infinity Boat Works Dashboard
+</title>
+
+<link rel="stylesheet"
+href="dashboard.css">
+
+<link rel="preconnect"
+href="https://fonts.googleapis.com">
+
+<link rel="preconnect"
+href="https://fonts.gstatic.com"
+crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+</head>
+
+<body>
+
+<script>
+// Prevent bfcache — force reload when page is restored from back/forward cache
+window.onpageshow = function(e) {
+    if (e.persisted) window.location.reload();
+};
+</script>
+
+<div class="dashboard-layout">
+
+
+
+<aside class="sidebar">
+
+    <div>
+
+        <h1 class="logo">
+
+            BoatShop
+
+        </h1>
+
+         <nav class="sidebar-menu">
+
+    <a href="dashboard.html" >
+
+
+
+        Dashboard
+
+    </a>
+
+    <a href="dashorder.html">
+   
+
+
+        Orders
+
+    </a>
+
+    <a href="dashcustomer.html">
+
+   
+
+        Customers
+
+    </a>
+
+     
+     <a href="dashsales.html">
+
+        
+
+      Sales
+
+    </a>
+
+    <a href="dashpayment.html">
+
+        
+
+        Payments
+
+    </a>
+
+    <a href="dashinventory.html" >
+
+
+
+        Inventory
+
+    </a>
+
+    <a href="dashanalytics.html" >
+
+    
+
+        Analytics
+
+    </a>
+
+
+    <a href="dashprogress.html">
+
+        Boat Progress
+
+    </a>
+
+    <a href="dashapproval.html">
+
+        Approvals
+
+    </a>
+
+</nav>
+
+</div>
+
+<button class="logout-btn" onclick="handleLogout();">
+
+        Logout
+
+</button>
+
+</aside>
+
+
+<main class="main-content">
+
+    <div id="adminNotifDropdown" class="admin-notif-dropdown">
+        <div class="notif-header">
+            <h4>Notifications</h4>
+            <button id="adminMarkAllRead" class="mark-read-btn">Mark all read</button>
+        </div>
+        <div class="notif-list" id="adminNotifList"></div>
+    </div>
+
+    <div class="topbar">
+
+        <div>
+
+            <h1>
+
+                Welcome Back,
+                <span>
+
+                    Admin
+
+                </span>
+
+            </h1>
+
+            <p>
+
+                Monitor real-time construction,
+                payments, and customer activities.
+
+            </p>
+
+        </div>
+
+
+
+        <div class="topbar-right">
+
+
+            <div class="search-box">
+
+                <i class="fa-solid fa-magnifying-glass"></i>
+
+                <input
+                type="text"
+                placeholder="Search boat projects...">
+
+            </div>
+
+            <button class="notification-btn" id="adminNotifBell" style="position:relative;">
+
+                <i class="fa-solid fa-bell"></i>
+                <span id="adminNotifBadge" class="notif-badge" style="display:none;">0</span>
+
+            </button>
+
+
+            <img id="adminprofile" src="./images/user.png" class="profile-image">
+
+        </div>
+
+    </div>
+
+    <section class="quick-actions">
+
+        <button>
+
+            <i class="fa-solid fa-plus"></i>
+
+            Create Order
+
+        </button>
+
+        <button>
+
+            <i class="fa-solid fa-box"></i>
+
+            Add Inventory
+
+        </button>
+
+        <button>
+
+            <i class="fa-solid fa-circle-check"></i>
+
+            Approve Payment
+
+        </button>
+
+    </section>
+
+
+    <section class="analytics-section">
+
+
+        <div class="analytics-card">
+
+            <div class="circle-wrap">
+
+                <div class="circle revenue-circle">
+
+                    <h2>
+
+                        --
+
+                    </h2>
+
+                </div>
+
+            </div>
+
+            <h3>
+
+                Total Revenue
+
+            </h3>
+
+            <p>
+
+                Lifetime revenue
+
+            </p>
+
+        </div>
+
+
+        <div class="analytics-card">
+
+            <div class="circle-wrap">
+
+                <div class="circle orders-circle">
+
+                    <h2>
+
+                        --
+
+                    </h2>
+
+                </div>
+
+            </div>
+
+            <h3>
+
+                Active Orders
+
+            </h3>
+
+            <p>
+
+                Ongoing builds
+
+            </p>
+
+        </div>
+
+
+        <div class="analytics-card">
+
+            <div class="circle-wrap">
+
+                <div class="circle pending-circle">
+
+                    <h2>
+
+                        --
+
+                    </h2>
+
+                </div>
+
+            </div>
+
+            <h3>
+
+                Pending Payments
+
+            </h3>
+
+            <p>
+
+                Awaiting approval
+
+            </p>
+
+        </div>
+
+        <div class="analytics-card">
+
+            <div class="circle-wrap">
+
+                <div class="circle completed-circle">
+
+                    <h2>
+
+                        --
+
+                    </h2>
+
+                </div>
+
+            </div>
+
+            <h3>
+
+                Completed Boats
+
+            </h3>
+
+            <p>
+
+                Delivered successfully
+
+            </p>
+
+        </div>
+
+    </section>
+
+
+
+    <section class="dashboard-grid">
+
+
+        <div class="dashboard-card large-card">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Live Boat Projects
+
+                </h2>
+
+                <button>
+
+                    View All
+
+                </button>
+
+            </div>
+
+
+            <div id="liveProjectsContainer"></div>
+
+        </div>
+
+        <div class="dashboard-card small-card">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Recent Payments
+
+                </h2>
+
+            </div>
+
+            <div id="recentPaymentsContainer"></div>
+
+        </div>
+
+    </section>
+
+
+    <section class="dashboard-grid">
+
+        <div class="dashboard-card">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Inventory Alerts
+
+                </h2>
+
+            </div>
+
+            <div id="inventoryAlertsContainer"></div>
+
+        </div>
+
+     <div class="dashboard-card">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Analytics Overview
+
+                </h2>
+
+            </div>
+
+            <div id="donutChartsContainer"></div>
+
+        </div>
+
+    </section>
+
+    <section class="dashboard-grid">
+
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-flag"></i> Upcoming Milestones</h2>
+            </div>
+            <div id="upcomingMilestonesContainer"></div>
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-clock"></i> Overdue Tasks</h2>
+            </div>
+            <div id="overdueTasksContainer"></div>
+        </div>
+
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-layer-group"></i> Projects by Phase</h2>  
+            </div>
+            <div id="projectsByPhaseContainer"></div>
+        </div>
+
+    </section>
+
+</main>
+
+</div>
+
+<!-- ===== ORDER INFO MODAL ===== -->
+<div class="modal-overlay" id="orderInfoModal" style="display:none;" onclick="if(event.target===this)closeOrderInfo()">
+    <div class="modal-content modal-lg">
+        <button class="modal-close" onclick="closeOrderInfo()"><i class="fa-solid fa-xmark"></i></button>
+        <div id="orderInfoBody"></div>
+    </div>
+</div>
+
+<!-- ===== PAYMENT INFO MODAL ===== -->
+<div class="modal-overlay" id="paymentInfoModal" style="display:none;" onclick="if(event.target===this)closePaymentInfo()">
+    <div class="modal-content">
+        <button class="modal-close" onclick="closePaymentInfo()"><i class="fa-solid fa-xmark"></i></button>
+        <div id="paymentInfoBody"></div>
+    </div>
+</div>
+
+<script src="dashboard.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+
+</body>
+</html>

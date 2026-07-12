@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Approvals - Infinity Boat Works</title>
+<link rel="stylesheet" href="dashapproval.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+<script>
+window.onpageshow = function(e) {
+    if (e.persisted) window.location.reload();
+};
+</script>
+<div class="dashboard-layout">
+<aside class="sidebar">
+    <div>
+        <h1 class="logo">BoatShop</h1>
+        <nav class="sidebar-menu">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="dashorder.html">Orders</a>
+            <a href="dashcustomer.html">Customers</a>
+            <a href="dashsales.html">Sales</a>
+            <a href="dashpayment.html">Payments</a>
+            <a href="dashinventory.html">Inventory</a>
+            <a href="dashanalytics.html">Analytics</a>
+            <a href="dashprogress.html">Boat Progress</a>
+        </nav>
+    </div>
+    <button class="logout-btn" onclick="handleLogout();">Logout</button>
+</aside>
+
+<main class="main-content">
+    <div class="topbar">
+        <div>
+            <h2>Approvals</h2>
+            <p style="color:#64748b;font-size:13px;">Review pending schedule & payment approvals</p>
+        </div>
+    </div>
+
+    <div class="filter-container" id="approvalFilters">
+        <button class="filter-btn active" data-filter="all" onclick="setApprovalFilter('all', this)">All Pending</button>
+        <button class="filter-btn" data-filter="schedule" onclick="setApprovalFilter('schedule', this)">
+            <i class="fas fa-calendar-check"></i> Schedule (0)
+        </button>
+        <button class="filter-btn" data-filter="payment" onclick="setApprovalFilter('payment', this)">
+            <i class="fas fa-credit-card"></i> Payment (0)
+        </button>
+    </div>
+
+    <div id="approvalsContainer" class="approvals-container">
+        <div class="loading-state">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading approvals...</p>
+        </div>
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display:none;">
+        <i class="fas fa-check-circle"></i>
+        <h3>All caught up!</h3>
+        <p>No pending approvals at the moment.</p>
+    </div>
+</main>
+</div>
+
+<!-- View Modal -->
+<div id="approvalModal" class="view-modal">
+    <div class="modal-content">
+        <button class="close-modal" onclick="closeModal()">&times;</button>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script type="module" src="dashapproval.js"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+</body>
+</html>

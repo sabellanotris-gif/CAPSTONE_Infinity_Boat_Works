@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+InfinityBoat Sales Dashboard
+</title>
+
+<link rel="stylesheet"
+href="dashsales.css">
+
+<link rel="preconnect"
+href="https://fonts.googleapis.com">
+
+<link rel="preconnect"
+href="https://fonts.gstatic.com"
+crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="dashboard-layout">
+
+<aside class="sidebar">
+
+    <div>
+
+        <h1 class="logo">
+
+            BoatShop
+
+        </h1>
+
+
+
+
+
+
+         <nav class="sidebar-menu">
+
+    <a href="dashboard.html" >
+
+
+
+        Dashboard
+
+    </a>
+
+
+
+    <a href="dashorder.html">
+   
+
+
+        Orders
+
+    </a>
+
+
+    <a href="dashcustomer.html">
+
+   
+
+        Customers
+
+    </a>
+
+     
+     <a href="dashsales.html">
+
+        
+
+      Sales
+
+    </a>
+
+
+    <a href="dashpayment.html">
+
+        
+
+        Payments
+
+    </a>
+
+
+    <a href="dashinventory.html" >
+
+
+
+        Inventory
+
+    </a>
+
+
+    <a href="dashanalytics.html" >
+
+    
+
+        Analytics
+
+    </a>
+
+
+
+    <a href="dashprogress.html">
+
+        Boat Progress
+
+    </a>
+
+    <a href="dashapproval.html">
+
+        Approvals
+
+    </a>
+
+</nav>
+
+
+    </div>
+
+
+<button class="logout-btn" onclick="handleLogout();">
+
+        Logout
+
+</button>
+
+</aside>
+
+
+
+<!-- MAIN -->
+
+<main class="main-content">
+
+
+
+
+
+
+
+
+
+    <!-- TOPBAR -->
+
+    <div class="topbar"
+    id="topbar">
+
+
+
+
+
+        <!-- LEFT -->
+
+        <div class="topbar-left"
+        id="topbarLeft">
+
+            <h1 id="dashboardTitle">
+
+                Sales Dashboard
+
+            </h1>
+
+            <p id="dashboardSubtitle">
+
+                Monitor revenue,
+                installment payments,
+                customer transactions,
+                and boat sales performance in real-time.
+
+            </p>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- RIGHT -->
+
+        <div class="topbar-right"
+        id="topbarRight">
+
+            <button class="export-btn"
+            id="exportBtn">
+
+                <i class="fa-solid fa-file-export"></i>
+
+                Export Report
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- SALES OVERVIEW -->
+
+    <section class="overview-grid"
+    id="overviewGrid">
+
+
+
+
+
+        <!-- TOTAL REVENUE -->
+
+        <div class="overview-card revenue-card"
+        id="revenueCard">
+
+            <div class="overview-icon"
+            id="revenueIcon">
+
+                <i class="fa-solid fa-peso-sign"></i>
+
+            </div>
+
+            <div>
+
+                <h4 id="revenueLabel">
+
+                    Total Revenue
+
+                </h4>
+
+                <h2 id="totalRevenue">
+
+                    --
+
+                </h2>
+
+                <span id="revenueGrowth">
+
+                    Revenue this month
+
+                </span>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- BOATS SOLD -->
+
+        <div class="overview-card"
+        id="boatsSoldCard">
+
+            <div class="overview-icon"
+            id="boatsSoldIcon">
+
+                <i class="fa-solid fa-ship"></i>
+
+            </div>
+
+            <div>
+
+                <h4 id="boatsSoldLabel">
+
+                    Boats Sold
+
+                </h4>
+
+                <h2 id="boatsSold">
+
+                    --
+
+                </h2>
+
+                <span id="boatsSoldGrowth">
+
+                    Total boats sold
+
+                </span>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- PENDING -->
+
+        <div class="overview-card"
+        id="pendingCard">
+
+            <div class="overview-icon"
+            id="pendingIcon">
+
+                <i class="fa-solid fa-clock"></i>
+
+            </div>
+
+            <div>
+
+                <h4 id="pendingLabel">
+
+                    Pending Payments
+
+                </h4>
+
+                <h2 id="pendingPayments">
+
+                    --
+
+                </h2>
+
+                <span id="pendingCustomers">
+
+                    Pending approval
+
+                </span>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- PROFIT -->
+
+        <div class="overview-card"
+        id="profitCard">
+
+            <div class="overview-icon"
+            id="profitIcon">
+
+                <i class="fa-solid fa-coins"></i>
+
+            </div>
+
+            <div>
+
+                <h4 id="profitLabel">
+
+                    Actual Profit
+
+                </h4>
+
+                <h2 id="netProfit">
+
+                    --
+
+                </h2>
+
+                <span id="profitGrowth">
+
+                    Revenue minus expenses
+
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- EXPENSES -->
+
+        <div class="overview-card"
+        id="expensesCard">
+
+            <div class="overview-icon"
+            id="expensesIcon">
+
+                <i class="fa-solid fa-receipt"></i>
+
+            </div>
+
+            <div>
+
+                <h4 id="expensesLabel">
+
+                    Total Expenses
+
+                </h4>
+
+                <h2 id="totalExpenses">
+
+                    --
+
+                </h2>
+
+                <span id="expensesBreakdown">
+
+                    Cost of materials, labor & equipment
+
+                </span>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- ANALYTICS GRID -->
+
+    <section class="sales-analytics-grid"
+    id="salesAnalyticsGrid">
+
+
+
+
+
+        <!-- CIRCULAR CHART -->
+
+        <div class="analytics-card"
+        id="analyticsCard">
+
+
+
+
+
+            <!-- HEADER -->
+
+            <div class="section-header"
+            id="analyticsHeader">
+
+                <div>
+
+                    <h2 id="analyticsTitle">
+
+                        Revenue Performance
+
+                    </h2>
+
+                    <p id="analyticsSubtitle">
+
+                        Annual business growth overview
+
+                    </p>
+
+                </div>
+
+            </div>
+
+
+
+
+
+
+
+
+
+            <!-- CIRCLE GRAPH -->
+
+            <div class="circle-wrapper"
+            id="circleWrapper">
+
+                <div class="circle-chart"
+                id="circleChart">
+
+                    <div class="circle-inner"
+                    id="circleInner">
+
+                        <h1 id="goalPercent">
+
+                            --
+
+                        </h1>
+
+                        <span id="goalLabel">
+
+                            Revenue Goal
+
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+
+
+
+
+
+
+
+            <!-- STATS -->
+
+            <div class="circle-stats"
+            id="circleStats">
+
+
+
+
+
+                <div class="circle-stat"
+                id="boatSalesStat">
+
+                    <span class="dot blue"></span>
+
+                    <p>
+
+                        Boat Sales
+
+                    </p>
+
+                    <h3 id="boatSalesValue">
+
+                        --
+
+                    </h3>
+
+                </div>
+
+
+
+
+
+
+
+                <div class="circle-stat"
+                id="installmentStat">
+
+                    <span class="dot green"></span>
+
+                    <p>
+
+                        Installments
+
+                    </p>
+
+                    <h3 id="installmentValue">
+
+                        --
+
+                    </h3>
+
+                </div>
+
+
+
+
+
+
+
+                <div class="circle-stat"
+                id="fullPaymentStat">
+
+                    <span class="dot orange"></span>
+
+                    <p>
+
+                        Full Payments
+
+                    </p>
+
+                    <h3 id="fullPaymentValue">
+
+                        --
+
+                    </h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        <!-- RECENT SALES -->
+
+        <div class="analytics-card"
+        id="recentSalesCard">
+
+
+
+
+
+            <div class="section-header"
+            id="recentSalesHeader">
+
+                <div>
+
+                    <h2 id="recentSalesTitle">
+
+                        Recent Transactions
+
+                    </h2>
+
+                    <p id="recentSalesSubtitle">
+
+                        Latest customer payments
+
+                    </p>
+
+                </div>
+
+            </div>
+
+
+
+
+
+
+
+
+
+            <div id="transactionsContainer"></div>
+
+    </section>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- SALES REPORT TABLE -->
+
+    <section class="sales-table-card"
+    id="salesTableCard">
+
+
+
+
+
+        <div class="section-header"
+        id="salesTableHeader">
+
+            <div>
+
+                <h2 id="salesTableTitle">
+
+                    Boat Sales Report
+
+                </h2>
+
+                <p id="salesTableSubtitle">
+
+                    Detailed sales transactions
+
+                </p>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- TABLE -->
+
+        <table id="salesTable">
+
+            <thead id="salesTableHead">
+
+                <tr>
+
+                    <th>
+
+                        Customer
+
+                    </th>
+
+                    <th>
+
+                        Boat Type
+
+                    </th>
+
+                    <th>
+
+                        Payment Method
+
+                    </th>
+
+                    <th>
+
+                        Amount
+
+                    </th>
+
+                    <th>
+
+                        Status
+
+                    </th>
+
+                    <th>
+
+                        Date
+
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+
+
+
+
+
+            <tbody id="salesTableBody"></tbody>
+
+        </table>
+
+    </section>
+
+</main>
+
+</div>
+
+<script type="module" src="dashsales.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+
+</body>
+
+</html>

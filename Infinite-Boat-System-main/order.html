@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boat Order</title>
+<link rel="stylesheet" href="order.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header>
+    <div class="logo">BoatShop</div>
+    <nav>
+        <a href="home.html">Home</a>
+        <a href="profile.html">Profile</a>
+        <a href="payment.html">Payments</a>
+    </nav>
+</header>
+
+<section class="order-section">
+    <div class="order-container">
+        <div class="boat-preview">
+            <span class="preview-tag">SELECTED BOAT</span>
+            <img id="orderBoatImage" src="./images/boat2.jpg" alt="Boat">
+            <h1 id="orderBoatName">Patrol Boat</h1>
+            <p class="price" id="orderBoatPrice">&#8369;15,000,000</p>
+            <div class="preview-details">
+                <div><span>Build Time</span><strong id="orderBuildTime">10 Months</strong></div>
+                <div><span>Downpayment</span><strong id="orderDownPayment">&#8369;4,500,000</strong></div>
+            </div>
+        </div>
+
+        <div class="order-flow">
+            <span class="flow-tag">ORDER PROCESS</span>
+            <h2 class="flow-title" id="flowTitle">Choose Your Build Type</h2>
+
+            <div class="step-indicator" id="stepIndicator">
+                <div class="step active" id="step1">1</div>
+                <div class="step-line" id="line1"></div>
+                <div class="step" id="step2">2</div>
+                <div class="step-line" id="line2"></div>
+                <div class="step" id="step3">3</div>
+                <div class="step-line" id="line3"></div>
+                <div class="step" id="step4">4</div>
+            </div>
+            <div class="step-labels" id="stepLabels">
+                <span class="active" id="label1">Build Type</span>
+                <span id="label2">Boat Info</span>
+                <span id="label3">Acknowledge</span>
+                <span id="label4">Sign & Pay</span>
+            </div>
+
+            <div class="flow-content" id="flowContent">
+
+                <!-- STEP 1: Choose Build Type -->
+                <div class="step-panel active" id="panel1">
+                    <p class="panel-desc">Select how you want to order your boat. Standard Build offers a fixed configuration with streamlined processing. Custom Build lets you tailor every detail using our 3D configurator.</p>
+                    <div class="build-options">
+                        <div class="build-card" id="standardCard">
+                            <div class="build-icon"><i class="fa-solid fa-ship"></i></div>
+                            <h3>Standard Build</h3>
+                            <p>Pre-configured boat with fixed specifications. Fastest processing time.</p>
+                            <ul>
+                                <li><i class="fa-solid fa-check"></i> Fixed pricing</li>
+                                <li><i class="fa-solid fa-check"></i> Standard build time</li>
+                                <li><i class="fa-solid fa-check"></i> No engineering review needed</li>
+                                <li><i class="fa-solid fa-check"></i> Quick order processing</li>
+                            </ul>
+                            <button class="build-select-btn" id="selectStandard">Select Standard Build</button>
+                        </div>
+                        <div class="build-card custom-card" id="customCard">
+                            <div class="build-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                            <h3>Custom Build</h3>
+                            <p>Fully customizable boat using the 3D configurator. Tailor every detail.</p>
+                            <ul>
+                                <li><i class="fa-solid fa-check"></i> Dynamic pricing</li>
+                                <li><i class="fa-solid fa-check"></i> Adjustable dimensions</li>
+                                <li><i class="fa-solid fa-check"></i> Engineering approval required</li>
+                                <li><i class="fa-solid fa-check"></i> Extended processing time</li>
+                            </ul>
+                            <button class="build-select-btn custom-btn" id="selectCustom">Select Custom Build</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Boat Information / Customization Information -->
+                <div class="step-panel" id="panel2">
+                    <div id="infoContent"></div>
+                    <div class="guideline-nav">
+                        <button class="back-btn" id="backFromInfo"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                        <button class="next-btn" id="proceedFromInfo">I Understand, Continue <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Acknowledgment Questions -->
+                <div class="step-panel" id="panel3">
+                    <div id="guidelineHeader">
+                        <h3 id="guidelineTitle">Pre-Order Acknowledgment</h3>
+                        <p id="guidelineDesc">Please confirm you have read and understood the information. You must answer "Yes" to all to proceed.</p>
+                    </div>
+                    <div id="guidelineQuestions"></div>
+                    <div id="guidelineError" class="guideline-error" style="display:none;">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <span id="errorMessage">You must answer "Yes" to all to proceed.</span>
+                    </div>
+                    <div class="guideline-nav">
+                        <button class="back-btn" id="backFromGuide"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                        <button class="next-btn" id="proceedFromGuide">Proceed <i class="fa-solid fa-arrow-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- STEP 4: Final Confirmation & Schedule Signing -->
+                <div class="step-panel" id="panel4">
+                    <div id="finalConfirmation">
+                        <h3>Final Confirmation & Schedule Signing</h3>
+                        <p>Review your order details and schedule an in-person meeting for contract signing.</p>
+                    </div>
+                    <div class="order-summary-card" id="finalSummary">
+                        <div class="final-row"><span>Boat</span><strong id="finalBoatName">-</strong></div>
+                        <div class="final-row"><span>Build Type</span><strong id="finalBuildType">-</strong></div>
+                        <div class="final-row"><span>Price</span><strong id="finalPrice">-</strong></div>
+                        <div class="final-row"><span>Build Time</span><strong id="finalBuildTime">-</strong></div>
+                        <div class="final-row"><span>Downpayment</span><strong id="finalDownpayment">-</strong></div>
+                    </div>
+
+                    <div class="contact-section" style="margin:20px 0;padding:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
+                        <h4 style="font-size:15px;font-weight:700;margin-bottom:12px;"><i class="fa-solid fa-phone"></i> Contact Information</h4>
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:200px;">
+                                <label style="font-size:13px;font-weight:600;color:#475569;display:block;margin-bottom:4px;">Phone Number</label>
+                                <input type="tel" id="customerPhoneInput" placeholder="Enter your phone number" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;box-sizing:border-box;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="payment-method-section" style="margin:20px 0;padding:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
+                        <h4 style="font-size:15px;font-weight:700;margin-bottom:12px;"><i class="fa-solid fa-credit-card"></i> Payment Method</h4>
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                            <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:10px;padding:14px 18px;background:white;border:2px solid #2563eb;border-radius:12px;cursor:pointer;transition:.2s;" id="fullPayLabel">
+                                <input type="radio" name="paymentMethod" id="fullPay" value="Full Payment" checked style="accent-color:#2563eb;width:18px;height:18px;">
+                                <div>
+                                    <strong style="font-size:14px;color:#0f172a;">Full Payment</strong>
+                                    <p style="font-size:12px;color:#64748b;margin-top:2px;">Pay 100% once — one-time payment</p>
+                                </div>
+                            </label>
+                            <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:10px;padding:14px 18px;background:white;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:.2s;" id="installLabel">
+                                <input type="radio" name="paymentMethod" id="installPay" value="Installment" style="accent-color:#2563eb;width:18px;height:18px;">
+                                <div>
+                                    <strong style="font-size:14px;color:#0f172a;">Installment</strong>
+                                    <p style="font-size:12px;color:#64748b;margin-top:2px;">30% downpayment — 40% mid-construction — 30% final billing</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="signing-section">
+                        <h4><i class="fa-solid fa-file-signature"></i> Schedule Contract Signing</h4>
+                        <p>Select your preferred schedule for an in-person meeting to review and sign the contract. You may also upload any supporting documents (optional).</p>
+                        <p style="font-size:13px;color:#64748b;margin-bottom:12px;"><i class="fa-solid fa-clock"></i> Available: <strong>Monday to Saturday, 8:00 AM - 5:00 PM</strong></p>
+                        <div class="signing-form">
+                            <div class="signing-row">
+                                <div class="signing-field">
+                                    <label><i class="fa-solid fa-calendar"></i> Preferred Date</label>
+                                    <div id="calendarWidget" style="border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff;user-select:none;">
+                                        <div id="calendarHeader" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#1e3a5f;color:#fff;">
+                                            <button id="calPrev" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;">&lt;</button>
+                                            <span id="calMonthYear" style="font-weight:600;font-size:15px;"></span>
+                                            <button id="calNext" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;">&gt;</button>
+                                        </div>
+                                        <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+                                            <thead><tr style="background:#f1f5f9;">
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Sun</th>
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Mon</th>
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Tue</th>
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Wed</th>
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Thu</th>
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Fri</th>
+                                                <th style="padding:6px;font-size:11px;color:#64748b;text-align:center;width:14.28%;">Sat</th>
+                                            </tr></thead>
+                                            <tbody id="calBody"></tbody>
+                                        </table>
+                                    </div>
+                                    <input type="hidden" id="signingDate">
+                                </div>
+                                <div class="signing-field">
+                                    <label><i class="fa-solid fa-clock"></i> Preferred Time</label>
+                                    <select id="signingTime" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;background:#fff;box-sizing:border-box;">
+                                        <option value="">Select a time</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="signing-field">
+                                <label><i class="fa-solid fa-location-dot"></i> Meeting Location</label>
+                                <input type="text" id="signingLocation" placeholder="e.g. Infinity Boat Works Office, 123 Main St.">
+                            </div>
+                            <div class="signing-field">
+                                <label><i class="fa-solid fa-note-sticky"></i> Notes (Optional)</label>
+                                <textarea id="signingNotes" rows="3" placeholder="Any additional notes or requests for the signing appointment..."></textarea>
+                            </div>
+                            <div class="signing-field" style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px;">
+                                <label style="font-weight:700;font-size:14px;"><i class="fa-solid fa-pen"></i> Digital Signature</label>
+                                <p style="font-size:13px;color:#64748b;margin-bottom:8px;">Type your full name as your digital signature to acknowledge that you have read and agree to the contract terms.</p>
+                                <input type="text" id="signingSignature" placeholder="Type your full legal name..." style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;box-sizing:border-box;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guideline-nav">
+                        <button class="back-btn" id="backFromSign"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                        <button class="next-btn" id="submitOrder">Submit & Schedule Signing <i class="fa-solid fa-calendar-check"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script type="module" src="order.js?v=1"></script>
+</body>
+</html>

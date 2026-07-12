@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+Analytics Dashboard
+</title>
+
+<link rel="stylesheet"
+href="dashanalytics.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+</head>
+
+<body>
+
+<div class="dashboard-layout">
+
+<aside class="sidebar">
+
+    <div>
+
+        <h1 class="logo">
+
+            BoatShop
+
+        </h1>
+
+         <nav class="sidebar-menu">
+
+    <a href="dashboard.html" >
+
+
+
+        Dashboard
+
+    </a>
+
+    <a href="dashorder.html">
+   
+
+
+        Orders
+
+    </a>
+
+    <a href="dashcustomer.html">
+
+   
+
+        Customers
+
+    </a>
+
+     
+     <a href="dashsales.html">
+
+        
+
+      Sales
+
+    </a>
+
+    <a href="dashpayment.html">
+
+        
+
+        Payments
+
+    </a>
+
+    <a href="dashinventory.html" >
+
+
+
+        Inventory
+
+    </a>
+
+    <a href="dashanalytics.html" >
+
+    
+
+        Analytics
+
+    </a>
+
+    <a href="dashprogress.html">
+
+        Boat Progress
+
+    </a>
+
+    <a href="dashapproval.html">
+
+        Approvals
+
+    </a>
+
+   </nav>
+
+
+    </div>
+
+<button class="logout-btn" onclick="handleLogout();">
+
+        Logout
+
+    </button>
+
+</aside>
+
+
+<main class="main-content">
+
+
+    <div class="topbar">
+
+        <div>
+
+            <h1>
+
+                Analytics
+
+            </h1>
+
+            <p>
+
+                Monitor business growth,
+                performance, and trends.
+
+            </p>
+
+        </div>
+
+
+        <button class="report-btn">
+
+            Generate Report
+
+        </button>
+
+    </div>
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+
+            <h3>
+
+                Total Visitors
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+            <span>
+
+                Orders this month
+
+            </span>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <h3>
+
+                Boat Orders
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+            <span>
+
+                Total boat orders
+
+            </span>
+
+        </div>
+
+   <div class="stat-card">
+
+            <h3>
+
+                Conversion Rate
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+            <span>
+
+                Completed order rate
+
+            </span>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <h3>
+
+                Revenue Growth
+
+            </h3>
+
+            <h2>
+
+                --
+
+            </h2>
+
+            <span>
+
+                Total revenue value
+
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <div class="analytics-grid">
+
+
+        <div class="chart-card">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Website Traffic
+
+                </h2>
+
+                <p>
+
+                    Last 6 Months
+
+                </p>
+
+            </div>
+
+
+            <div class="chart-area" id="trafficChart">
+
+            </div>
+
+        </div>
+
+        <div class="top-boats-card">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Top Boats
+
+                </h2>
+
+            </div>
+
+            <div id="topBoatsList"></div>
+
+        </div>
+
+    </div>
+
+
+    <div class="performance-card">
+
+        <div class="card-header">
+
+            <h2>
+
+                Business Performance
+
+            </h2>
+
+        </div>
+
+
+        <div class="performance-grid" id="performanceGrid">
+
+            <div class="performance-item">
+                <h3>Customer Satisfaction</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="satisfactionFill" style="width:0%;"></div>
+                </div>
+                <span id="satisfactionPct">0%</span>
+            </div>
+
+            <div class="performance-item">
+                <h3>Project Completion</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="completionFill" style="width:0%;"></div>
+                </div>
+                <span id="completionPct">0%</span>
+            </div>
+
+            <div class="performance-item">
+                <h3>Delivery Success</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="deliveryFill" style="width:0%;"></div>
+                </div>
+                <span id="deliveryPct">0%</span>
+            </div>
+
+        </div>
+
+    </div>
+
+</main>
+
+</div>
+
+<script type="module" src="dashanalytics.js?v=1"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+
+</body>
+
+</html>

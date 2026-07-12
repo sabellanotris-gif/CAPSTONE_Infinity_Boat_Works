@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boat Dashboard</title>
+<link rel="stylesheet" href="home.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="main-header">
+    <div class="logo">BoatShop</div>
+    <nav>
+        <a href="#projectsSection">My Projects</a>
+        <a href="#boatsSection">Order Boat</a>
+        <a href="#customizerSection">Customizer</a>
+        <a href="profile.html">Profile</a>
+        <a href="payment.html">Payments</a>
+        <a href="#" id="notificationBell" style="position:relative;">
+            <i class="fa-solid fa-bell"></i>
+            <span id="notifBadge" class="notif-badge" style="display:none;">0</span>
+        </a>
+        <a href="#" onclick="handleLogout(); return false;">Logout</a>
+    </nav>
+
+    <div id="notifDropdown" class="notif-dropdown">
+        <div class="notif-header">
+            <h4>Notifications</h4>
+            <button id="markAllRead" class="mark-read-btn">Mark all read</button>
+        </div>
+        <div id="notifList" class="notif-list">
+            <div class="notif-empty">No notifications</div>
+        </div>
+    </div>
+</header>
+
+<section class="hero-section">
+    <div class="hero-card">
+        <div class="hero-profile">
+            <div class="profile-avatar">
+                <img id="profilePic" src="./images/user.png" alt="Profile">
+            </div>
+            <div class="hero-text">
+                <span class="dashboard-tag">CUSTOMER DASHBOARD</span>
+                <h1><span id="welcomeGreeting">Welcome back</span>, <span id="homeName"></span></h1>
+                <p>Track your boat projects, payment progress, and production updates in real-time.</p>
+            </div>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <span>Total Projects</span>
+                <h4 id="totalProjects">--</h4>
+            </div>
+            <div class="stat-card active-stat">
+                <span>Active Projects</span>
+                <h4 id="activeProjects">--</h4>
+            </div>
+            <div class="stat-card complete-stat">
+                <span>Completed</span>
+                <h4 id="completedProjects">--</h4>
+            </div>
+            <div class="stat-card payment-stat">
+                <span>Amount Paid</span>
+                <h4 id="totalPayment">--</h4>
+            </div>
+            <div class="stat-card balance-stat">
+                <span>Remaining Balance</span>
+                <h4 id="remainingPayment">--</h4>
+            </div>
+            <div class="stat-card cancelled-stat">
+                <span>Cancelled</span>
+                <h4 id="cancelledProjects">--</h4>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<section class="projects-section" id="projectsSection">
+    <div class="section-header">
+        <span class="mini-tag">ACTIVE PROJECTS</span>
+        <h2 class="section-title">My Boat Projects</h2>
+        <div class="project-filters" id="projectFilters">
+            <button class="proj-filter active" data-filter="all">All</button>
+            <button class="proj-filter" data-filter="active">Active</button>
+            <button class="proj-filter" data-filter="completed">Completed</button>
+            <button class="proj-filter" data-filter="pending-signing">Pending Signing</button>
+            <button class="proj-filter" data-filter="cancelled">Cancelled</button>
+        </div>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+        <div class="empty-icon">
+            <i class="fa-solid fa-ship"></i>
+        </div>
+        <h3>No Boat Projects Yet</h3>
+        <p>You haven't ordered a boat yet. Browse our available boats below and place your first order!</p>
+        <a href="#boatsSection"><button class="empty-order-btn">Order Your First Boat</button></a>
+    </div>
+
+    <div class="projects-grid" id="myOrdersGrid"></div> 
+</section>
+
+<section class="projects-section" id="cancelledSection" style="display:none;">
+    <div class="section-header">
+        <span class="mini-tag">CANCELLED</span>
+        <h2 class="section-title">Cancelled Orders</h2>
+    </div>
+    <div class="projects-grid" id="cancelledOrdersGrid"></div>
+</section>
+
+
+<div class="modal-overlay" id="workersModal">
+    <div class="modal-content">
+        <button class="modal-close" id="modalClose">&times;</button>
+        <h2>Project Workers</h2>
+        <p class="modal-subtitle" id="modalProjectName"></p>
+        <div class="workers-full-list" id="workersFullList"></div>
+    </div>
+</div>
+
+
+<div class="modal-overlay" id="cancelModal">
+    <div class="modal-content cancel-modal-content">
+        <button class="modal-close" id="cancelModalClose">&times;</button>
+        <div id="cancelPenaltyTable" style="display:none;">
+            <h2>Cancellation Policy</h2>
+            <p class="cancel-status">Review the cancellation penalties before proceeding.</p>
+            <div style="background:#f8fafc;border-radius:14px;overflow:hidden;margin:14px 0;border:1px solid #e2e8f0;">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                        <tr style="background:#1e293b;color:white;">
+                            <th style="padding:12px 16px;text-align:left;">Project Stage</th>
+                            <th style="padding:12px 16px;text-align:right;">Penalty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:10px 16px;">Design Phase (0-10%)</td>
+                            <td style="padding:10px 16px;text-align:right;color:#dc2626;font-weight:600;">10%</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:10px 16px;">MARINA Processing (11-40%)</td>
+                            <td style="padding:10px 16px;text-align:right;color:#dc2626;font-weight:600;">20%</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid #e2e8f0;">
+                            <td style="padding:10px 16px;">Construction Phase (41-70%)</td>
+                            <td style="padding:10px 16px;text-align:right;color:#dc2626;font-weight:600;">50%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px 16px;">Near Completion (71-100%)</td>
+                            <td style="padding:10px 16px;text-align:right;color:#dc2626;font-weight:700;">Non-Refundable</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size:13px;color:#64748b;margin-bottom:14px;">Your current stage penalty is highlighted below.</p>
+            <div id="penaltyYourCost" style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:14px;margin-bottom:16px;display:none;"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="payment-btn" id="cancelPenaltyBackBtn" style="background:#94a3b8;">Back</button>
+                <button class="payment-btn" id="cancelPenaltyProceedBtn" style="background:#dc2626;">Proceed with Cancellation</button>
+            </div>
+        </div>
+
+        <div id="cancelSimple" style="display:none;">
+            <h2>Request Cancellation</h2>
+            <p class="cancel-status" id="cancelCurrentStatus"></p>
+            <p style="color:#16a34a;font-weight:600;margin:6px 0 14px;">No cancellation fee applies.</p>
+
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:12px;margin-bottom:14px;">
+                <p style="font-size:13px;color:#dc2626;margin:0;">
+                    <i class="fa-solid fa-exclamation-triangle"></i>
+                    <strong>Warning:</strong> Multiple cancellation attempts may lead to being restricted from placing future orders.
+                </p>
+            </div>
+
+            <label style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">Reason for cancellation:</label>
+            <textarea id="cancelReason" rows="4" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>
+
+            <label style="font-weight:600;font-size:14px;display:block;margin:14px 0 6px;">Type your full name as signature:</label>
+            <input type="text" id="cancelSignature" placeholder="Juan Dela Cruz" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;box-sizing:border-box;">
+
+            <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+                <button class="payment-btn" id="cancelCloseBtn" style="background:#94a3b8;">Close</button>
+                <button class="payment-btn" id="cancelSubmitBtn">Submit Cancellation Request</button>
+            </div>
+        </div>
+
+        <div id="cancelConsequences" style="display:none;">
+            <h2>Request Cancellation</h2>
+            <p class="cancel-status" id="cancelConsequenceStatus"></p>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:14px;padding:16px;margin:12px 0;">
+                <h4 style="color:#dc2626;font-size:14px;margin-bottom:8px;"><i class="fa-solid fa-triangle-exclamation"></i> Cancellation Consequences</h4>
+                <p style="font-size:13px;color:#991b1b;margin-bottom:6px;"><strong>Project Stage:</strong> <span id="cancelStageDisplay"></span></p>
+                <p style="font-size:13px;color:#991b1b;margin-bottom:6px;"><strong>Build Progress:</strong> <span id="cancelProgressDisplay"></span></p>
+                <p style="font-size:13px;color:#991b1b;margin-bottom:6px;"><strong>Cancellation Fee:</strong> <span id="cancelFeeDisplay"></span></p>
+                <div style="margin-top:10px;">
+                    <strong style="font-size:13px;color:#991b1b;">Materials already allocated:</strong>
+                    <ul id="cancelMaterialsList" style="margin:6px 0 0 18px;font-size:13px;color:#7f1d1d;"></ul>
+                </div>
+            </div>
+
+            <label style="font-weight:600;font-size:14px;display:block;margin-bottom:6px;">Reason for cancellation:</label>
+            <textarea id="cancelReasonConsequence" rows="3" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;resize:vertical;box-sizing:border-box;"></textarea>
+
+            <label style="font-weight:600;font-size:14px;display:block;margin:14px 0 6px;">Type your full name as signature:</label>
+            <input type="text" id="cancelSignatureConsequence" placeholder="Juan Dela Cruz" style="width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:12px;font-family:inherit;font-size:14px;box-sizing:border-box;">
+
+            <label style="display:flex;align-items:flex-start;gap:10px;margin:14px 0;font-size:14px;color:#334155;cursor:pointer;">
+                <input type="checkbox" id="cancelUnderstandCheck" style="margin-top:3px;width:18px;height:18px;">
+                <span>I understand that I will be charged a <strong id="cancelFeeInline"></strong> cancellation fee and that materials have already been allocated for my order.</span>
+            </label>
+
+            <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end;">
+                <button class="payment-btn" id="cancelConsequenceCloseBtn" style="background:#94a3b8;">Close</button>
+                <button class="payment-btn" id="cancelConsequenceSubmitBtn" style="background:#dc2626;">Submit Cancellation Request</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal-overlay" id="passengerModal">
+    <div class="modal-content modal-wide">
+        <button class="modal-close" id="passengerModalClose">&times;</button>
+        <h2>Select Passenger Boat</h2>
+        <p class="modal-subtitle">Choose the passenger vessel that fits your needs</p>
+        <div id="passengerModalVariants" style="display:flex;gap:24px;margin-top:24px;flex-wrap:wrap;align-items:flex-start;"></div>
+    </div>
+</div>
+
+<section class="boats-section" id="boatsSection">
+    <div class="section-header">
+        <span class="mini-tag">AVAILABLE BOATS</span>
+        <h2 class="section-title">Order Your Boat</h2>
+    </div>
+
+    <div class="boats-grid" id="boatsGrid"></div>
+</section>
+
+
+<section class="premium-customizer" id="customizerSection">
+    <div class="premium-content">
+        <div class="premium-left">
+            <span class="premium-tag">ADVANCED 3D EXPERIENCE</span>
+            <h2>Design Your Dream Boat In Real-Time</h2>
+            <p>Customize your boat using advanced 3D editing tools, smart pricing estimation, and real-time visualization.</p>
+            <div class="premium-features">
+                <div class="feature-box">
+                    <h3>Real-Time 3D</h3>
+                    <p>Instantly preview changes.</p>
+                </div>
+                <div class="feature-box">
+                    <h3>AI Estimation</h3>
+                    <p>Automatic pricing calculations.</p>
+                </div>
+                <div class="feature-box">
+                    <h3>Smart Balance</h3>  
+                    <p>Detect overload risks instantly.</p>
+                </div>
+            </div>
+            <a href="boatcust.html">
+                <button class="launch-btn">Launch 3D Customizer</button>
+            </a>
+        </div>
+        <div class="premium-right">
+            <div class="editor-image-container">
+                <img src="./images/edior.png" alt="3D Editor">
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="modal-overlay" id="specsModal">
+    <div class="modal-content modal-wide">
+        <button class="modal-close" id="specsModalClose">&times;</button>
+        <div id="specsModalImgWrap" class="img-carousel" style="text-align:center;">
+            <button class="carousel-arrow left" onclick="prevBoatImg('specsModalImg',document.getElementById('specsModalImgWrap').dataset.boatKey)">&#9664;</button>
+            <img id="specsModalImg" class="specs-img" src="" alt="" onclick="openFullscreen(this)" style="cursor:pointer;">
+            <button class="carousel-arrow right" onclick="nextBoatImg('specsModalImg',document.getElementById('specsModalImgWrap').dataset.boatKey)">&#9654;</button>
+        </div>
+        <h2 id="specsModalName"></h2>
+        <p class="modal-subtitle" id="specsModalDesc"></p>
+        <div id="specsTable"></div>
+        <div class="boat-actions" id="specsActions" style="margin-top:20px;">
+            <button class="order-now" id="specsOrderBtn">ORDER NOW</button>
+            <button class="view-specs" id="specsCloseBtn">CLOSE</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="orderSummaryModal">
+    <div class="modal-content modal-wide">
+        <button class="modal-close" id="orderSummaryClose">&times;</button>
+        <h2 id="orderSummaryTitle">Order Summary</h2>
+        <p class="modal-subtitle" id="orderSummarySubtitle"></p>
+        <div id="orderSummaryContent"></div>
+    </div>
+</div>
+
+<div id="fullscreenModal" onclick="closeFullscreen(event)">
+    <button class="fullscreen-close" onclick="closeFullscreen()">&times;</button>
+    <div class="img-carousel">
+        <button class="carousel-arrow left" id="fsPrevBtn">&#9664;</button>
+        <img id="fullscreenImg" src="" alt="">
+        <button class="carousel-arrow right" id="fsNextBtn">&#9654;</button>
+    </div>
+    <div id="fullscreenCaption"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/js/all.min.js"></script>
+<script type="module" src="home.js?v=1"></script>
+</body>
+</html>

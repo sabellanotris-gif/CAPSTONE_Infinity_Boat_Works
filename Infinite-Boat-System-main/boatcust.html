@@ -1,0 +1,521 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>YE
+Premium Boat Configurator
+</title>
+
+<link rel="stylesheet"
+href="boatcust.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="app-container">
+    <aside class="sidebar left-sidebar">
+
+        <h1>
+            BOAT CONFIGURATOR
+        </h1>
+
+        <div class="boat-preview-card">
+
+            <h3>
+                BOAT MODEL
+            </h3>
+
+            <img id="boatModelImage" src="./images/b2.png"
+            alt="boat">
+
+            <p id="boatModelName">
+                Base Boat
+            </p>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                LENGTH
+            </label>
+
+            <div class="range-box">
+
+                <input type="range"
+                id="lengthRange"
+                min="4"
+                max="30"
+                value="10">
+
+                <span id="lengthValue">
+                    10.0m
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                WIDTH
+            </label>
+
+            <div class="range-box">
+
+                <input type="range"
+                id="widthRange"
+                min="1"
+                max="6"
+                step="0.1"
+                value="2.8">
+
+                <span id="widthValue">
+                    2.8m
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                ENGINE BRAND
+            </label>
+
+            <select id="engineBrand">
+
+                <option value="Suzuki" data-id="" data-name="Suzuki">
+                    Suzuki
+                </option>
+
+                <option value="Mercury" data-id="" data-name="Mercury">
+                    Mercury
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                ENGINE POWER
+            </label>
+
+            <select id="engineHP">
+
+                <option value="750000" data-id="" data-name="150 HP" data-hp="150">
+                    150 HP
+                </option>
+
+                <option value="1300000" data-id="" data-name="250 HP" data-hp="250">
+                    250 HP
+                </option>
+
+                <option value="1500000" data-id="" data-name="300 HP" data-hp="300">
+                    300 HP
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                SEATING CAPACITY
+            </label>
+
+            <select id="seatSelect">
+
+                <option value="0" data-capacity="0" data-id="" data-name="None">
+                    None
+                </option>
+
+                <option value="32500" data-capacity="5">
+                    5 Seats
+                </option>
+
+                <option value="52000" data-capacity="8">
+                    8 Seats
+                </option>
+
+                <option value="65000" data-capacity="10">
+                    10 Seats
+                </option>
+
+                <option value="78000" data-capacity="12" selected>
+                    12 Seats
+                </option>
+
+                <option value="97500" data-capacity="15">
+                    15 Seats
+                </option>
+
+                <option value="130000" data-capacity="20">
+                    20 Seats
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                STORAGE
+            </label>
+
+            <select>
+
+                <option>
+                    Medium Storage
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="control-group">
+
+            <label>
+                LED LIGHTS
+            </label>
+
+            <select id="ledSelect">
+
+                <option value="0" data-id="" data-name="None">
+                    None
+                </option>
+
+                <option value="15000" data-name="Blue LED">
+                    Blue LED
+                </option>
+
+                <option value="25000" data-name="RGB LED">
+                    RGB LED
+                </option>
+
+            </select>
+
+        </div>
+
+        <div class="color-picker">
+
+            <label>
+                HULL COLOR
+            </label>
+
+            <div class="colors hull-colors">
+            </div>
+
+        </div>
+
+        <div class="color-picker">
+
+            <label>
+                DECK COLOR
+            </label>
+
+            <div class="colors deck-colors">
+            </div>
+
+        </div>
+
+        <div class="color-picker">
+
+            <label>
+                RAIL COLOR
+            </label>
+
+            <div class="colors rail-colors">
+            </div>
+
+        </div>
+
+
+        <button class="reset-btn">
+            Reset All
+        </button>
+
+    </aside>
+
+    <main class="viewer-section">
+
+        <div class="top-toolbar">
+
+            <button id="rotateBtn">
+                Rotate
+            </button>
+
+            <button id="zoomInBtn">
+                Zoom In
+            </button>
+
+            <button id="zoomOutBtn">
+                Zoom Out
+            </button>
+
+            <button id="resetBtn">
+                Reset
+            </button>
+
+        </div>
+
+
+        <div class="viewer-wrapper">
+
+            <canvas id="boatCanvas"></canvas>
+
+        </div>
+
+
+        <div class="view-buttons">
+
+            <button class="active">
+                Exterior
+            </button>
+
+            <button>
+                Interior
+            </button>
+
+            <button>
+                Top View
+            </button>
+
+            <button>
+                Rear View
+            </button>
+
+            <button>
+                Front View
+            </button>
+
+            <button>
+                3D View
+            </button>
+
+        </div>
+
+        <div class="bottom-cards">
+
+            <div class="info-card">
+
+                <h3>
+                    SAFETY GUIDE
+                </h3>
+
+                <p>
+                    Please do not exceed
+                    recommended weight.
+                </p>
+
+            </div>
+
+            <div class="info-card">
+
+                <h3>
+                    SUGGESTIONS
+                </h3>
+
+                <p>
+                    Your configuration
+                    is ideal.
+                </p>
+
+            </div>
+
+            <div class="info-card">
+
+                <h3>
+                    MORE SEATS?
+                </h3>
+
+                <p>
+                    Adding more seats may
+                    affect balance.
+                </p>
+
+            </div>
+
+        </div>
+
+    </main>
+
+
+    <aside class="sidebar right-sidebar">
+
+        <h2>
+            SMART STABILITY ANALYSIS
+        </h2>
+
+        <div class="safety-card"
+        id="safetyBox">
+
+            <h3>
+                SAFE & BALANCED
+            </h3>
+
+            <p>
+                Great! Your current configuration
+                is within safe limits.
+            </p>
+
+            <div class="score-circle">
+
+                92%
+
+            </div>
+
+        </div>
+
+        <div class="summary-card">
+
+            <h3>
+                CAPACITY SUMMARY
+            </h3>
+
+            <div class="summary-row">
+
+                <span>
+                    Maximum Capacity
+                </span>
+
+                <span id="recommendedSeats">
+                    12 Seats
+                </span>
+
+            </div>
+
+            <div class="summary-row">
+
+                <span>
+                    Current Capacity
+                </span>
+
+                <span id="currentSeats">
+                    12 Seats
+                </span>
+
+            </div>
+
+            <div class="summary-row">
+
+                <span>
+                    Remaining Capacity
+                </span>
+
+                <span class="green"
+                id="remainingWeight">
+
+                    60kg
+
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="summary-card">
+
+            <h3>
+                PRICE BREAKDOWN
+            </h3>
+
+            <div id="priceBreakdown">
+                <div class="summary-row">
+                    <span>Base Boat</span>
+                    <span id="basePriceDisplay">₱1,400,000</span>
+                </div>
+                <div class="summary-row" id="dimensExtensionRow" style="display:none">
+                    <span>Dimension Extension</span>
+                    <span id="dimensExtensionDisplay">₱0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Engine</span>
+                    <span id="enginePriceDisplay">₱350,000</span>
+                </div>
+                <div class="summary-row">
+                    <span>Seats</span>
+                    <span id="seatPriceDisplay">₱0</span>
+                </div>
+                <div class="summary-row">
+                    <span>LED Lights</span>
+                    <span id="ledPriceDisplay">₱25,000</span>
+                </div>
+                <div class="summary-row" id="colorPriceRow">
+                    <span>Hull Paint</span>
+                    <span id="colorPriceDisplay">None</span>
+                </div>
+                <div class="summary-row">
+                    <span>Deck Color</span>
+                    <span id="deckColorPriceDisplay">Teak Wood</span>
+                </div>
+                <div class="summary-row">
+                    <span>Rail Color</span>
+                    <span id="railColorPriceDisplay">Chrome Rail</span>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="total-price"
+            id="totalPrice">
+
+                ₱1,535,000
+
+            </div>
+
+            <div id="custPaymentSection" style="margin:16px 0;padding:14px;background:#f0f4ff;border-radius:10px;">
+                <label style="font-weight:600;font-size:13px;margin-bottom:8px;display:block;"><i class="fa-solid fa-credit-card"></i> Payment Method</label>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <label style="flex:1;min-width:120px;display:flex;align-items:center;gap:8px;padding:10px 14px;background:white;border:2px solid #2563eb;border-radius:10px;cursor:pointer;" id="custFullPayLabel">
+                        <input type="radio" name="custPaymentMethod" id="custFullPay" value="Full Payment" checked style="accent-color:#2563eb;width:16px;height:16px;">
+                        <div>
+                            <strong style="font-size:13px;">Full Payment</strong>
+                            <p style="font-size:11px;color:#64748b;">Pay 100% once</p>
+                        </div>
+                    </label>
+                    <label style="flex:1;min-width:120px;display:flex;align-items:center;gap:8px;padding:10px 14px;background:white;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;" id="custInstallLabel">
+                        <input type="radio" name="custPaymentMethod" id="custInstallPay" value="Installment" style="accent-color:#2563eb;width:16px;height:16px;">
+                        <div>
+                            <strong style="font-size:13px;">Installment</strong>
+                            <p style="font-size:11px;color:#64748b;">30/40/30 phases</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button class="submit-review-btn" id="submitReviewBtn">
+
+                <i class="fa-solid fa-paper-plane"></i>
+                Submit for Review
+
+            </button>
+
+        </div>
+
+    </aside>
+
+</div>
+
+<script type="module"
+src="boatcust.js"></script>
+
+</body>
+</html>
+

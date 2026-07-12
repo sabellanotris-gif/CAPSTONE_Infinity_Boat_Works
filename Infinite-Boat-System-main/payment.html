@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+
+<title>
+Boat Payment Transaction
+</title>
+
+<link rel="stylesheet"
+href="payment.css">
+
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+rel="stylesheet">
+
+</head>
+
+<body>
+
+
+
+<section class="payment-container">
+
+
+    <button
+    class="close-btn"
+    onclick="window.location.href='home.html'">
+
+        <i class="fa-solid fa-xmark"></i>
+
+    </button>
+
+
+    <div class="payment-left">
+
+
+        <div class="payment-header">
+
+            <div class="header-icon">
+
+                <i class="fa-solid fa-credit-card"></i>
+
+            </div>
+
+
+            <div>
+
+                <span class="payment-tag">
+
+                    SECURE PAYMENT
+
+                </span>
+
+
+
+
+
+                <h1>
+
+                    Payment Transaction
+
+                </h1>
+
+
+                <p>
+
+                    Complete your boat payment securely
+                    using online banking or e-wallet services.
+
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="payment-card">
+
+            <div class="card-title">
+
+                <span>
+                    STEP 1
+                </span>
+
+                <h2>
+                    Select Bank / Wallet
+                </h2>
+
+            </div>
+
+
+            <div class="banks-grid">
+
+
+                <div
+                class="bank-card active-bank"
+                data-bank="BDO Bank">
+
+                    <i class="fa-solid fa-building-columns"></i>
+
+                    <h3>
+                        BDO
+                    </h3>
+
+                    <p>
+                        Bank Transfer
+                    </p>
+
+                </div>
+
+
+
+
+
+                <!-- BPI -->
+
+                <div
+                class="bank-card"
+                data-bank="BPI Bank">
+
+                    <i class="fa-solid fa-credit-card"></i>
+
+                    <h3>
+                        BPI
+                    </h3>
+
+                    <p>
+                        Online Banking
+                    </p>
+
+                </div>
+
+
+
+
+
+                <!-- METROBANK -->
+
+                <div
+                class="bank-card"
+                data-bank="Metrobank">
+
+                    <i class="fa-solid fa-landmark"></i>
+
+                    <h3>
+                        Metrobank
+                    </h3>
+
+                    <p>
+                        Mobile Banking
+                    </p>
+
+                </div>
+
+
+
+
+
+                <!-- UNIONBANK -->
+
+                <div
+                class="bank-card"
+                data-bank="UnionBank">
+
+                    <i class="fa-solid fa-money-bill-transfer"></i>
+
+                    <h3>
+                        UnionBank
+                    </h3>
+
+                    <p>
+                        Transfer
+                    </p>
+
+                </div>
+
+
+
+
+
+                <!-- GCASH -->
+
+                <div
+                class="bank-card"
+                data-bank="GCash">
+
+                    <i class="fa-solid fa-wallet"></i>
+
+                    <h3>
+                        GCash
+                    </h3>
+
+                    <p>
+                        E-Wallet
+                    </p>
+
+                </div>
+
+
+
+
+
+                <!-- MAYA -->
+
+                <div
+                class="bank-card"
+                data-bank="Maya">
+
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+
+                    <h3>
+                        Maya
+                    </h3>
+
+                    <p>
+                        Digital Wallet
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div id="companyBankInfo" class="company-bank-info" style="display:none;">
+
+                <h3>
+                    <i class="fa-solid fa-building-columns"></i>
+                    Send Payment To
+                </h3>
+
+                <div id="companyBankDetails">
+
+                    <div class="bank-detail-row">
+
+                        <span>Bank</span>
+
+                        <strong id="companyBankName">-</strong>
+
+                    </div>
+
+                    <div class="bank-detail-row">
+
+                        <span>Account Name</span>
+
+                        <strong id="companyAccountName">-</strong>
+
+                    </div>
+
+                    <div class="bank-detail-row">
+
+                        <span>Account Number</span>
+
+                        <strong id="companyAccountNumber">-</strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ===== WORKERS SECTION (RIGHT SIDEBAR) ===== -->
+            <div class="summary-workers" id="summaryWorkers" style="display:none;margin-top:16px;padding:12px;background:#f8fafc;border-radius:12px;">
+                <h4 style="font-size:13px;color:#64748b;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <i class="fa-solid fa-users"></i> YOUR BUILD TEAM
+                </h4>
+                <div id="workersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+            </div>
+
+        </div>
+
+
+
+
+
+        <!-- =====================================================
+             PAYMENT INSTRUCTIONS
+        ===================================================== -->
+
+        <div class="payment-card">
+
+            <div class="card-title">
+
+                <span>
+                    STEP 2
+                </span>
+
+                <h2>
+                    Payment Phase
+                </h2>
+
+            </div>
+
+
+            <div class="phase-container" id="phaseContainer">
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- =====================================================
+             PAYMENT DETAILS
+        ===================================================== -->
+
+        <div class="payment-card">
+
+            <div class="card-title">
+
+                <span>
+                    STEP 3
+                </span>
+
+                <h2>
+                    Payment Details
+                </h2>
+
+            </div>
+
+
+
+
+
+            <div class="payment-form">
+
+
+
+
+
+                <div class="form-row">
+
+                    <div class="input-box">
+
+                        <label>
+                            Your Account Name
+                        </label>
+
+                        <input
+                        type="text"
+                        id="accountName"
+                        placeholder="Enter your account name">
+
+                    </div>
+
+
+
+
+
+                    <div class="input-box">
+
+                        <label>
+                            Your Account Number
+                        </label>
+
+                        <input
+                        type="text"
+                        id="accountNumber"
+                        placeholder="Enter your account number">
+
+                    </div>
+
+                </div>
+
+            <div class="payment-warning">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>WARNING:</strong> Enter only your <strong>real account name and number</strong>
+                    as registered with your bank. Fake or inaccurate information may lead to
+                    <strong>order cancellation and being blocklisted</strong> from placing future orders.
+                </div>
+            </div>
+
+                <div class="form-row">
+
+                    <div class="input-box">
+
+                        <label>
+                            Current Payment
+                        </label>
+
+                        <input
+                        id="paymentCurrentAmount"
+                        type="text"
+                        readonly>
+
+                    </div>
+
+
+
+
+
+                    <div class="input-box">
+
+                        <label>
+                            Reference Number
+                        </label>
+
+                        <input
+                        type="text"
+                        id="referenceNumber"
+                        placeholder="Enter Reference Number">
+
+                    </div>
+
+                </div>
+
+            <div class="payment-warning">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>WARNING:</strong> Provide the <strong>valid reference number</strong>
+                    from your bank transaction. Submitting fake references is considered fraud
+                    and may result in order penalties or cancellation.
+                </div>
+            </div>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- =====================================================
+             UPLOAD PROOF
+        ===================================================== -->
+
+        <div class="payment-card">
+
+            <div class="card-title">
+
+                <span>
+                    STEP 4
+                </span>
+
+                <h2>
+                    Upload Payment Proof
+                </h2>
+
+            </div>
+
+
+
+
+
+            <label class="upload-area">
+
+                <input
+                type="file"
+                id="paymentProof"
+                accept="image/*"
+                hidden>
+
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+
+                <h3>
+
+                    Upload Screenshot
+
+                </h3>
+
+                <p>
+
+                    PNG / JPG / JPEG
+
+                </p>
+
+            </label>
+
+
+
+
+
+            <!-- PREVIEW -->
+
+            <img
+            id="proofPreview"
+            style="
+            width:100%;
+            max-height:250px;
+            object-fit:cover;
+            border-radius:20px;
+            margin-top:20px;
+            display:none;
+            ">
+
+
+
+
+
+            <!-- BUTTON -->
+
+            <button
+            class="payment-button"
+            id="payNowBtn">
+
+                <i class="fa-solid fa-lock"></i>
+
+                Confirm Payment
+
+            </button>
+
+        </div>
+
+    </div>
+
+
+
+
+
+
+
+
+
+    <!-- =====================================================
+         RIGHT SIDE
+    ===================================================== -->
+
+    <div class="payment-right">
+
+
+
+
+
+        <!-- =====================================================
+             ORDER SUMMARY
+        ===================================================== -->
+
+        <div class="summary-card">
+
+            <div class="summary-top">
+
+                <span class="summary-tag">
+
+                    ORDER SUMMARY
+
+                </span>
+
+
+
+
+
+                <h2>
+
+                    Boat Payment
+
+                </h2>
+
+            </div>
+
+
+
+
+
+            <div class="summary-image">
+
+                <img
+                id="paymentBoatImage"
+                src=""
+                alt="Boat">
+
+            </div>
+
+
+
+
+
+            <h1
+            id="paymentBoatName">
+
+                Boat Name
+
+            </h1>
+
+
+
+
+
+            <h3
+            id="paymentBoatPrice">
+
+                ₱0
+
+            </h3>
+
+
+
+
+
+
+
+
+
+            <!-- SUMMARY DETAILS -->
+
+            <div class="summary-list">
+
+
+
+
+
+                <div class="summary-item">
+
+                    <span>
+
+                        Payment Method
+
+                    </span>
+
+                    <h4
+                    id="paymentMethodType">
+
+                        Installment
+
+                    </h4>
+
+                </div>
+
+
+
+
+
+                <div class="summary-item">
+
+                    <span>
+
+                        Current Phase
+
+                    </span>
+
+                    <h4
+                    id="paymentCurrentPhase">
+
+                        30% Downpayment
+
+                    </h4>
+
+                </div>
+
+
+
+
+
+                <div class="summary-item">
+
+                    <span>
+
+                        Current Amount
+
+                    </span>
+
+                    <h4
+                    id="paymentCurrentAmountText">
+
+                        ₱0
+
+                    </h4>
+
+                </div>
+
+
+
+
+
+                <div class="summary-item">
+
+                    <span>
+
+                        Remaining Balance
+
+                    </span>
+
+                    <h4
+                    id="paymentRemainingBalance">
+
+                        ₱0
+
+                    </h4>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+
+
+
+
+
+
+        <!-- =====================================================
+             PAYMENT INSTRUCTIONS
+        ===================================================== -->
+
+        <div class="instruction-card">
+
+            <h2>
+
+                Payment Instructions
+
+            </h2>
+
+
+
+
+
+            <ul>
+
+                <li>
+
+                    Transfer the exact payment amount.
+
+                </li>
+
+
+
+
+
+                <li>
+
+                    Upload a valid screenshot or receipt.
+
+                </li>
+
+
+
+
+
+                <li>
+
+                    Payment verification takes 24 hours. 
+
+                </li>
+
+
+
+
+
+                <li>
+
+                    You will receive payment confirmation.
+
+                </li>
+
+            </ul>
+
+        </div>
+
+    </div>
+
+</section>
+
+<!-- ===== PREVIEW OVERLAY ===== -->
+<div class="preview-overlay" id="previewOverlay" style="display:none;">
+    <div class="preview-modal">
+        <div class="preview-header">
+            <h2>ORDER PREVIEW</h2>
+            <p>Please review your order details before payment</p>
+        </div>
+        <div class="preview-body">
+            <div class="preview-boat">
+                <img id="previewBoatImage" src="" alt="Boat">
+                <div>
+                    <h3 id="previewBoatName"></h3>
+                    <p id="previewBuildTime"></p>
+                </div>
+            </div>
+            <div class="preview-details">
+                <div>
+                    <h4>Price</h4>
+                    <p id="previewPrice"></p>
+                </div>
+                <div>
+                    <h4>Downpayment</h4>
+                    <p id="previewDownpayment"></p>
+                </div>
+                <div>
+                    <h4>Payment Method</h4>
+                    <p id="previewPaymentMethod"></p>
+                </div>
+                <div>
+                    <h4>Build Time</h4>
+                    <p id="previewBuildTime2"></p>
+                </div>
+            </div>
+            <div class="preview-section">
+                <h4>Contract Signing Schedule</h4>
+                <p id="previewScheduleDate"></p>
+                <p id="previewScheduleLocation"></p>
+            </div>
+            <div class="preview-section" id="previewCustomSection" style="display:none;">
+                <h4 style="color:#7c3aed;">CUSTOM CONFIGURATION</h4>
+                <div class="preview-custom-grid">
+                    <div><span>Length</span><strong id="previewBoatLength"></strong></div>
+                    <div><span>Width</span><strong id="previewBoatWidth"></strong></div>
+                    <div id="previewCustomItems" style="display:none;grid-column:span 2;"></div>
+                    <div id="previewCustomLegacy" style="display:block;">
+                        <div><span>Engine Cost</span><strong id="previewEngine"></strong></div>
+                        <div><span>Seats</span><strong id="previewSeats"></strong></div>
+                        <div><span>LED Cost</span><strong id="previewLed"></strong></div>
+                    </div>
+                    <div><span>Hull Color</span><strong id="previewHullColor"></strong></div>
+                    <div><span>Deck Color</span><strong id="previewDeckColor"></strong></div>
+                    <div><span>Rail Color</span><strong id="previewRailColor"></strong></div>
+                    <div><span>Custom Total</span><strong id="previewCustomTotal"></strong></div>
+                </div>
+            </div>
+            <div class="preview-section" id="previewWorkersSection" style="display:none;">
+                <h4>Your Build Team</h4>
+                <div id="previewWorkersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+            </div>
+            <div class="preview-section">
+                <h4>Payment Details</h4>
+                <p id="previewAccountName"></p>
+                <p id="previewAccountNumber"></p>
+                <p id="previewReferenceNumber"></p>
+                <p id="previewBank"></p>
+                <p id="previewAmount"></p>
+                <p id="previewPhase"></p>
+            </div>
+            <button class="preview-confirm-btn" id="confirmPreviewBtn">Confirm Payment</button>
+            <button class="preview-back-btn" id="backFromPreviewBtn">Go Back</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== CANCELLATION WARNING MODAL ===== -->
+<div class="warning-overlay" id="warningOverlay" style="display:none;">
+    <div class="warning-modal">
+        <div class="warning-icon">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h2>Cancellation Policy</h2>
+        <p class="warning-text">
+            By proceeding with this payment, you acknowledge that cancelling this order
+            <strong>after payment</strong> may result in:
+        </p>
+        <ul class="warning-list">
+            <li>Penalties and administrative fees</li>
+            <li>Charges for materials already allocated to your build</li>
+        </ul>
+        <div class="warning-blocklist">
+            <i class="fa-solid fa-ban"></i>
+            <strong>WARNING:</strong> Repeated cancellations may lead to being
+            <strong>blocklisted</strong> from placing future orders.
+        </div>
+        <div class="warning-actions">
+            <button class="warning-proceed-btn" id="proceedPaymentBtn">I Understand, Proceed</button>
+            <button class="warning-back-btn" id="backFromWarningBtn">Go Back</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== RECEIPT MODAL ===== -->
+<div class="receipt-overlay" id="receiptOverlay" style="display:none;">
+    <div class="receipt-modal">
+        <div class="receipt-header">
+            <h2>PAYMENT RECEIPT</h2>
+            <p id="receiptDate"></p>
+        </div>
+        <div class="receipt-body">
+            <div class="receipt-section">
+                <h3>Boat Ordered</h3>
+                <p id="receiptBoatName"></p>
+            </div>
+            <div class="receipt-section" id="receiptCustomSection" style="display:none;">
+                <h3 style="color:#7c3aed;">Custom Configuration</h3>
+                <div id="receiptCustomConfig" style="font-size:13px;line-height:1.8;"></div>
+            </div>
+            <div class="receipt-section">
+                <h3>Customer</h3>
+                <p id="receiptCustomerName"></p>
+                <p id="receiptCustomerEmail"></p>
+            </div>
+            <div class="receipt-section">
+                <h3>Order Reference</h3>
+                <p id="receiptOrderId"></p>
+            </div>
+            <div class="receipt-section">
+                <h3>Payment Details</h3>
+                <p id="receiptAmount"></p>
+                <p id="receiptPhase"></p>
+                <p id="receiptReference"></p>
+                <p id="receiptBank"></p>
+            </div>
+            <div class="receipt-section" id="receiptWorkersSection" style="display:none;">
+                <h3>Your Build Team</h3>
+                <div id="receiptWorkersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+            </div>
+            <div class="receipt-section" id="receiptScheduleSection" style="display:none;">
+                <h3>Contract Signing Schedule</h3>
+                <p id="receiptScheduleDateTime"></p>
+                <p id="receiptScheduleLocation"></p>
+                <p id="receiptScheduleSignature"></p>
+            </div>
+            <div class="receipt-warning">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <strong>Cancellation Policy:</strong> Cancelling this order after payment may incur penalties, including administrative fees and charges for materials already allocated.
+            </div>
+        </div>
+        <div class="receipt-footer">
+            <button class="receipt-btn" onclick="closeReceipt()">Go to Home</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="payment.js?v=1"></script>
+
+</body>
+
+</html>

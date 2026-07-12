@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+    content="width=device-width, initial-scale=1.0">
+
+    <title>
+        Profile Page
+    </title>
+
+    <link rel="stylesheet"
+    href="profile.css">
+
+    <link rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+</head>
+
+<body>
+
+
+<button
+class="close-btn"
+onclick="window.location.href='home.html'">
+
+    <i class="fa-solid fa-xmark"></i>
+
+</button>
+
+
+
+<div class="container">
+
+
+    <div class="left-side">
+
+
+        <div class="profile-image">
+
+            <div class="image-wrapper">
+
+                <img
+                id="profilePic"
+                src="./images/user.png"
+                alt="Profile Picture">
+
+                <button
+                type="button"
+                class="camera-btn"
+                onclick="document.getElementById('imageInput').click()">
+
+                    <i class="fa-solid fa-camera"></i>
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <h1 id="displayName">
+
+            Customer
+
+        </h1>
+
+        <p class="profile-subtitle">
+
+            Manage your account information
+            and personalize your profile.
+
+        </p>
+
+
+        <form
+        id="profileForm">
+
+
+            <div class="input-group">
+
+                <label>
+
+                    Change Name
+
+                </label>
+
+                <div class="input-box">
+
+                    <i class="fa-solid fa-user"></i>
+
+                    <input
+                    type="text"
+                    id="nameInput"
+                    placeholder="Enter new name">
+
+                </div>
+
+            </div>
+
+
+            <div class="input-group">
+
+                <label>
+
+                    Phone Number
+
+                </label>
+
+                <div class="input-box">
+
+                    <i class="fa-solid fa-phone"></i>
+
+                    <input
+                    type="tel"
+                    id="phoneInput"
+                    placeholder="0917 123 4567">
+
+                </div>
+
+            </div>
+
+
+            <div class="input-group">
+
+                <label>
+
+                    New Password
+
+                </label>
+
+                <div class="input-box">
+
+                    <i class="fa-solid fa-lock"></i>
+
+                    <input
+                    type="password"
+                    id="newPassword"
+                    placeholder="Enter new password">
+
+                </div>
+
+            </div>
+
+
+            <div class="input-group">
+
+                <label>
+
+                    Confirm Password
+
+                </label>
+
+                <div class="input-box">
+
+                    <i class="fa-solid fa-shield-halved"></i>
+
+                    <input
+                    type="password"
+                    id="confirmPassword"
+                    placeholder="Confirm password">
+
+                </div>
+
+            </div>
+
+
+            <div class="input-group">
+
+                <label>
+
+                    Change Profile Picture
+
+                </label>
+
+                <button
+                type="button"
+                class="upload-btn"
+                onclick="document.getElementById('imageInput').click()">
+
+                    <i class="fa-solid fa-image"></i>
+
+                    Upload Profile Picture
+
+                </button>
+
+                <input
+                type="file"
+                id="imageInput"
+                accept="image/*"
+                hidden>
+
+            </div>
+
+
+            <button
+            type="button"
+            id="saveProfileBtn"
+            class="save-btn">
+
+                <i class="fa-solid fa-floppy-disk"></i>
+
+                Save Changes
+
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <div class="right-side">
+
+        <div class="overlay">
+
+
+            <div class="right-content">
+
+                <span class="tag">
+
+                    PROFILE SETTINGS
+
+                </span>
+
+                <h2>
+
+                    Manage Your
+                    <br>
+                    Profile Easily
+
+                </h2>
+
+                <p>
+
+                    Update your profile information,
+                    upload your profile photo,
+                    and personalize your boat account.
+
+                </p>
+
+            </div>
+
+
+            <div class="features">
+
+
+                <div class="box">
+
+                    <i class="fa-solid fa-user"></i>
+
+                    <span>
+
+                        Edit Profile
+
+                    </span>
+
+                </div>
+
+                <div class="box">
+
+                    <i class="fa-solid fa-image"></i>
+
+                    <span>
+
+                        Upload Photo
+
+                    </span>
+
+                </div>
+
+                <div class="box">
+
+                    <i class="fa-solid fa-gear"></i>
+
+                    <span>
+
+                        Settings
+
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script
+type="module"
+src="profile.js"></script>
+
+</body>
+
+</html>
+```
