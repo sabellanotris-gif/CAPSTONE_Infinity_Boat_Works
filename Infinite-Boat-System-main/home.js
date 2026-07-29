@@ -1428,7 +1428,37 @@ window.addEventListener("DOMContentLoaded", async () => {
             <div style="margin-top:14px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;">
                 <h4 style="font-size:14px;color:#16a34a;"><i class="fa-solid fa-check-circle"></i> Delivered Successfully</h4>
                 <p style="font-size:13px;color:#166534;margin-top:4px;">Your boat has been delivered. Thank you for choosing Infinite Work Boat!</p>
-            </div>` : ''}
+            </div>
+            ${renderRatingSection(order, idx)}` : ''}
+        </div>`;
+    }
+
+    function renderRatingSection(order, idx) {
+        const ratingInfo = order.ratingInfo || {};
+        const hasRated = ratingInfo.rating && ratingInfo.rating > 0;
+        if (hasRated) {
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                starsHtml += `<i class="fa-solid fa-star" style="color:${i <= ratingInfo.rating ? '#f59e0b' : '#d1d5db'};font-size:20px;"></i>`;
+            }
+            return `
+            <div style="margin-top:14px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:14px;">
+                <h4 style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px;"><i class="fa-solid fa-star"></i> Your Rating</h4>
+                <div style="display:flex;gap:4px;margin-bottom:8px;">${starsHtml}</div>
+                ${ratingInfo.review ? `<p style="font-size:13px;color:#78350f;font-style:italic;">"${esc(ratingInfo.review)}"</p>` : ''}
+                <p style="font-size:11px;color:#a16207;margin-top:4px;">Thank you for your feedback!</p>
+            </div>`;
+        }
+        return `
+        <div style="margin-top:14px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:14px;" id="ratingSection-${idx}">
+            <h4 style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px;"><i class="fa-solid fa-star"></i> Rate Your Experience</h4>
+            <p style="font-size:12px;color:#78350f;margin-bottom:10px;">How satisfied are you with your boat?</p>
+            <div style="display:flex;gap:6px;margin-bottom:12px;" id="ratingStars-${idx}">
+                ${[1,2,3,4,5].map(i => `<i class="fa-regular fa-star" style="font-size:28px;cursor:pointer;color:#d1d5db;transition:color .2s;" onmouseover="hoverStar(${idx},${i})" onmouseout="resetStar(${idx})" onclick="setRating(${idx},${i})" id="star-${idx}-${i}"></i>`).join('')}
+            </div>
+            <textarea id="ratingReview-${idx}" placeholder="Share your experience (optional)..." style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;resize:vertical;min-height:70px;margin-bottom:10px;box-sizing:border-box;">${esc(ratingInfo.review || '')}</textarea>
+            <input type="hidden" id="ratingValue-${idx}" value="0">
+            <button onclick="submitRating(${idx})" style="width:100%;padding:10px;border:none;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:700;font-size:13px;cursor:pointer;"><i class="fa-solid fa-paper-plane"></i> Submit Rating</button>
         </div>`;
     }
 
@@ -2879,4 +2909,86 @@ window.reviseDesign = function(orderId) {
 window.resubmitSchedule = function(orderId) {
     const encoded = btoa(orderId);
     window.location.href = "order.html?mode=reschedule&order=" + encoded;
+};
+
+/* ============ RATING / REVIEW ============ */
+
+let _ratingValues = {};
+
+window.hoverStar = function(idx, val) {
+    for (let i = 1; i <= 5; i++) {
+        const star = document.getElementById('star-' + idx + '-' + i);
+        if (!star) continue;
+        if (i <= val) {
+            star.className = 'fa-solid fa-star';
+            star.style.color = '#f59e0b';
+        } else if (i > (_ratingValues[idx] || 0)) {
+            star.className = 'fa-regular fa-star';
+            star.style.color = '#d1d5db';
+        }
+    }
+};
+
+window.resetStar = function(idx) {
+    const current = _ratingValues[idx] || 0;
+    for (let i = 1; i <= 5; i++) {
+        const star = document.getElementById('star-' + idx + '-' + i);
+        if (!star) continue;
+        if (i <= current) {
+            star.className = 'fa-solid fa-star';
+            star.style.color = '#f59e0b';
+        } else {
+            star.className = 'fa-regular fa-star';
+            star.style.color = '#d1d5db';
+        }
+    }
+};
+
+window.setRating = function(idx, val) {
+    _ratingValues[idx] = val;
+    document.getElementById('ratingValue-' + idx).value = val;
+    for (let i = 1; i <= 5; i++) {
+        const star = document.getElementById('star-' + idx + '-' + i);
+        if (!star) continue;
+        if (i <= val) {
+            star.className = 'fa-solid fa-star';
+            star.style.color = '#f59e0b';
+        } else {
+            star.className = 'fa-regular fa-star';
+            star.style.color = '#d1d5db';
+        }
+    }
+};
+
+window.submitRating = async function(idx) {
+    const rating = parseInt(document.getElementById('ratingValue-' + idx).value);
+    if (!rating || rating < 1) {
+        alert('Please select a rating (1-5 stars).');
+        return;
+    }
+    const review = document.getElementById('ratingReview-' + idx).value || '';
+    const order = gOrders[idx];
+    if (!order) return;
+
+    const ratingInfo = { rating, review, createdAt: new Date().toISOString(), customerName: order.customerName || 'Customer' };
+    const { error } = await supabase
+        .from('boat_orders')
+        .update({ ratingInfo })
+        .eq('orderId', order.orderId);
+
+    if (error) {
+        alert('Failed to submit rating. Please try again.');
+        return;
+    }
+
+    order.ratingInfo = ratingInfo;
+    const section = document.getElementById('ratingSection-' + idx);
+    if (section) {
+        let starsHtml = '';
+        for (let i = 1; i <= 5; i++) starsHtml += '<i class="fa-solid fa-star" style="color:' + (i <= rating ? '#f59e0b' : '#d1d5db') + ';font-size:20px;"></i>';
+        section.innerHTML = '<h4 style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px;"><i class="fa-solid fa-star"></i> Your Rating</h4>' +
+            '<div style="display:flex;gap:4px;margin-bottom:8px;">' + starsHtml + '</div>' +
+            (review ? '<p style="font-size:13px;color:#78350f;font-style:italic;">"' + esc(review) + '"</p>' : '') +
+            '<p style="font-size:11px;color:#a16207;margin-top:4px;">Thank you for your feedback!</p>';
+    }
 };

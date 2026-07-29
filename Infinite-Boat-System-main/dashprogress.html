@@ -115,12 +115,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
     </a>
 
-    <a href="dashdelivery.html">
-
-        Delivery
-
-    </a>
-
 </nav>
 
 
@@ -379,6 +373,11 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                     <div id="activityFeed" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
                 </div>
 
+                <div class="progress-card" id="deliveryCard" style="display:none;">
+                    <h3><i class="fa-solid fa-truck"></i> Delivery Management</h3>
+                    <div id="deliveryCardBody"></div>
+                </div>
+
             </div>
 
             <div class="progress-side">
@@ -453,6 +452,14 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
 </main>
 
+</div>
+
+<!-- Delivery Modal -->
+<div id="deliveryModal" class="view-modal">
+    <div class="modal-content modal-lg">
+        <button class="close-modal" onclick="closeDeliveryModal()">&times;</button>
+        <div id="deliveryModalBody"></div>
+    </div>
 </div>
 
 <script type="module" src="dashprogress.js?v=1"></script>

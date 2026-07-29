@@ -588,17 +588,30 @@ function updateProgressInput(order) {
 }
 
 function populateSelect() {
-    const active = orders.filter(o => o.status !== "Completed" && o.status !== "Cancelled" && o.status !== "Rejected");
+    const active = orders.filter(o => o.status !== "Cancelled" && o.status !== "Rejected" && o.status !== "Completed");
+    const completed = orders.filter(o => o.status === "Completed");
     active.forEach(o => {
         const opt = document.createElement("option");
         opt.value = orders.indexOf(o);
         opt.textContent = o.boatName + " — " + (o.customerName || "Unknown") + " (" + o.status + ")";
         select.appendChild(opt);
     });
-    if (active.length === 0) {
+    if (completed.length > 0) {
+        const sep = document.createElement("option");
+        sep.disabled = true;
+        sep.textContent = "─ Completed Orders ─";
+        select.appendChild(sep);
+        completed.forEach(o => {
+            const opt = document.createElement("option");
+            opt.value = orders.indexOf(o);
+            opt.textContent = o.boatName + " — " + (o.customerName || "Unknown") + " (Completed)";
+            select.appendChild(opt);
+        });
+    }
+    if (active.length === 0 && completed.length === 0) {
         const opt = document.createElement("option");
         opt.value = "";
-        opt.textContent = "No active orders";
+        opt.textContent = "No orders found";
         opt.disabled = true;
         select.appendChild(opt);
     }
@@ -1021,6 +1034,18 @@ async function renderDetail(order) {
         budgetInput.value = parseFloat(String(order.boatPrice || "0").replace(/[^0-9.]/g, "")) || 0;
     }
     await loadBudget(order);
+
+    // Delivery card — show when progress >= 70 or Completed
+    const deliveryCard = document.getElementById("deliveryCard");
+    if (deliveryCard) {
+        if (order.progress >= 70 || order.status === "Completed") {
+            deliveryCard.style.display = "block";
+            const body = document.getElementById("deliveryCardBody");
+            if (body) body.innerHTML = renderDeliveryCard(order);
+        } else {
+            deliveryCard.style.display = "none";
+        }
+    }
 }
 
 select.addEventListener("change", async function() {
@@ -1661,6 +1686,277 @@ document.getElementById("tasksFilter")?.addEventListener("click", (e) => {
   if (btn) setTaskFilter(btn.dataset.filter);
 });
 
+/* ============ DELIVERY MANAGEMENT ============ */
+
+function fmtDate(dateStr) {
+    if (!dateStr || dateStr === 'To be determined') return 'Not set';
+    try { return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); }
+    catch { return dateStr; }
+}
+
+function fmtCurrency(val) {
+    return '₱' + (parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function getDeliveryStatus(order) {
+    const di = order.deliveryInfo || {};
+    if (di.deliveryStatus) return di.deliveryStatus;
+    return 'Preparing for Delivery';
+}
+
+function isDelayed(order) {
+    const di = order.deliveryInfo || {};
+    if (di.delayDays && di.delayDays > 0) return true;
+    if (di.actualDeliveryDate && di.committedDeliveryDate) {
+        return new Date(di.actualDeliveryDate) > new Date(di.committedDeliveryDate);
+    }
+    return false;
+}
+
+function calcDeliveryDelay(boatPrice, committedDate, actualDate) {
+    if (!committedDate || !actualDate) return { days: 0, penalty: 0, percent: 0 };
+    const c = new Date(committedDate), a = new Date(actualDate);
+    if (a <= c) return { days: 0, penalty: 0, percent: 0 };
+    const days = Math.ceil((a - c) / (1000 * 60 * 60 * 24));
+    const price = parseInt(String(boatPrice || '0').replace(/[^0-9]/g, '')) || 0;
+    let pct = 0;
+    if (days >= 1 && days <= 7) pct = 1;
+    else if (days >= 8 && days <= 14) pct = 2;
+    else if (days >= 15 && days <= 30) pct = 5;
+    else if (days > 30) pct = 8;
+    return { days, penalty: Math.round(price * (pct / 100)), percent: pct };
+}
+
+function renderDeliveryCard(order) {
+    const di = order.deliveryInfo || {};
+    const status = getDeliveryStatus(order);
+    const delayed = isDelayed(order);
+    const delayInfo = calcDeliveryDelay(order.boatPrice, di.committedDeliveryDate, di.actualDeliveryDate);
+    const progress = di.deliveryProgress || 0;
+    const badgeClass = status === 'Preparing for Delivery' ? 'preparing' : status === 'Ready for Delivery' ? 'ready' : status === 'In Transit' ? 'transit' : 'delivered';
+    const cardStatusClass = delayed && status !== 'Delivered' ? 'status-delayed' : 'status-' + (status === 'Preparing for Delivery' ? 'preparing' : status === 'Ready for Delivery' ? 'ready' : status === 'In Transit' ? 'transit' : 'delivered');
+    return `
+    <div class="delivery-card ${cardStatusClass}" style="margin:0;box-shadow:none;padding:0;border-left:none;">
+        <div class="card-header">
+            <div class="card-badges">
+                <span class="status-badge ${badgeClass}">${status}</span>
+                ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
+            </div>
+            <button class="manage-btn" onclick="openDeliveryModal()" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:#356cff;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-edit"></i> Manage</button>
+        </div>
+        <div class="card-details" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
+            <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
+            <div class="detail-item"><h4>Actual Delivery</h4><p>${fmtDate(di.actualDeliveryDate)}</p></div>
+            <div class="detail-item"><h4>Location</h4><p>${di.deliveryLocation || 'TBC'}</p></div>
+            <div class="detail-item"><h4>Contact</h4><p>${di.contactPerson || 'TBA'}</p></div>
+            <div class="detail-item"><h4>Sea Trial</h4><p>${di.seaTrialResults || 'Pending'}</p></div>
+        </div>
+        <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:#64748b;">Delivery Progress</span>
+                <span style="font-weight:700;">${progress}%</span>
+            </div>
+            <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${progress}%;background:${delayed ? 'linear-gradient(90deg,#ef4444,#dc2626)' : 'linear-gradient(90deg,#356cff,#295dff)'};border-radius:3px;transition:width .4s;"></div>
+            </div>
+        </div>
+        ${delayed ? `
+        <div class="delay-info-box">
+            <h4><i class="fas fa-exclamation-triangle"></i> Delivery Delay</h4>
+            <div class="delay-details">
+                <div class="dd-item"><strong>Days:</strong> ${delayInfo.days}d</div>
+                <div class="dd-item"><strong>Rate:</strong> ${delayInfo.percent}%</div>
+                <div class="dd-item"><strong>Discount:</strong> ${fmtCurrency(delayInfo.penalty)}</div>
+            </div>
+            ${di.delayReason ? `<div style="margin-top:8px;font-size:12px;color:#991b1b;"><strong>Reason:</strong> ${di.delayReason}</div>` : ''}
+        </div>` : ''}
+        ${status === 'Delivered' && order.ratingInfo && order.ratingInfo.rating ? `
+        <div class="delay-info-box" style="background:#fffbeb;border-color:#fde68a;">
+            <h4 style="color:#92400e;"><i class="fas fa-star"></i> Customer Rating</h4>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+                ${[1,2,3,4,5].map(i => '<i class="fas fa-star" style="color:' + (i <= order.ratingInfo.rating ? '#f59e0b' : '#d1d5db') + ';font-size:18px;"></i>').join('')}
+            </div>
+            ${order.ratingInfo.review ? `<p style="font-size:13px;color:#78350f;font-style:italic;">"${order.ratingInfo.review}"</p>` : ''}
+            <p style="font-size:11px;color:#a16207;margin-top:4px;">${order.ratingInfo.customerName || 'Customer'} • ${new Date(order.ratingInfo.createdAt).toLocaleDateString()}</p>
+        </div>` : ''}
+    </div>`;
+}
+
+function dateToISO(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+}
+
+window.openDeliveryModal = function() {
+    const order = getSelectedOrder();
+    if (!order) return;
+    const di = order.deliveryInfo || {};
+    const status = getDeliveryStatus(order);
+    const delayed = isDelayed(order);
+    const delayInfo = calcDeliveryDelay(order.boatPrice, di.committedDeliveryDate, di.actualDeliveryDate);
+    const body = document.getElementById('deliveryModalBody');
+    if (!body) return;
+    body.innerHTML = `
+    <div class="modal-header">
+        <div class="modal-header-icon"><i class="fas fa-truck"></i></div>
+        <div class="modal-header-info">
+            <h3>${order.boatName || 'Unknown'} — ${order.customerName || 'N/A'}</h3>
+            <p>${order.orderId || ''} | Price: ${fmtCurrency(order.boatPrice)}</p>
+        </div>
+    </div>
+    <div class="modal-section">
+        <h4><i class="fas fa-truck-fast"></i> Delivery Status</h4>
+        <div class="form-group">
+            <label>Status</label>
+            <select id="modalStatus">
+                <option value="Preparing for Delivery" ${status === 'Preparing for Delivery' ? 'selected' : ''}>Preparing for Delivery</option>
+                <option value="Ready for Delivery" ${status === 'Ready for Delivery' ? 'selected' : ''}>Ready for Delivery</option>
+                <option value="In Transit" ${status === 'In Transit' ? 'selected' : ''}>In Transit</option>
+                <option value="Delivered" ${status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Sea Trial Results</label>
+                <select id="modalSeaTrial">
+                    <option value="Pending" ${di.seaTrialResults === 'Pending' || !di.seaTrialResults ? 'selected' : ''}>Pending</option>
+                    <option value="Passed" ${di.seaTrialResults === 'Passed' ? 'selected' : ''}>Passed</option>
+                    <option value="Failed" ${di.seaTrialResults === 'Failed' ? 'selected' : ''}>Failed</option>
+                    <option value="Conditional" ${di.seaTrialResults === 'Conditional' ? 'selected' : ''}>Conditional</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Delivery Progress (%)</label>
+                <input type="range" id="modalProgress" min="0" max="100" value="${di.deliveryProgress || 0}" style="width:100%;margin-top:8px;" oninput="document.getElementById('progressValue').textContent=this.value+'%'">
+                <span id="progressValue" style="font-size:13px;font-weight:700;">${di.deliveryProgress || 0}%</span>
+            </div>
+        </div>
+    </div>
+    <div class="modal-section">
+        <h4><i class="fas fa-calendar-alt"></i> Dates</h4>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Committed Delivery Date</label>
+                <input type="date" id="modalCommittedDate" value="${di.committedDeliveryDate ? di.committedDeliveryDate.split('T')[0] : ''}" onchange="updateActualDateMin()">
+            </div>
+            <div class="form-group">
+                <label>Actual Delivery Date</label>
+                <input type="date" id="modalActualDate" value="${di.actualDeliveryDate ? di.actualDeliveryDate.split('T')[0] : ''}" onchange="previewPenalty()">
+            </div>
+        </div>
+        <div id="penaltyPreview"></div>
+    </div>
+    <div class="modal-section">
+        <h4><i class="fas fa-location-dot"></i> Delivery Details</h4>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Delivery Location</label>
+                <input type="text" id="modalLocation" value="${di.deliveryLocation || ''}" placeholder="Address or port">
+            </div>
+            <div class="form-group">
+                <label>Contact Person</label>
+                <input type="text" id="modalContact" value="${di.contactPerson || ''}" placeholder="Customer name or contact">
+            </div>
+        </div>
+    </div>
+    <div class="modal-section">
+        <h4><i class="fas fa-sticky-note"></i> Delay Info & Notes</h4>
+        <div class="form-group">
+            <label>Delay Reason</label>
+            <textarea id="modalDelayReason" placeholder="Explain reason for delay...">${di.delayReason || ''}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Admin Notes</label>
+            <textarea id="modalNotes" placeholder="Internal notes...">${di.deliveryNotes || ''}</textarea>
+        </div>
+    </div>
+    <button class="save-btn" id="saveDeliveryBtn" onclick="saveDelivery()"><i class="fas fa-save"></i> Save Delivery Details</button>`;
+    document.getElementById('deliveryModal').classList.add('show');
+    previewPenalty();
+};
+
+window.updateActualDateMin = function() {
+    const committed = document.getElementById('modalCommittedDate');
+    const actual = document.getElementById('modalActualDate');
+    if (committed && actual) {
+        actual.min = committed.value;
+        if (actual.value && actual.value < committed.value) actual.value = committed.value;
+    }
+};
+
+window.previewPenalty = function() {
+    const committed = document.getElementById('modalCommittedDate')?.value;
+    const actual = document.getElementById('modalActualDate')?.value;
+    const previewEl = document.getElementById('penaltyPreview');
+    if (!previewEl) return;
+    if (!committed || !actual) { previewEl.innerHTML = ''; return; }
+    const a = new Date(actual), c = new Date(committed);
+    if (a <= c) {
+        previewEl.innerHTML = '<div class="penalty-preview penalty-none"><h5><i class="fas fa-check-circle"></i> No Delay</h5><div style="font-size:13px;">Delivery is on time. No penalty applies.</div></div>';
+        return;
+    }
+    const diffMs = a - c, days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const order = getSelectedOrder();
+    const price = parseInt(String(order?.boatPrice || '0').replace(/[^0-9]/g, '')) || 0;
+    let pct = 0;
+    if (days >= 1 && days <= 7) pct = 1;
+    else if (days >= 8 && days <= 14) pct = 2;
+    else if (days >= 15 && days <= 30) pct = 5;
+    else if (days > 30) pct = 8;
+    const penalty = Math.round(price * (pct / 100));
+    previewEl.innerHTML = '<div class="penalty-preview"><h5><i class="fas fa-exclamation-triangle"></i> Delay Penalty Preview</h5><div class="penalty-amount">' + fmtCurrency(penalty) + '</div><div class="penalty-info">' + days + ' day(s) late | ' + pct + '% of boat price (' + fmtCurrency(price) + ')</div></div>';
+};
+
+window.saveDelivery = async function() {
+    const order = getSelectedOrder();
+    if (!order) return;
+    const btn = document.getElementById('saveDeliveryBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    const data = {
+        deliveryStatus: document.getElementById('modalStatus').value,
+        seaTrialResults: document.getElementById('modalSeaTrial').value,
+        deliveryProgress: parseInt(document.getElementById('modalProgress').value) || 0,
+        committedDeliveryDate: document.getElementById('modalCommittedDate').value || '',
+        actualDeliveryDate: document.getElementById('modalActualDate').value || '',
+        deliveryLocation: document.getElementById('modalLocation').value || '',
+        contactPerson: document.getElementById('modalContact').value || '',
+        delayReason: document.getElementById('modalDelayReason').value || '',
+        deliveryNotes: document.getElementById('modalNotes').value || ''
+    };
+    if (data.deliveryStatus === 'Delivered') {
+        data.deliveryConfirmed = true;
+        data.deliveryProgress = 100;
+    }
+    const oldInfo = order.deliveryInfo || {};
+    const newInfo = { ...oldInfo };
+    Object.keys(data).forEach(k => { newInfo[k] = data[k]; });
+    const result = calcDeliveryDelay(order.boatPrice, data.committedDeliveryDate, data.actualDeliveryDate);
+    newInfo.delayDays = result.days;
+    newInfo.delayPenalty = result.penalty;
+    newInfo.delayPenaltyPercent = result.percent;
+    const { error } = await supabase
+        .from('boat_orders')
+        .update({ deliveryInfo: newInfo, updatedAt: new Date().toISOString() })
+        .eq('orderId', order.orderId);
+    if (error) {
+        showToast('Error saving delivery: ' + error.message, 'error');
+    } else {
+        order.deliveryInfo = newInfo;
+        showToast('Delivery details saved successfully!', 'success');
+        closeDeliveryModal();
+        renderDetail(order);
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save"></i> Save Delivery Details';
+};
+
+window.closeDeliveryModal = function() {
+    document.getElementById('deliveryModal').classList.remove('show');
+};
+
 (async function init() {
     await ensureWorkerRegistry();
     const result = await handleDbError(
@@ -1672,7 +1968,12 @@ document.getElementById("tasksFilter")?.addEventListener("click", (e) => {
     await populateWorkerSelect();
     await renderRegistryList();
     if (select.options.length > 1) {
-        select.value = select.options[1].value;
+        for (let i = 1; i < select.options.length; i++) {
+            if (!select.options[i].disabled && select.options[i].value !== "") {
+                select.value = select.options[i].value;
+                break;
+            }
+        }
         await renderDetail(getSelectedOrder());
     }
 })();
