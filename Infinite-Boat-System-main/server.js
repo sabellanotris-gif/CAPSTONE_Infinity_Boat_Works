@@ -70,14 +70,37 @@ async function authenticate(req, res, next) {
   const token = req.headers.authorization?.replace("Bearer ", "");
   if (!token) return res.status(401).json({ error: "Missing authorization token" });
 
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: "Invalid or expired token" });
+  const { data: { user }, error } = await adminDb.auth.getUser(token);
+  if (error || !user) {
+    console.error("[AUTH] Token validation failed:", error?.message || "No user returned");
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  // Create an authed client with the user's token so RLS policies apply
+  let profile = null;
+  try {
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: "Bearer " + token } },
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const { data } = await userClient
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    profile = data;
+    // Fallback: try by email if id lookup fails
+    if (!profile && user.email) {
+      const { data: emailProfile } = await userClient
+        .from("profiles")
+        .select("*")
+        .eq("email", user.email)
+        .maybeSingle();
+      profile = emailProfile;
+    }
+  } catch (e) {
+    console.warn("[AUTH] Profile fetch failed (non-fatal):", e?.message || e);
+  }
 
   req.user = user;
   req.profile = profile;
@@ -87,6 +110,7 @@ async function authenticate(req, res, next) {
 async function requireAdmin(req, res, next) {
   const isAdmin = req.profile?.role === "admin" || req.user?.user_metadata?.role === "admin";
   if (!isAdmin) {
+    console.error("[AUTH] Admin check failed. Profile:", JSON.stringify(req.profile), "User meta:", JSON.stringify(req.user?.user_metadata));
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
@@ -151,7 +175,8 @@ app.post("/api/auth/register", async (req, res) => {
 
     let verifyLink = linkData?.properties?.action_link || "";
     if (verifyLink) {
-      verifyLink = verifyLink.replace("redirect_to=http://localhost:3000", "redirect_to=http://192.168.1.2:3000/verification-success.html");
+      const serverHost = req.protocol + '://' + req.get('host');
+      verifyLink = verifyLink.replace("redirect_to=http://localhost:3000", "redirect_to=" + serverHost + "/verification-success.html");
     } else {
       verifyLink = `${process.env.SERVER_URL || "http://localhost:3000"}/api/auth/verify-email?token=none&uid=${userData.user.id}`;
     }
@@ -364,6 +389,113 @@ app.delete("/api/orders/:orderId", authenticate, requireAdmin, async (req, res) 
   }
 });
 
+/* ============ DELIVERY ============ */
+
+function calculateDelayPenalty(boatPrice, delayDays) {
+  const cleanPrice = parseInt(String(boatPrice || '0').replace(/[^0-9]/g, '')) || 0;
+  let percent = 0;
+  if (delayDays >= 1 && delayDays <= 7) percent = 1;
+  else if (delayDays >= 8 && delayDays <= 14) percent = 2;
+  else if (delayDays >= 15 && delayDays <= 30) percent = 5;
+  else if (delayDays > 30) percent = 8;
+  const penalty = Math.round(cleanPrice * (percent / 100));
+  return { penalty, percent };
+}
+
+app.put("/api/orders/:orderId/delivery", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const {
+      deliveryStatus, committedDeliveryDate, actualDeliveryDate,
+      deliveryLocation, contactPerson, seaTrialResults,
+      deliveryProgress, deliveryConfirmed, delayReason, deliveryNotes
+    } = req.body;
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .single();
+
+    if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
+
+    const oldInfo = existing.deliveryInfo || {};
+    const newInfo = { ...oldInfo };
+
+    if (deliveryStatus !== undefined) newInfo.deliveryStatus = deliveryStatus;
+    if (committedDeliveryDate !== undefined) newInfo.committedDeliveryDate = committedDeliveryDate;
+    if (actualDeliveryDate !== undefined) newInfo.actualDeliveryDate = actualDeliveryDate;
+    if (deliveryLocation !== undefined) newInfo.deliveryLocation = deliveryLocation;
+    if (contactPerson !== undefined) newInfo.contactPerson = contactPerson;
+    if (seaTrialResults !== undefined) newInfo.seaTrialResults = seaTrialResults;
+    if (deliveryProgress !== undefined) newInfo.deliveryProgress = Number(deliveryProgress) || 0;
+    if (deliveryConfirmed !== undefined) newInfo.deliveryConfirmed = deliveryConfirmed;
+    if (delayReason !== undefined) newInfo.delayReason = delayReason;
+    if (deliveryNotes !== undefined) newInfo.deliveryNotes = deliveryNotes;
+
+    // Auto-calculate delay penalty
+    if (actualDeliveryDate && committedDeliveryDate) {
+      const actual = new Date(actualDeliveryDate);
+      const committed = new Date(committedDeliveryDate);
+      if (actual > committed) {
+        const diffMs = actual - committed;
+        const delayDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+        const { penalty, percent } = calculateDelayPenalty(existing.boatPrice, delayDays);
+        newInfo.delayDays = delayDays;
+        newInfo.delayPenalty = penalty;
+        newInfo.delayPenaltyPercent = percent;
+      } else {
+        newInfo.delayDays = 0;
+        newInfo.delayPenalty = 0;
+        newInfo.delayPenaltyPercent = 0;
+      }
+    }
+
+    if (deliveryStatus === "Delivered") {
+      newInfo.deliveryConfirmed = true;
+      newInfo.deliveryProgress = 100;
+    }
+
+    const { data, error } = await adminDb
+      .from("boat_orders")
+      .update({ deliveryInfo: newInfo, updatedAt: new Date().toISOString() })
+      .eq("orderId", orderId)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Send delay notification email if delay detected and not yet notified
+    if (newInfo.delayDays > 0 && !oldInfo.delayNotified && newInfo.actualDeliveryDate) {
+      try {
+        sendEmail({
+          to: existing.customerEmail,
+          subject: `Delivery Update — ${orderId} (Delay Notice)`,
+          html: DELAY_NOTICE_TEMPLATE({
+            ...existing,
+            delayDays: newInfo.delayDays,
+            delayPenalty: newInfo.delayPenalty,
+            delayPenaltyPercent: newInfo.delayPenaltyPercent,
+            delayReason: newInfo.delayReason || "Unspecified",
+            committedDeliveryDate: newInfo.committedDeliveryDate,
+            actualDeliveryDate: newInfo.actualDeliveryDate
+          })
+        });
+        newInfo.delayNotified = true;
+        await adminDb
+          .from("boat_orders")
+          .update({ deliveryInfo: newInfo })
+          .eq("orderId", orderId);
+      } catch (emailErr) {
+        console.error("[DELIVERY] Delay email failed:", emailErr);
+      }
+    }
+
+    res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============ PAYMENTS ============ */
 
 app.get("/api/payments", authenticate, async (req, res) => {
@@ -449,6 +581,33 @@ app.put("/api/profiles/:id", authenticate, async (req, res) => {
 
     if (error) return res.status(500).json({ error: error.message });
     res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/users/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: profile } = await adminDb
+      .from("profiles")
+      .select("role, email")
+      .eq("id", id)
+      .single();
+
+    if (profile?.role === "admin") {
+      return res.status(403).json({ error: "Cannot delete admin accounts" });
+    }
+
+    if (!supabaseServiceRole) {
+      return res.status(500).json({ error: "Server not configured for user deletion." });
+    }
+
+    const { error } = await supabaseServiceRole.auth.admin.deleteUser(id);
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.json({ success: true, message: "User and all associated data deleted permanently." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -562,12 +721,14 @@ app.post("/api/workers/auto-assign/:orderId", authenticate, async (req, res) => 
   try {
     const { data: order } = await adminDb
       .from("boat_orders")
-      .select("userId")
+      .select("userId, customerEmail")
       .eq("orderId", req.params.orderId)
       .single();
     if (!order) return res.status(404).json({ error: "Order not found" });
     const isAdmin = req.profile?.role === "admin" || req.user?.user_metadata?.role === "admin";
-    if (!isAdmin && order.userId !== req.user.id) {
+    const isOwner = order.userId === req.user.id;
+    const isCustomer = order.customerEmail?.toLowerCase() === req.user.email?.toLowerCase();
+    if (!isAdmin && !isOwner && !isCustomer) {
       return res.status(403).json({ error: "Not your order" });
     }
 
@@ -848,6 +1009,30 @@ function escHtml(str) {
 function getStatusColor(status) {
   const colors = { Approved: "#22c55e", Rejected: "#ef4444", Completed: "#3b82f6", "Under Review": "#f59e0b", "Pending Signing": "#f59e0b" };
   return colors[status] || "#6b7280";
+}
+
+function DELAY_NOTICE_TEMPLATE(data) {
+  return `
+    <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
+      <h2 style="color:#c0392b;">Delivery Delay Notice</h2>
+      <p>Hi <strong>${escHtml(data.customerName || "Valued Customer")}</strong>,</p>
+      <p>We regret to inform you that your boat delivery has been delayed. We sincerely apologize for the inconvenience.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Order ID</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.orderId)}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Boat Model</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.boatName || "—")}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Committed Delivery Date</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.committedDeliveryDate || "—")}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Actual Delivery Date</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.actualDeliveryDate || "—")}</td></tr>
+        <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Days Delayed</strong></td><td style="padding:8px;border:1px solid #ddd;color:#c0392b;font-weight:bold">${data.delayDays} day(s)</td></tr>
+        <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Delay Reason</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.delayReason || "—")}</td></tr>
+      </table>
+      ${data.delayPenalty > 0 ? `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+        <h3 style="color:#15803d;margin-bottom:8px;">Delay Compensation Applied</h3>
+        <p style="font-size:14px;color:#166534;">As compensation for the delay, a discount of <strong>${data.delayPenaltyPercent}% (₱${Number(data.delayPenalty).toLocaleString()})</strong> has been applied to your order. This will be reflected in your final billing.</p>
+      </div>` : ''}
+      <p style="color:#64748b;font-size:13px;">We value your patience and understanding. If you have any questions, please don't hesitate to contact us.</p>
+      <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+    </div>`;
 }
 
 async function sendEmail({ to, subject, html }) {

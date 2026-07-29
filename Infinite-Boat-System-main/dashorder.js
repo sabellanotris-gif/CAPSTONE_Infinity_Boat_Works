@@ -182,11 +182,12 @@ async function decrementInventory(itemId, qty) {
 async function approveOrder(index) {
     const order = orders[index];
     const oldStatus = order.status;
+    const isInstallment = (order.paymentMethod || '').toLowerCase() === 'installment';
     order.status = 'Approved';
-    order.progress = 10;
+    order.progress = 0;
     order.orderPhase = 'Boat Construction Started';
     const result = await handleDbError(
-        supabase.from("boat_orders").update({ status: "Approved", progress: 10, orderPhase: "Boat Construction Started" }).eq("orderId", order.orderId),
+        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Boat Construction Started" }).eq("orderId", order.orderId),
         "Approve order"
     );
     if (result?.error) {
@@ -247,12 +248,12 @@ async function approveCustom(index) {
     const order = orders[index];
     const oldStatus = order.status;
     order.status = 'Approved';
-    order.progress = 10;
+    order.progress = 0;
     order.orderPhase = 'Custom Design Approved';
     order.reviewFeedback = '';
     order.reviewStatus = 'approved';
     const result = await handleDbError(
-        supabase.from("boat_orders").update({ status: "Approved", progress: 10, orderPhase: "Custom Design Approved", reviewFeedback: "", reviewStatus: "approved" }).eq("orderId", order.orderId),
+        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Custom Design Approved", reviewFeedback: "", reviewStatus: "approved" }).eq("orderId", order.orderId),
         "Approve custom design"
     );
     if (result?.error) { order.status = oldStatus; return; }
@@ -293,10 +294,10 @@ async function approveSchedule(index) {
     const order = orders[index];
     const oldStatus = order.status;
     order.status = 'Approved';
-    order.progress = 10;
+    order.progress = 0;
     order.orderPhase = 'Contract Signed - Awaiting Payment';
     const result = await handleDbError(
-        supabase.from("boat_orders").update({ status: "Approved", progress: 10, orderPhase: "Contract Signed - Awaiting Payment" }).eq("orderId", order.orderId),
+        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Contract Signed - Awaiting Payment" }).eq("orderId", order.orderId),
         "Approve schedule"
     );
     if (result?.error) { order.status = oldStatus; return; }
@@ -454,6 +455,19 @@ async function updateProgress(index) {
     let progress = parseInt(input);
     if (isNaN(progress) || progress < 0) { alert('Invalid value.'); return; }
     if (progress > 100) progress = 100;
+
+    const gates = { 0: 0, 1: 40, 2: 75, 3: 100 };
+    const maxProgress = gates[order.paymentStep || 0] || 0;
+    if (progress > maxProgress) {
+      const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
+      alert("Cannot advance beyond " + maxProgress + "%. Complete " + needed + " first.");
+      return;
+    }
+    if (progress >= 100 && Number(order.remainingBalance || 0) > 0) {
+      alert("Order must be fully paid before completion.");
+      return;
+    }
+
     const oldProgress = order.progress;
     const oldStatus = order.status;
     order.progress = progress;

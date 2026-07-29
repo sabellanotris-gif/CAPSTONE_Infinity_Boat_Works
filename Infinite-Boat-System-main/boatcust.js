@@ -1259,6 +1259,20 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     items.push({ name: 'Rail Color: ' + (rOpt?.name || 'Custom'), amount: rp });
   }
 
+  const savedView = currentView;
+  const savedRotation = rotationAngle;
+  const savedZoom = zoomLevel;
+  currentView = 'exterior';
+  rotationAngle = 0;
+  zoomLevel = 1;
+  drawBoat();
+  let boatPreviewImage = '';
+  try { boatPreviewImage = canvas.toDataURL('image/png'); } catch (e) { boatPreviewImage = ''; }
+  currentView = savedView;
+  rotationAngle = savedRotation;
+  zoomLevel = savedZoom;
+  drawBoat();
+
   const config = {
     length: lengthRange.value,
     width: widthRange.value,
@@ -1287,6 +1301,7 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     items: items,
     originalPrice: String(originalPrice),
     extensionCost: String(extensionCost),
+    boatPreviewImage: boatPreviewImage,
     date: new Date().toISOString()
   };
 

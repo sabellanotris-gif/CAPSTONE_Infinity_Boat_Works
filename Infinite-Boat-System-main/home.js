@@ -11,7 +11,8 @@ import {
   getBoatSimpleMaterials as _getBoatSimpleMaterials,
   getBoatActivities as _getBoatActivities,
   getBoatTimeline as _getBoatTimeline,
-  getBoatDeliveryInfo as _getBoatDeliveryInfo
+  getBoatDeliveryInfo as _getBoatDeliveryInfo,
+  getBoatMilestones
 } from "./boatData.js";
 
 function esc(str) {
@@ -71,7 +72,14 @@ window.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    const customerName = localStorage.getItem("customerName");
+    let customerName = localStorage.getItem("customerName");
+
+    const { data: freshProfile } = await supabase.from("profiles").select("name, phone").eq("id", localStorage.getItem("userId")).single();
+    if (freshProfile?.name) {
+        customerName = freshProfile.name;
+        localStorage.setItem("customerName", freshProfile.name);
+    }
+    if (freshProfile?.phone) localStorage.setItem("customerPhone", freshProfile.phone);
 
     /* =============================================
        STATIC DATA (centralized in boatData.js)
@@ -246,14 +254,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     function getDeliveryInfo(order) {
         const info = order.deliveryInfo || {};
         const dl = _getBoatDeliveryInfo(order.boatName);
+        const estimatedDate = getEstimatedCompletionDate(order);
         return {
-            expectedDate: info.expectedDate || "To be determined",
+            expectedDate: (info.expectedDate && info.expectedDate !== "To be determined") ? info.expectedDate : estimatedDate,
+            committedDate: info.committedDeliveryDate || "",
+            actualDate: info.actualDeliveryDate || "",
             deliveryStatus: info.deliveryStatus || "Preparing for Delivery",
             deliveryProgress: info.deliveryProgress || 0,
             deliveryLocation: info.deliveryLocation || "To be confirmed",
             contactPerson: info.contactPerson || "To be assigned",
             seaTrialResults: info.seaTrialResults || "Pending",
             deliveryConfirmed: info.deliveryConfirmed || false,
+            delayDays: info.delayDays || 0,
+            delayPenalty: info.delayPenalty || 0,
+            delayPenaltyPercent: info.delayPenaltyPercent || 0,
+            delayReason: info.delayReason || "",
             standardLeadTime: dl.standardLeadTime,
             deliveryMethod: dl.deliveryMethod,
             seaTrialDuration: dl.seaTrialDuration,
@@ -514,9 +529,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
         for (const [idx, order] of orders.entries()) {
             const statusClass = getStatusClass(order.status);
-            const progress = Number(order.progress) || 0;
+            let progress = Number(order.progress) || 0;
             const phase = order.orderPhase || "Pending Approval";
-            const buildStage = getBuildStage(progress, order.status);
             const workers = await getWorkersForOrder(order);
             const isCompleted = order.status === "Completed";
             const isCompletedPassenger = isCompleted && order.boatName?.toLowerCase().includes("passenger");
@@ -528,11 +542,14 @@ window.addEventListener("DOMContentLoaded", async () => {
                     .filter(h => h.status === "Approved")
                     .reduce((sum, h) => sum + (Number(h.amount) || 0), 0);
             }
-            if (!orderPaid && order.remainingBalance != null) {
-                orderPaid = Math.max(0, orderPrice - (Number(order.remainingBalance) || 0));
+
+
+            if (orderPaid <= 0 && progress > 0 && !isCompleted) {
+                progress = 0;
             }
             cacheAmountPaid(order.orderId, orderPaid);
 
+            const buildStage = getBuildStage(progress, order.status, order);
             const orderRemaining = order.remainingBalance != null
                 ? Math.max(0, Number(order.remainingBalance) || 0)
                 : Math.max(0, orderPrice - orderPaid);
@@ -1295,7 +1312,6 @@ window.addEventListener("DOMContentLoaded", async () => {
         const progress = Number(order.progress) || 0;
         const delivery = getDeliveryInfo(order);
         const orderDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) : "N/A";
-        const tentativeDate = getEstimatedCompletionDate(order);
 
         if (progress < 70 && order.status !== "Completed") {
             return `<div class="tab-panel" id="tab-delivery-${idx}" style="display:none;">
@@ -1307,8 +1323,8 @@ window.addEventListener("DOMContentLoaded", async () => {
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
                         <div style="padding:10px;background:white;border:1px solid #e2e8f0;border-radius:10px;">
-                            <span style="font-size:11px;color:#64748b;display:block;">Tentative Delivery</span>
-                            <strong style="font-size:14px;color:#2563eb;">${esc(tentativeDate)}</strong>
+                            <span style="font-size:11px;color:#64748b;display:block;">Estimated Delivery</span>
+                            <strong style="font-size:14px;color:#2563eb;">${esc(delivery.expectedDate)}</strong>
                             <span style="font-size:11px;color:#64748b;">Based on ${esc(getProjectDuration(order))} build + lead time</span>
                         </div>
                         <div style="padding:10px;background:white;border:1px solid #e2e8f0;border-radius:10px;">
@@ -1360,13 +1376,38 @@ window.addEventListener("DOMContentLoaded", async () => {
 
             <div class="specs-grid" style="margin-top:16px;">
                 <div class="spec-item"><span>Delivery Status</span><strong style="color:${currentStatus === 'Delivered' ? '#16a34a' : '#2563eb'};">${currentStatus}</strong></div>
-                <div class="spec-item"><span>${delivery.deliveryConfirmed ? 'Confirmed Delivery Date' : 'Tentative Delivery Date'}</span><strong>${delivery.expectedDate !== "To be determined" ? delivery.expectedDate : tentativeDate}</strong></div>
+                <div class="spec-item"><span>Build Time</span><strong>${getProjectDuration(order)}</strong></div>
+                <div class="spec-item"><span>Estimated Delivery Date</span><strong style="color:#2563eb;">${delivery.expectedDate}</strong></div>
+                <div class="spec-item"><span>Committed Delivery Date</span><strong>${delivery.committedDate || 'Not yet set'}</strong></div>
+                <div class="spec-item"><span>Actual Delivery Date</span><strong>${delivery.actualDate || 'Pending'}</strong></div>
                 <div class="spec-item"><span>Order Date</span><strong>${esc(orderDate)}</strong></div>
                 <div class="spec-item"><span>Delivery Location</span><strong>${delivery.deliveryLocation || 'To be confirmed'}</strong></div>
                 <div class="spec-item"><span>Contact Person</span><strong>${delivery.contactPerson || 'To be assigned'}</strong></div>
                 <div class="spec-item"><span>Sea Trial Results</span><strong>${delivery.seaTrialResults}</strong></div>
                 <div class="spec-item"><span>Delivery Confirmed</span><strong>${delivery.deliveryConfirmed ? 'Yes' : 'Pending'}</strong></div>
             </div>
+
+            ${delivery.delayDays > 0 ? `
+            <div style="margin-top:16px;padding:16px;background:#fef2f2;border:1px solid #fca5a5;border-radius:14px;">
+                <h4 style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:8px;"><i class="fa-solid fa-exclamation-triangle"></i> Delivery Delay Notice</h4>
+                <p style="font-size:13px;color:#7f1d1d;margin-bottom:10px;">We apologize for the delay. Your boat was delivered <strong>${delivery.delayDays} day(s)</strong> past the committed date.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                    <div style="padding:10px;background:#fff;border:1px solid #fecaca;border-radius:10px;">
+                        <span style="font-size:11px;color:#991b1b;display:block;">Committed Date</span>
+                        <strong style="font-size:13px;color:#991b1b;">${delivery.committedDate || 'N/A'}</strong>
+                    </div>
+                    <div style="padding:10px;background:#fff;border:1px solid #fecaca;border-radius:10px;">
+                        <span style="font-size:11px;color:#991b1b;display:block;">Actual Delivery Date</span>
+                        <strong style="font-size:13px;color:#991b1b;">${delivery.actualDate || 'N/A'}</strong>
+                    </div>
+                </div>
+                ${delivery.delayPenalty > 0 ? `
+                <div style="padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+                    <h5 style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:4px;"><i class="fa-solid fa-check-circle"></i> Compensation Applied</h5>
+                    <p style="font-size:13px;color:#166534;">A discount of <strong>${delivery.delayPenaltyPercent}% (₱${Number(delivery.delayPenalty).toLocaleString()})</strong> has been applied to your order as compensation for the delay.</p>
+                </div>` : ''}
+                ${delivery.delayReason ? `<p style="font-size:12px;color:#991b1b;margin-top:8px;"><strong>Reason:</strong> ${delivery.delayReason}</p>` : ''}
+            </div>` : ''}
 
             <div style="margin-top:16px;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
                 <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;"><i class="fa-solid fa-circle-info"></i> Delivery Details</h4>
@@ -1831,7 +1872,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     async function getWorkersForOrder(order) {
         if (!order.orderId) return [];
         try {
-            const apiBase = "http://localhost:" + (window.location.port === "5500" ? "3000" : window.location.port);
+            const apiBase = window.location.port === "3000" ? window.location.origin : "http://localhost:3000";
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
             const res = await fetch(apiBase + "/api/workers/" + order.orderId, {
@@ -1845,13 +1886,16 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
-    function getBuildStage(progress, status) {
+    function getBuildStage(progress, status, order) {
         if (status === "Rejected") return "Order Rejected";
         if (status === "Under Review") return "Under Engineering Review";
         if (status === "Revision Required") return "Revision Requested";
         if (status === "Pending Signing") return "Awaiting Contract Signing";
         if (status === "Pending") return "Pending Admin Review";
-        if (progress === 0) return "Waiting For Downpayment";
+        if (progress === 0) {
+            if (order && order.paymentMethod === "Full Payment") return "Waiting For Full Payment";
+            return "Waiting For Downpayment";
+        }
         if (progress >= 100) return "Boat Completed - Ready for Delivery";
         if (progress >= 70) return "Painting & Finishing";
         if (progress >= 45) return "Interior Installation";

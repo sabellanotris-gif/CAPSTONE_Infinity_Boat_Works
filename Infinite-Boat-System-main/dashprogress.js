@@ -289,6 +289,11 @@ function renderMilestones(order, readonly = false) {
   }).join("");
 }
 
+function getPaymentGate(paymentStep) {
+  const gates = { 0: 0, 1: 40, 2: 75, 3: 100 };
+  return gates[paymentStep] || 0;
+}
+
 async function toggleMilestone(index) {
   const order = getSelectedOrder();
   if (!order || order.status !== "Approved") return;
@@ -299,8 +304,35 @@ async function toggleMilestone(index) {
   }
   const milestones = getOrderMilestones(order);
   const m = milestones[index];
-  m.completed = !m.completed;
   if (m.completed) {
+    m.completed = false;
+    milestones.forEach((ms, i) => {
+      if (i >= index) {
+        ms.completed = false;
+        ms.completedDate = null;
+      }
+    });
+    const firstRemaining = milestones.find(ms => !ms.completed);
+    order.progress = firstRemaining ? Math.max(0, firstRemaining.percentage - 1) : 0;
+    order.status = "Approved";
+    order.orderPhase = "Approved";
+  } else {
+    const prevMilestones = milestones.filter(ms => ms.percentage < m.percentage);
+    if (!prevMilestones.every(ms => ms.completed)) {
+      showToast("Complete previous milestones first.", "warning");
+      return;
+    }
+    const maxProgress = getPaymentGate(order.paymentStep || 0);
+    if (m.percentage > maxProgress) {
+      const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
+      showToast("Required payment not completed yet. Complete " + needed + " first.", "warning");
+      return;
+    }
+    if (m.percentage === 100 && Number(order.remainingBalance || 0) > 0) {
+      showToast("Order must be fully paid before completion.", "warning");
+      return;
+    }
+    m.completed = true;
     m.completedDate = new Date().toISOString();
     order.progress = m.percentage;
     if (m.percentage === 100) {
@@ -317,18 +349,6 @@ async function toggleMilestone(index) {
       order.orderPhase = m.label;
     }
     addAutoActivityLog(order, m);
-  } else {
-    // Deselect all milestones with >= this one's percentage
-    milestones.forEach((ms, i) => {
-      if (i >= index) {
-        ms.completed = false;
-        ms.completedDate = null;
-      }
-    });
-    const firstRemaining = milestones.find(ms => !ms.completed);
-    order.progress = firstRemaining ? Math.max(0, firstRemaining.percentage - 1) : 0;
-    order.status = "Approved";
-    order.orderPhase = "Approved";
   }
   order.milestones = milestones;
   const result = await handleDbError(
@@ -1022,6 +1042,20 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
     let progress = parseInt(input.value);
     if (isNaN(progress) || progress < 0) { alert("Enter a valid progress value."); return; }
     if (progress > 100) progress = 100;
+
+    const maxProgress = getPaymentGate(order.paymentStep || 0);
+    if (progress > maxProgress) {
+      const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
+      showToast("Cannot advance beyond " + maxProgress + "%. Complete " + needed + " first.", "warning");
+      input.value = order.progress || 0;
+      return;
+    }
+
+    if (progress >= 100 && Number(order.remainingBalance || 0) > 0) {
+      showToast("Order must be fully paid before completion.", "warning");
+      input.value = order.progress || 0;
+      return;
+    }
 
     order.progress = progress;
 

@@ -100,6 +100,23 @@ async function loadPayments() {
     ) || {};
     payments = (data || []).map(normalizePayment);
 
+    const orderIds = [...new Set(payments.map(p => p.orderId).filter(Boolean))];
+    let orderMap = {};
+    if (orderIds.length > 0) {
+        const { data: orders } = await handleDbError(
+            supabase.from("boat_orders").select("orderId, remainingBalance, boatPrice, paymentMethod").in("orderId", orderIds),
+            "Load orders for remaining balance"
+        ) || {};
+        if (orders) orders.forEach(o => { orderMap[o.orderId] = o; });
+    }
+
+    payments.forEach(p => {
+        const order = orderMap[p.orderId];
+        if (order) {
+            p.remainingBalance = Number(order.remainingBalance) || 0;
+        }
+    });
+
     let totalAmount = 0, approvedCount = 0, pendingCount = 0;
 
     const html = payments.map((payment, index) => {
@@ -216,6 +233,11 @@ async function approvePayment(index) {
         remainingBalance: newRemaining,
         paymentHistory: paymentHistory
     };
+
+    if (currentStep === 0 && nextStep === 1) {
+        updateData.progress = 10;
+        updateData.orderPhase = 'Boat Construction Started';
+    }
 
     const updateResult = await handleDbError(
         supabase.from("boat_orders").update(updateData).eq("orderId", order.orderId),

@@ -89,3 +89,23 @@ if si user chooses installment or full payment and custom, napansin kong error i
 3D CUSTOMIZER 
  is it okay if yung user is naoopen yon kahit wlang order na boat? napansin ko kasi na pwede siya ma access kahit walang boat. so im thinking if lagyan natin ng if the user dont order a boat, hindi pwede yon ma access. tas naisip ko nalang na kung pwede tayo gumawa ng preview ng boat na 3d? para makikita nila if mag 3-3d sila.
  napansin kong error is yung Payment method sa loob ng 3d is clickable parin. dapat hindi na kasi nakapili na si user before mapunta don, also the color of background ng remaining capacity is hindi na makita if ilan pa available. also sa hull color, remove the black kasi default na siya. and remove the build timeline. also sa pag cancel ng order, dapat kung accurate siya ah, like yung pinaka penalty na babayaran niya and yung details ng buong boat. para kita parin.
+
+---
+
+## Login & Registration Background Change
+
+**Goal:** Change the full-page background of login and registration pages to plain white.
+
+### Files to Edit
+
+1. **`login.css:25`**
+   - Current: `background:url("./images/background.png") no-repeat center center/cover;`
+   - New: `background:#ffffff;`
+
+2. **`registration.css:17`**
+   - Current: `background:#ececec;`
+   - New: `background:#ffffff;`
+
+### Scope
+- Only the `body` background changes to white
+- Right-side panel images (`mainboat.jpg`) remain unchanged

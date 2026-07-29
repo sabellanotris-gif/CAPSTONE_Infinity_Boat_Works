@@ -116,7 +116,7 @@ window.notifySound = notifySound;
 export async function sendEmailNotification({ type, recipient, orderId, paymentId, data } = {}) {
   if (!recipient) return;
   try {
-    await fetch("/api/send-email", {
+    await fetch(API_BASE + "/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, orderId, paymentId, recipient, data }),

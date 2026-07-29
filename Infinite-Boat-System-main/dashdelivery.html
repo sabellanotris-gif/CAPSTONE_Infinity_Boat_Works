@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Delivery Tracking - Infinity Boat Works</title>
+<link rel="stylesheet" href="dashdelivery.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+<script>
+window.onpageshow = function(e) {
+    if (e.persisted) window.location.reload();
+};
+</script>
+<div class="dashboard-layout">
+<aside class="sidebar">
+    <div>
+        <h1 class="logo">BoatShop</h1>
+        <nav class="sidebar-menu">
+            <a href="dashboard.html">Dashboard</a>
+            <a href="dashorder.html">Orders</a>
+            <a href="dashcustomer.html">Customers</a>
+            <a href="dashsales.html">Sales</a>
+            <a href="dashpayment.html">Payments</a>
+            <a href="dashinventory.html">Inventory</a>
+            <a href="dashanalytics.html">Analytics</a>
+            <a href="dashprogress.html">Boat Progress</a>
+            <a href="dashapproval.html">Approvals</a>
+            <a href="dashdelivery.html">Delivery</a>
+        </nav>
+    </div>
+    <button class="logout-btn" onclick="handleLogout();">Logout</button>
+</aside>
+
+<main class="main-content">
+    <div class="topbar">
+        <div>
+            <h2>Delivery Tracking</h2>
+            <p style="color:#64748b;font-size:13px;">Manage boat deliveries and track delay penalties</p>
+        </div>
+    </div>
+
+    <div class="stats-row" id="statsRow">
+        <div class="stat-card">
+            <div class="stat-icon preparing"><i class="fas fa-boxes"></i></div>
+            <div><span class="stat-value" id="statPreparing">0</span><span class="stat-label">Preparing</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon ready"><i class="fas fa-check-circle"></i></div>
+            <div><span class="stat-value" id="statReady">0</span><span class="stat-label">Ready</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon transit"><i class="fas fa-truck-fast"></i></div>
+            <div><span class="stat-value" id="statTransit">0</span><span class="stat-label">In Transit</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon delivered"><i class="fas fa-circle-check"></i></div>
+            <div><span class="stat-value" id="statDelivered">0</span><span class="stat-label">Delivered</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon delayed"><i class="fas fa-exclamation-triangle"></i></div>
+            <div><span class="stat-value" id="statDelayed">0</span><span class="stat-label">Delayed</span></div>
+        </div>
+    </div>
+
+    <div class="filter-container" id="deliveryFilters">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+        <button class="filter-btn" data-filter="Preparing for Delivery" onclick="setFilter('Preparing for Delivery', this)">
+            <i class="fas fa-boxes"></i> Preparing
+        </button>
+        <button class="filter-btn" data-filter="Ready for Delivery" onclick="setFilter('Ready for Delivery', this)">
+            <i class="fas fa-check-circle"></i> Ready
+        </button>
+        <button class="filter-btn" data-filter="In Transit" onclick="setFilter('In Transit', this)">
+            <i class="fas fa-truck-fast"></i> In Transit
+        </button>
+        <button class="filter-btn" data-filter="Delivered" onclick="setFilter('Delivered', this)">
+            <i class="fas fa-circle-check"></i> Delivered
+        </button>
+        <button class="filter-btn" data-filter="Delayed" onclick="setFilter('Delayed', this)">
+            <i class="fas fa-exclamation-triangle"></i> Delayed
+        </button>
+    </div>
+
+    <div id="deliveryContainer" class="delivery-container">
+        <div class="loading-state">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading deliveries...</p>
+        </div>
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display:none;">
+        <i class="fas fa-truck"></i>
+        <h3>No deliveries found</h3>
+        <p>Completed orders will appear here for delivery management.</p>
+    </div>
+</main>
+</div>
+
+<!-- Manage Delivery Modal -->
+<div id="deliveryModal" class="view-modal">
+    <div class="modal-content modal-lg">
+        <button class="close-modal" onclick="closeModal()">&times;</button>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script type="module" src="dashdelivery.js"></script>
+<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
+</body>
+</html>

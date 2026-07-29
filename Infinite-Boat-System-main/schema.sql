@@ -107,6 +107,7 @@ CREATE TABLE public.dashboard_payments (
   "reference" TEXT DEFAULT '',
   "proofImage" TEXT DEFAULT '',
   "status" TEXT DEFAULT 'Pending',
+  "remainingBalance" NUMERIC DEFAULT 0,
   "createdAt" TIMESTAMPTZ DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
@@ -302,6 +303,31 @@ ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "cancelPaidAt" TIMESTAMP
 ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "progressPhotos" JSONB DEFAULT '[]';
 ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "budgetInfo" JSONB DEFAULT '{}';
 ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "documents" JSONB DEFAULT '[]';
+
+-- Migration: Delivery Tracking fields (stored in "deliveryInfo" JSONB on boat_orders)
+-- The "deliveryInfo" JSONB column stores the following delivery-related fields:
+-- {
+--   "deliveryStatus": "Preparing for Delivery" | "Ready for Delivery" | "In Transit" | "Delivered",
+--   "committedDeliveryDate": "January 15, 2026",
+--   "expectedDate": "January 15, 2026",
+--   "actualDeliveryDate": "January 20, 2026",
+--   "deliveryLocation": "Customer address or port",
+--   "contactPerson": "Customer name",
+--   "seaTrialResults": "Passed" | "Failed" | "Pending" | "Conditional",
+--   "deliveryProgress": 0-100,
+--   "deliveryConfirmed": true | false,
+--   "delayDays": 5,
+--   "delayPenalty": 2500000,
+--   "delayPenaltyPercent": 5,
+--   "delayReason": "Weather delays caused...",
+--   "delayNotified": true | false,
+--   "deliveryNotes": "Admin notes about delivery"
+-- }
+-- Delay penalty is auto-calculated when actualDeliveryDate > committedDeliveryDate:
+--   1-7 days late = 1% of boat price
+--   8-14 days late = 2% of boat price
+--   15-30 days late = 5% of boat price
+--   31+ days late = 8% of boat price (capped)
 
 -- ============================================
 -- ENABLE SUPABASE REALTIME

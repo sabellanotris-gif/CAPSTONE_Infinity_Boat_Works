@@ -234,6 +234,27 @@ function renderWorkersChips(workers, containerId) {
     ).join('');
 }
 
+async function autoAssignWorkers(orderId) {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            }
+        });
+        const result = await res.json();
+        if (result.assigned) {
+            workersCache = await loadWorkersForOrder(orderId);
+            renderWorkersChips(workersCache, "workersList");
+        }
+    } catch (e) {
+        console.error("Auto-assign workers error:", e);
+    }
+}
+
 (async () => {
     workersCache = await loadWorkersForOrder(savedOrder.orderId);
     renderWorkersChips(workersCache, "workersList");
@@ -767,6 +788,41 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
 
     const amount = parseFloat(String(paymentCurrentAmount.value).replace(/[₱,]/g, "")) || 0;
 
+    const cleanPrice = Number(String(savedOrder.boatPrice).replace(/[₱,]/g, "")) || 0;
+    const isFullPay = (savedOrder.paymentMethod || '').toLowerCase() === 'full payment';
+    const step = savedOrder.paymentStep || 0;
+    let calcRemaining = 0;
+    if (!isFullPay && !_cancelFeeMode) {
+        if (step === 0) calcRemaining = cleanPrice * 0.70;
+        else if (step === 1) calcRemaining = cleanPrice * 0.30;
+        else calcRemaining = 0;
+    }
+
+    if (!isFullPay && !_cancelFeeMode) {
+      const milestones = savedOrder.milestones;
+      const progress = savedOrder.progress || 0;
+
+      if (step === 1) {
+        const targetMs = milestones ? [...milestones].reverse().find(m => m.percentage <= 40) : null;
+        const blocked = targetMs ? !targetMs.completed : progress < 40;
+        if (blocked) {
+          alert("Mid-Construction payment is not yet available. Wait for construction to reach Phase 1 completion (40%).");
+          return;
+        }
+      }
+      if (step === 2) {
+        const targetMs = milestones ? [...milestones].reverse().find(m => m.percentage <= 75) : null;
+        const blocked = targetMs ? !targetMs.completed : progress < 75;
+        if (blocked) {
+          alert("Full payment is not yet available. Wait for construction to reach Phase 2 completion (75%).");
+          return;
+        }
+      }
+    }
+
+    const { data: { session: paySession } } = await supabase.auth.getSession();
+    const currentUserId = paySession?.user?.id || null;
+
     const { error: payError } = await supabase
       .from("dashboard_payments")
       .insert({
@@ -783,12 +839,16 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
         accountName: accountNameInput.value.trim(),
         accountNumber: accountNumberInput.value.trim(),
         status: _cancelFeeMode ? "Approved" : "Pending",
+        remainingBalance: calcRemaining,
+        userId: currentUserId,
       });
 
     if (payError) {
       alert("Payment submission failed: " + payError.message);
       return;
     }
+
+    autoAssignWorkers(savedOrder.orderId);
 
     const emailRecipient = savedOrder.customerEmail || localStorage.getItem("customerEmail") || "";
     sendEmailNotification({

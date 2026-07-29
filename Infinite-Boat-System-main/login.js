@@ -42,7 +42,7 @@ window.login = async function () {
     .eq("id", user.id)
     .single();
 
-  localStorage.setItem("customerName", profile?.name || user.email.split('@')[0] || user.email);
+  localStorage.setItem("customerName", profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email);
   localStorage.setItem("customerEmail", user.email);
   localStorage.setItem("userId", user.id);
   localStorage.setItem("customerImage", profile?.photo || "./images/user.png");

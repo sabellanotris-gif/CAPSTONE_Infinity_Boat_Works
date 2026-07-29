@@ -194,7 +194,7 @@ function renderProjectRow(o) {
     return `
     <div class="project-row">
         <div class="project-info">
-            <img src="${o.boatImage || './images/boat1.jpg'}">
+            <img src="${o.buildType === 'custom' && o.customConfig?.boatPreviewImage ? o.customConfig.boatPreviewImage : (o.boatImage || './images/boat1.jpg')}">
             <div>
                 <h3>${o.boatName || 'Boat'}</h3>
                 <p>Client: ${o.customerName || 'Unknown'} ${o.buildType === 'custom' ? '<span class="custom-badge">Custom</span>' : ''}</p>
@@ -274,6 +274,33 @@ window.showOrderInfo = function (orderId) {
                 <div class="progress-fill" style="width:${totalPrice > 0 ? Math.min(100, (paid / totalPrice) * 100) : 0}%;"></div>
             </div>
         </div>
+        ${order.buildType === 'custom' && order.customConfig ? `
+        <div class="modal-section-title" style="color:#6b21a8;"><i class="fa-solid fa-wand-magic-sparkles"></i> Custom Boat Design</div>
+        ${order.customConfig.boatPreviewImage ? `
+        <div style="text-align:center;margin-bottom:14px;">
+            <img src="${order.customConfig.boatPreviewImage}" alt="Custom Boat Preview"
+                 style="max-width:100%;max-height:280px;border-radius:12px;border:2px solid #d8b4fe;cursor:pointer;object-fit:contain;"
+                 onclick="window.open('${order.customConfig.boatPreviewImage}', '_blank')" />
+        </div>` : ''}
+        <div class="modal-info-grid" style="margin-bottom:12px;">
+            ${order.customConfig.length ? `<div class="field"><label>Length</label><span>${order.customConfig.length}m</span></div>` : ''}
+            ${order.customConfig.width ? `<div class="field"><label>Width</label><span>${order.customConfig.width}m</span></div>` : ''}
+            ${order.customConfig.seats ? `<div class="field"><label>Seats</label><span>${order.customConfig.seats}</span></div>` : ''}
+            ${order.customConfig.engineName && order.customConfig.engineName !== 'None' ? `<div class="field"><label>Engine</label><span>${order.customConfig.engineName}</span></div>` : ''}
+            ${order.customConfig.ledName && order.customConfig.ledName !== 'None' ? `<div class="field"><label>LED</label><span>${order.customConfig.ledName}</span></div>` : ''}
+        </div>
+        <div style="display:flex;gap:20px;margin-bottom:12px;flex-wrap:wrap;">
+            ${order.customConfig.color ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.color};border:2px solid #d1d5db;"></span><span><strong>Hull:</strong> ${order.customConfig.hullColorName || 'N/A'}</span></div>` : ''}
+            ${order.customConfig.deckColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.deckColor};border:2px solid #d1d5db;"></span><span><strong>Deck:</strong> ${order.customConfig.deckColorName || 'N/A'}</span></div>` : ''}
+            ${order.customConfig.railColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.railColor};border:2px solid #d1d5db;"></span><span><strong>Rail:</strong> ${order.customConfig.railColorName || 'N/A'}</span></div>` : ''}
+        </div>
+        ${order.customConfig.items && order.customConfig.items.length > 0 ? `
+        <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px;margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:700;color:#6b21a8;text-transform:uppercase;margin-bottom:6px;">Price Breakdown</div>
+            ${order.customConfig.items.map(i => `<div style="font-size:12px;color:#475569;display:flex;justify-content:space-between;padding:2px 0;"><span>${i.name}</span><span>₱${Number(i.amount || 0).toLocaleString()}</span></div>`).join('')}
+            ${order.customConfig.totalPrice ? `<div style="font-size:13px;font-weight:800;color:#6b21a8;display:flex;justify-content:space-between;margin-top:4px;padding-top:4px;border-top:1px solid #e9d5ff;"><span>Total</span><span>${order.customConfig.totalPrice}</span></div>` : ''}
+        </div>` : ''}
+        ` : ''}
         ${schedule.date || schedule.time || schedule.location ? `
         <div class="modal-section-title"><i class="fa-solid fa-calendar-check"></i> Contract Signing Schedule</div>
         <div class="modal-info-grid">
@@ -341,7 +368,7 @@ window.showPaymentInfo = function (paymentId) {
 
     document.getElementById('paymentInfoBody').innerHTML = `
         <div class="modal-header">
-            <img src="${order?.boatImage || payment.boatImage || './images/boat1.jpg'}" alt="Boat">
+            <img src="${order?.buildType === 'custom' && order?.customConfig?.boatPreviewImage ? order.customConfig.boatPreviewImage : (order?.boatImage || payment.boatImage || './images/boat1.jpg')}" alt="Boat">
             <div>
                 <h2>${order?.boatName || payment.boatName || 'Boat'}</h2>
                 <p>Payment by: ${payment.customerName || 'Unknown'}</p>

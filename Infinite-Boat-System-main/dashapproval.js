@@ -192,17 +192,27 @@ function renderScheduleCard(a, idx) {
         ${isCustom && customConfig ? `
         <div class="payment-info" style="background:#f5f3ff;border-color:#d8b4fe;">
             <h4 style="color:#6b21a8;"><i class="fas fa-wand-magic-sparkles"></i> Custom Configuration</h4>
+            ${customConfig.boatPreviewImage ? `
+            <div class="custom-boat-preview">
+                <img src="${customConfig.boatPreviewImage}" alt="Custom Boat Preview" />
+            </div>` : ''}
             <div class="payment-amounts" style="grid-template-columns:repeat(3,1fr);">
                 ${customConfig.length ? `<div class="pa-item"><span class="label">Length</span><span class="value" style="font-size:13px;">${customConfig.length}m</span></div>` : ''}
                 ${customConfig.width ? `<div class="pa-item"><span class="label">Width</span><span class="value" style="font-size:13px;">${customConfig.width}m</span></div>` : ''}
                 ${customConfig.seats ? `<div class="pa-item"><span class="label">Seats</span><span class="value" style="font-size:13px;">${customConfig.seats}</span></div>` : ''}
-                ${customConfig.hullColorName || customConfig.color ? `<div class="pa-item"><span class="label">Hull Color</span><span class="value" style="font-size:13px;">${customConfig.hullColorName || customConfig.color || 'N/A'}</span></div>` : ''}
-                ${customConfig.deckColorName ? `<div class="pa-item"><span class="label">Deck Color</span><span class="value" style="font-size:13px;">${customConfig.deckColorName}</span></div>` : ''}
-                ${customConfig.railColorName ? `<div class="pa-item"><span class="label">Rail Color</span><span class="value" style="font-size:13px;">${customConfig.railColorName}</span></div>` : ''}
+                ${customConfig.engineName && customConfig.engineName !== 'None' ? `<div class="pa-item"><span class="label">Engine</span><span class="value" style="font-size:13px;">${customConfig.engineName}</span></div>` : ''}
+                ${customConfig.ledName && customConfig.ledName !== 'None' ? `<div class="pa-item"><span class="label">LED</span><span class="value" style="font-size:13px;">${customConfig.ledName}</span></div>` : ''}
+            </div>
+            <div style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;">
+                ${customConfig.color ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.color};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Hull:</strong> ${customConfig.hullColorName || 'N/A'}</span></div>` : ''}
+                ${customConfig.deckColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.deckColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Deck:</strong> ${customConfig.deckColorName || 'N/A'}</span></div>` : ''}
+                ${customConfig.railColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.railColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Rail:</strong> ${customConfig.railColorName || 'N/A'}</span></div>` : ''}
             </div>
             ${customConfig.items && customConfig.items.length > 0 ? `
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
-                ${customConfig.items.map(i => `<div style="font-size:12px;color:#475569;"><strong>${i.name}</strong>: ₱${Number(i.amount || 0).toLocaleString()}</div>`).join('')}
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;padding-top:10px;border-top:1px solid #e9d5ff;">
+                <div style="font-size:11px;font-weight:700;color:#6b21a8;text-transform:uppercase;margin-bottom:2px;">Price Breakdown</div>
+                ${customConfig.items.map(i => `<div style="font-size:12px;color:#475569;display:flex;justify-content:space-between;"><span>${i.name}</span><span>₱${Number(i.amount || 0).toLocaleString()}</span></div>`).join('')}
+                ${customConfig.totalPrice ? `<div style="font-size:13px;font-weight:800;color:#6b21a8;display:flex;justify-content:space-between;margin-top:4px;padding-top:4px;border-top:1px solid #e9d5ff;"><span>Total</span><span>${customConfig.totalPrice}</span></div>` : ''}
             </div>` : ''}
         </div>
         ` : ''}
@@ -385,7 +395,7 @@ window.approveScheduleApproval = async function(idx) {
     const result = await handleDbError(
         supabase.from('boat_orders').update({
             status: 'Approved',
-            progress: 10,
+            progress: 0,
             orderPhase: 'Contract Signed - Awaiting Payment'
         }).eq('orderId', order.orderId),
         'Approve schedule'
@@ -470,6 +480,11 @@ window.approvePaymentApproval = async function(idx) {
         remainingBalance: newRemaining,
         paymentHistory: paymentHistory
     };
+
+    if (currentStep === 0 && nextStep === 1) {
+        updateData.progress = 10;
+        updateData.orderPhase = 'Boat Construction Started';
+    }
 
     console.log('[APPROVE] Updating order:', order.orderId, 'data:', JSON.stringify(updateData));
 
