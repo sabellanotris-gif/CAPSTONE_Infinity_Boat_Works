@@ -12,7 +12,8 @@ import {
   getBoatActivities as _getBoatActivities,
   getBoatTimeline as _getBoatTimeline,
   getBoatDeliveryInfo as _getBoatDeliveryInfo,
-  getBoatMilestones
+  getBoatMilestones,
+  MILESTONE_KEY_LABELS
 } from "./boatData.js";
 
 function esc(str) {
@@ -110,11 +111,18 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (!order.milestones) {
             const boatMs = getBoatMilestones(order.boatName);
             order.milestones = boatMs.map(m => ({
-                label: m.label, percentage: m.percentage,
+                label: m.label, percentage: m.percentage, key: m.key,
                 completed: (order.progress || 0) >= m.percentage,
                 completedDate: (order.progress || 0) >= m.percentage ? (order.projectCompletedDate || null) : null,
                 history: []
             }));
+        } else {
+            const boatMs = getBoatMilestones(order.boatName) || [];
+            order.milestones = order.milestones.map((m, i) => {
+                if (m.key) return m;
+                const preset = boatMs[i] || boatMs.find(p => p.percentage === m.percentage);
+                return { ...m, key: preset ? preset.key : "" };
+            });
         }
         if (!order.activityLog || order.activityLog.length === 0) {
             const defaultActivities = getBoatActivities(order.boatName);
@@ -532,6 +540,8 @@ window.addEventListener("DOMContentLoaded", async () => {
             let progress = Number(order.progress) || 0;
             const phase = order.orderPhase || "Pending Approval";
             const workers = await getWorkersForOrder(order);
+            if (!window.currentWorkersMap) window.currentWorkersMap = {};
+            window.currentWorkersMap[order.orderId] = workers;
             const isCompleted = order.status === "Completed";
             const isCompletedPassenger = isCompleted && order.boatName?.toLowerCase().includes("passenger");
             const orderPrice = parseFloat(String(order.boatPrice).replace(/[^0-9.]/g, "")) || 0;
@@ -992,8 +1002,10 @@ window.addEventListener("DOMContentLoaded", async () => {
                 <p style="font-size:13px;color:#166534;">${order.projectCompletedDate ? 'Completed on ' + new Date(order.projectCompletedDate).toLocaleDateString() : 'Marked as completed'}</p>
             </div>` : `
             <div style="margin-top:16px;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
-                <h4 style="font-size:14px;color:#1d4ed8;margin-bottom:4px;">Next Milestone</h4>
+                <h4 style="font-size:14px;color:#1d4ed8;margin-bottom:4px;"><i class="fa-solid fa-arrow-right-to-bracket"></i> Current Phase</h4>
                 <p style="font-size:13px;color:#475569;">${milestones.find(m => !m.completed)?.label || 'All milestones completed'}</p>
+                ${window.currentWorkersMap && window.currentWorkersMap[order.orderId] ? `
+                <p style="font-size:12px;color:#64748b;margin-top:6px;"><i class="fa-solid fa-users-gear"></i> ${window.currentWorkersMap[order.orderId].filter(w => w.status === "Active").length} worker(s) actively working — ${window.currentWorkersMap[order.orderId].filter(w => w.status === "Active").map(w => esc(w.name)).join(", ") || "none"}</p>` : ""}
             </div>`}
             <div id="customerTasksContainer-${idx}" style="margin-top:16px;"></div>
             ${renderBudgetSection(order, idx)}
@@ -1719,6 +1731,10 @@ window.addEventListener("DOMContentLoaded", async () => {
         `;
     }
 
+    function getPhaseLabel(key) {
+        return MILESTONE_KEY_LABELS[key] || key || "";
+    }
+
     function renderWorkersPreview(workers, containerId) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -1727,8 +1743,10 @@ window.addEventListener("DOMContentLoaded", async () => {
         shown.forEach(w => {
             const pill = document.createElement("span");
             const sClass = getSpecialtyClass(w.role);
+            const phaseLabel = getPhaseLabel(w.phase);
+            const isActive = w.status === "Active";
             pill.className = `worker-pill ${sClass}`;
-            pill.innerHTML = `<i class="fa-solid ${getSpecialtyIcon(w.role)}"></i>${esc(w.name)} <span class="pill-role">${esc(w.role)}</span>`;
+            pill.innerHTML = `<i class="fa-solid ${getSpecialtyIcon(w.role)}"></i>${esc(w.name)} <span class="pill-role">${esc(w.role)}</span>${phaseLabel ? `<span class="pill-phase">${esc(phaseLabel)}</span>` : ""}<span class="pill-status ${isActive ? "on" : "off"}">${isActive ? "Working" : "Done"}</span>`;
             container.appendChild(pill);
         });
 
@@ -1754,6 +1772,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         sorted.forEach(w => {
             const item = document.createElement("div");
             const sClass = getSpecialtyClass(w.role);
+            const phaseLabel = getPhaseLabel(w.phase);
+            const isActive = w.status === "Active";
             item.className = `worker-item ${sClass}`;
             item.innerHTML = `
                 <div class="worker-avatar">
@@ -1762,6 +1782,8 @@ window.addEventListener("DOMContentLoaded", async () => {
                 <div class="worker-info">
                     <h5>${esc(w.name)} ${isEngineer(w) ? '<span class="engineer-badge">ENGINEER</span>' : ""}</h5>
                     <span class="worker-role-label">${esc(w.role)}</span>
+                    ${phaseLabel ? `<span class="worker-phase-label">${esc(phaseLabel)}</span>` : ""}
+                    <span class="worker-phase-label ${isActive ? "status-on" : "status-off"}">${isActive ? "Working" : "Completed"}</span>
                 </div>
             `;
             list.appendChild(item);

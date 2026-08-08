@@ -1,5 +1,5 @@
 import { supabase, supabaseUrl, handleDbError, API_BASE } from "./supabase.js";
-import { BOAT_MILESTONES, BOAT_TIMELINE } from "./boatData.js";
+import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS } from "./boatData.js";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -34,8 +34,9 @@ async function ensureWorkerRegistry() {
         "Content-Type": "application/json",
         ...(token ? { Authorization: "Bearer " + token } : {})
       },
-      body: JSON.stringify({ workers: [] })
+      body: JSON.stringify({ workers: WORKER_REGISTRY.map(w => ({ name: w.name, specialty: w.specialty })) })
     });
+    if (res.status === 403) return;
     const result = await res.json();
     if (result.seeded) {
       console.log("[WORKERS] Seeded " + result.count + " workers");
@@ -162,7 +163,7 @@ async function addDBWorker(orderId, name, role, type) {
                 "Content-Type": "application/json",
                 ...(token ? { Authorization: "Bearer " + token } : {})
             },
-            body: JSON.stringify({ orderId, name, role, status: "Active" })
+            body: JSON.stringify({ orderId, name, role, specialty: role, status: "Active" })
         });
         if (!res.ok) return null;
         return await res.json();
@@ -185,19 +186,65 @@ async function removeDBWorker(workerId) {
     }
 }
 
+async function releaseWorkersForPhase(orderId, phase) {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers/release-phase/" + orderId, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            },
+            body: JSON.stringify({ phase })
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        console.error("Failed to release phase workers:", e);
+        return null;
+    }
+}
+
+async function assignWorkersForPhase(orderId, phase) {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers/assign-phase/" + orderId, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            },
+            body: JSON.stringify({ phase })
+        });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        console.error("Failed to assign phase workers:", e);
+        return null;
+    }
+}
+
+function getMilestoneKeyLabel(key) {
+    return MILESTONE_KEY_LABELS[key] || key || "";
+}
+
 async function renderRegistryList() {
   const container = document.getElementById("registryList");
   if (!container) return;
-  const workers = await loadWorkerList();
+  const workers = await fetchMasterWorkers();
   if (workers.length === 0) {
     container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">No workers in registry.</span>';
     return;
   }
-  container.innerHTML = workers.map(w =>
-    '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:#f1f5f9;border-radius:6px;font-size:11px;">' +
+  container.innerHTML = workers.map(w => {
+    const busy = w.available === false;
+    return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:#f1f5f9;border-radius:6px;font-size:11px;">' +
     w.name + ' — <strong>' + w.specialty + '</strong>' +
-    ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;font-size:12px;" onclick="window.deleteRegistryWorker(\'' + w.id + '\')"></i></span>'
-  ).join("");
+    ' <span class="worker-status-badge ' + (busy ? 'busy' : 'active') + '" style="padding:1px 6px;border-radius:20px;font-size:10px;">' + (busy ? 'Working' : 'Available') + '</span>' +
+    ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;font-size:12px;" onclick="window.deleteRegistryWorker(\'' + w.id + '\')"></i></span>';
+  }).join("");
 }
 
 window.deleteRegistryWorker = async function(id) {
@@ -222,7 +269,12 @@ document.getElementById("addRegistryBtn")?.addEventListener("click", async () =>
 
 function getOrderMilestones(order) {
   if (order.milestones && order.milestones.length > 0) {
-    return order.milestones;
+    const presets = getBoatMilestones(order.boatName);
+    return order.milestones.map((m, i) => {
+      if (m.key) return m;
+      const preset = (presets || [])[i] || (presets || []).find(p => p.percentage === m.percentage);
+      return { ...m, key: preset ? preset.key : "" };
+    });
   }
   const presets = getBoatMilestones(order.boatName);
   const ms = presets.map((p, i) => ({
@@ -316,6 +368,7 @@ async function toggleMilestone(index) {
     order.progress = firstRemaining ? Math.max(0, firstRemaining.percentage - 1) : 0;
     order.status = "Approved";
     order.orderPhase = "Approved";
+    showToast("Milestone reopened. Workers for previous phases were already released — reassign manually if needed.", "warning");
   } else {
     const prevMilestones = milestones.filter(ms => ms.percentage < m.percentage);
     if (!prevMilestones.every(ms => ms.completed)) {
@@ -349,6 +402,21 @@ async function toggleMilestone(index) {
       order.orderPhase = m.label;
     }
     addAutoActivityLog(order, m);
+
+    // Phase-based worker scheduling: release this phase, assign next phase
+    const phaseKey = m.key || "";
+    if (phaseKey) {
+      await releaseWorkersForPhase(order.orderId, phaseKey);
+      const nextMilestone = milestones.find(ms => !ms.completed && ms.percentage > m.percentage);
+      if (nextMilestone && nextMilestone.key) {
+        const assignRes = await assignWorkersForPhase(order.orderId, nextMilestone.key);
+        if (assignRes && assignRes.skipped && assignRes.skipped.length > 0) {
+          showToast("Assigned " + assignRes.count + " worker(s) for " + getMilestoneKeyLabel(nextMilestone.key) + ". " + assignRes.skipped.length + " skipped (busy).", "warning");
+        }
+      } else {
+        showToast("Released " + getMilestoneKeyLabel(phaseKey) + " workers. They are now available for other boats.", "success");
+      }
+    }
   }
   order.milestones = milestones;
   const result = await handleDbError(
@@ -625,12 +693,17 @@ async function renderWorkers(orderId) {
         container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned.</span>';
         return;
     }
-    container.innerHTML = workers.map(w =>
-        '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '">' +
-        '<i class="fa-solid fa-user"></i>' +
-        w.name + ' — <strong>' + w.role + '</strong>' +
-        ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i></span>'
-    ).join('');
+    container.innerHTML = workers.map(w => {
+        const isActive = w.status === "Active";
+        const phaseLabel = getMilestoneKeyLabel(w.phase);
+        return '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '" style="flex-wrap:wrap;">' +
+            '<i class="fa-solid fa-user"></i>' +
+            w.name + ' — <strong>' + (w.specialty || w.role) + '</strong>' +
+            (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
+            ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
+            (isActive ? ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i>' : '') +
+            '</span>';
+    }).join('');
 }
 
 async function removeWorker(workerId) {
@@ -646,11 +719,11 @@ async function populateWorkerSelect() {
   const sel = document.getElementById("workerNameInput");
   if (!sel) return;
   sel.innerHTML = '<option value="">— Select a worker —</option>';
-  const workers = await loadWorkerList();
+  const workers = await fetchMasterWorkers();
   workers.forEach(w => {
     const opt = document.createElement("option");
     opt.value = w.name;
-    opt.textContent = w.name + ' — ' + w.specialty;
+    opt.textContent = w.name + ' — ' + w.specialty + (w.available === false ? ' (busy)' : '');
     opt.dataset.specialty = w.specialty;
     sel.appendChild(opt);
   });
@@ -944,9 +1017,14 @@ async function renderDetail(order) {
     if (workers.length === 0) {
         wContainer.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned. Use "Manage Workers" below.</span>';
     } else {
-        wContainer.innerHTML = workers.map(w =>
-            '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '"><i class="fa-solid fa-user"></i>' + w.name + ' <span style="font-size:10px;color:#64748b;">— ' + w.role + '</span></span>'
-        ).join("");
+        wContainer.innerHTML = workers.map(w => {
+            const isActive = w.status === "Active";
+            const phaseLabel = getMilestoneKeyLabel(w.phase);
+            return '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '"><i class="fa-solid fa-user"></i>' + w.name +
+                ' <span style="font-size:10px;color:#64748b;">— ' + (w.specialty || w.role) + '</span>' +
+                (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
+                ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span></span>';
+        }).join("");
     }
 
     renderWorkers(orderId);

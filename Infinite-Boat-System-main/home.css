@@ -1327,6 +1327,36 @@ nav a:hover::after
     margin-left:2px;
 }
 
+.pill-phase
+{
+    font-size:10px;
+    font-weight:600;
+    padding:1px 6px;
+    border-radius:20px;
+    background:#e0e7ff;
+    color:#4338ca;
+}
+
+.pill-status
+{
+    font-size:10px;
+    font-weight:700;
+    padding:1px 6px;
+    border-radius:20px;
+}
+
+.pill-status.on
+{
+    background:#d1fae5;
+    color:#047857;
+}
+
+.pill-status.off
+{
+    background:#e2e8f0;
+    color:#475569;
+}
+
 .worker-pill.engineer,
 .worker-pill.role-engineer
 {
@@ -1779,6 +1809,31 @@ nav a:hover::after
 {
     font-size:13px;
     color:#64748b;
+}
+
+.worker-item .worker-info .worker-phase-label
+{
+    display:inline-block;
+    margin-top:3px;
+    margin-right:4px;
+    padding:2px 8px;
+    border-radius:20px;
+    font-size:11px;
+    font-weight:600;
+    background:#e0e7ff;
+    color:#4338ca;
+}
+
+.worker-item .worker-info .worker-phase-label.status-on
+{
+    background:#d1fae5;
+    color:#047857;
+}
+
+.worker-item .worker-info .worker-phase-label.status-off
+{
+    background:#e2e8f0;
+    color:#475569;
 }
 
 .worker-item.role-engineer

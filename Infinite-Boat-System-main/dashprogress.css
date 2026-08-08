@@ -317,6 +317,42 @@
     color:#0d9488;
 }
 
+.worker-phase-badge
+{
+    padding:2px 8px;
+    border-radius:20px;
+    background:#e0e7ff;
+    color:#4338ca;
+    font-size:10px;
+    font-weight:600;
+}
+
+.worker-status-badge
+{
+    padding:2px 8px;
+    border-radius:20px;
+    font-size:10px;
+    font-weight:700;
+}
+
+.worker-status-badge.active
+{
+    background:#d1fae5;
+    color:#047857;
+}
+
+.worker-status-badge.done
+{
+    background:#e2e8f0;
+    color:#475569;
+}
+
+.worker-status-badge.busy
+{
+    background:#fee2e2;
+    color:#b91c1c;
+}
+
 /* =====================
    TASK MANAGEMENT
 ===================== */

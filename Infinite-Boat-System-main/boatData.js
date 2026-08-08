@@ -8,7 +8,7 @@
    the hardcoded fallbacks.
    ============================================ */
 
-const API_BASE = window.location.origin;
+const API_BASE = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
 
 // ---- Hardcoded fallback data ----
 
@@ -385,9 +385,33 @@ function matchBoatKey(boatName, dict) {
   return match ? dict[match] : null;
 }
 
+// ---- Specialty to phase mapping (phase-based worker scheduling) ----
+// Maps a worker specialty to the boat milestone keys (phases) they participate in.
+const SPECIALTY_PHASES = {
+  "Engineer": ["design", "engineering", "engines", "systems"],
+  "Builder": ["construction"],
+  "Welder": ["construction"],
+  "Fiberglass Specialist": ["construction", "winch"],
+  "Electrician": ["engines", "systems", "outfitting"],
+  "Painter": ["outfitting", "delivery"]
+};
+
+const MILESTONE_KEY_LABELS = {
+  "design": "Design Phase",
+  "engineering": "Engineering Review",
+  "marina": "MARINA Requirements",
+  "construction": "Hull Construction",
+  "engines": "Engine Installation",
+  "systems": "Systems Integration",
+  "winch": "Winch System",
+  "outfitting": "Interior Fit-Out",
+  "seatrial": "Sea Trial",
+  "delivery": "Ready for Delivery"
+};
+
 // ---- Public API ----
 
-export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO };
+export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO, SPECIALTY_PHASES, MILESTONE_KEY_LABELS };
 
 export function getBoatSpecs(boatName) {
   return matchBoatKey(boatName, BOAT_SPECS) || BOAT_SPECS["Passenger Boat"];
@@ -407,6 +431,14 @@ export function getBoatMilestones(boatName) {
 
 export function getBoatActivities(boatName) {
   return matchBoatKey(boatName, BOAT_ACTIVITIES) || BOAT_ACTIVITIES["Passenger Boat"];
+}
+
+export function resolveMilestoneKey(boatName, milestone) {
+  if (milestone && milestone.key) return milestone.key;
+  if (!milestone || milestone.percentage == null) return "";
+  const presets = getBoatMilestones(boatName) || [];
+  const match = presets.find(p => p.percentage === milestone.percentage);
+  return match ? match.key : "";
 }
 
 export function getBoatTimeline(boatName) {
