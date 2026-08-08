@@ -66,6 +66,7 @@ function cleanPrice(val) {
 
 let allOrders = [];
 let allPayments = [];
+let profilePhoneMap = {};
 
 async function loadAllData() {
     try {
@@ -75,6 +76,14 @@ async function loadAllData() {
     } catch (e) {
         console.error("Failed to load orders:", e);
         allOrders = JSON.parse(localStorage.getItem("boatOrders") || "[]");
+    }
+
+    const orderUserIds = [...new Set(allOrders.map(o => o.userId).filter(Boolean))];
+    if (orderUserIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("id, phone").in("id", orderUserIds);
+        if (profiles) {
+            profiles.forEach(p => { profilePhoneMap[p.id] = p; });
+        }
     }
 
     try {
@@ -254,7 +263,7 @@ window.showOrderInfo = function (orderId) {
         <div class="modal-info-grid">
             <div class="field"><label>Customer Name</label><span>${order.customerName || 'N/A'}</span></div>
             <div class="field"><label>Email</label><span>${order.customerEmail || 'N/A'}</span></div>
-            <div class="field"><label>Phone</label><span>${order.customerPhone || 'N/A'}</span></div>
+            <div class="field"><label>Phone</label><span>${order.customerPhone || profilePhoneMap[order.userId]?.phone || 'N/A'}</span></div>
             <div class="field"><label>Build Type</label><span>${order.buildType === 'custom' ? 'Custom Build' : 'Standard Build'}</span></div>
             <div class="field"><label>Payment Method</label><span>${order.paymentMethod || 'N/A'}</span></div>
             <div class="field"><label>Boat Price</label><span>₱${totalPrice.toLocaleString()}</span></div>

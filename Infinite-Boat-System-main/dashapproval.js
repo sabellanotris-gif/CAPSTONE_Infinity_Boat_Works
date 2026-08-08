@@ -238,6 +238,8 @@ function renderPaymentCard(a, idx) {
     const currentStep = o.paymentStep || 0;
     const totalSteps = isFullPayment ? 1 : 3;
     const phaseLabel = isFullPayment ? 'Full Payment' : (p.phase || ('Phase ' + (currentStep + 1)));
+    const profilePhone = a.profilePhone || '';
+    const phone = o.customerPhone || profilePhone || 'N/A';
 
     return `
     <div class="approval-card payment-type">
@@ -247,6 +249,7 @@ function renderPaymentCard(a, idx) {
                 <div class="card-title">
                     <h3>${p.customerName || o.customerName || 'Unknown'}</h3>
                     <p>${o.boatName || 'N/A'} — ${p.orderId || o.orderId || ''}</p>
+                    <p style="font-size:11px;color:#64748b;margin-top:2px;"><i class="fas fa-phone"></i> ${phone}</p>
                 </div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
@@ -345,39 +348,48 @@ async function loadData() {
         ...(customDesignApproved || [])
     ];
 
-    if ((!ordErr && pendingOrders) || (!custErr && customDesignApproved)) {
-        // Fetch profiles for phone numbers
-        const userIds = [...new Set(allScheduleOrders.map(o => o.userId).filter(Boolean))];
-        let profileMap = {};
-        if (userIds.length > 0) {
-            const { data: profiles } = await supabase.from('profiles').select('id, phone').in('id', userIds);
-            if (profiles) {
-                profiles.forEach(p => { profileMap[p.id] = p; });
-            }
-        }
-        for (const o of allScheduleOrders) {
-            allApprovals.push({ type: 'schedule', data: o, id: o.orderId, profilePhone: profileMap[o.userId]?.phone || '' });
-        }
-    }
-
     // 2. Fetch pending payments
     const { data: pendingPayments, error: payErr } = await handleDbError(
         supabase.from('dashboard_payments').select('*').eq('status', 'Pending'),
         'Fetch pending payments'
     );
 
+    let orderMap = {};
     if (!payErr && pendingPayments && pendingPayments.length > 0) {
         // Fetch related orders for each payment
         const orderIds = [...new Set(pendingPayments.map(p => p.orderId).filter(Boolean))];
-        let orderMap = {};
         if (orderIds.length > 0) {
             const { data: relatedOrders } = await supabase.from('boat_orders').select('*').in('orderId', orderIds);
             if (relatedOrders) {
                 relatedOrders.forEach(o => { orderMap[o.orderId] = o; });
             }
         }
+    }
+
+    // Fetch profiles for phone numbers (both schedule + payment orders)
+    const allOrderUsers = [
+        ...allScheduleOrders.map(o => o.userId),
+        ...Object.values(orderMap).map(o => o.userId)
+    ];
+    const userIds = [...new Set(allOrderUsers.filter(Boolean))];
+    let profileMap = {};
+    if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('id, phone').in('id', userIds);
+        if (profiles) {
+            profiles.forEach(p => { profileMap[p.id] = p; });
+        }
+    }
+
+    if ((!ordErr && pendingOrders) || (!custErr && customDesignApproved)) {
+        for (const o of allScheduleOrders) {
+            allApprovals.push({ type: 'schedule', data: o, id: o.orderId, profilePhone: profileMap[o.userId]?.phone || '' });
+        }
+    }
+
+    if (!payErr && pendingPayments && pendingPayments.length > 0) {
         for (const p of pendingPayments) {
-            allApprovals.push({ type: 'payment', data: p, order: orderMap[p.orderId] || {}, id: p.id });
+            const order = orderMap[p.orderId] || {};
+            allApprovals.push({ type: 'payment', data: p, order, id: p.id, profilePhone: profileMap[order.userId]?.phone || '' });
         }
     }
 

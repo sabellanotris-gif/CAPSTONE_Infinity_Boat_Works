@@ -138,11 +138,13 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(500).json({ error: "Server not configured for registration." });
     }
 
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
     const { data: userData, error: userError } = await supabaseServiceRole.auth.admin.createUser({
       email,
       password,
       email_confirm: false,
-      user_metadata: { name: fullname },
+      user_metadata: { name: fullname, verification_token: verificationToken },
     });
 
     if (userError) {
@@ -163,22 +165,27 @@ app.post("/api/auth/register", async (req, res) => {
       console.error("[REGISTER] Profile upsert failed:", profileError);
     }
 
-    const { data: linkData, error: linkError } = await supabaseServiceRole.auth.admin.generateLink({
-      type: "signup",
-      email,
-      password,
-    });
+    let verifyLink = "";
+    try {
+      const { data: linkData, error: linkError } = await supabaseServiceRole.auth.admin.generateLink({
+        type: "signup",
+        email,
+        password,
+      });
 
-    if (linkError) {
-      console.error("[REGISTER] Generate link failed:", linkError);
+      if (!linkError) {
+        verifyLink = linkData?.properties?.action_link || "";
+        if (verifyLink) {
+          const serverHost = req.protocol + '://' + req.get('host');
+          verifyLink = verifyLink.replace("redirect_to=http://localhost:3000", "redirect_to=" + serverHost + "/verification-success.html");
+        }
+      }
+    } catch (err) {
+      console.error("[REGISTER] Generate link failed:", err?.message || err);
     }
 
-    let verifyLink = linkData?.properties?.action_link || "";
-    if (verifyLink) {
-      const serverHost = req.protocol + '://' + req.get('host');
-      verifyLink = verifyLink.replace("redirect_to=http://localhost:3000", "redirect_to=" + serverHost + "/verification-success.html");
-    } else {
-      verifyLink = `${process.env.SERVER_URL || "http://localhost:3000"}/api/auth/verify-email?token=none&uid=${userData.user.id}`;
+    if (!verifyLink) {
+      verifyLink = `${process.env.SERVER_URL || "http://localhost:3000"}/api/auth/verify-email?token=${verificationToken}&uid=${userData.user.id}`;
     }
 
     sendEmail({

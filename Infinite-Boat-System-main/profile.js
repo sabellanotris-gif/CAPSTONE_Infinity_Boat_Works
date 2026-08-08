@@ -23,6 +23,7 @@ async function checkAuth() {
 }
 
 supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "INITIAL_SESSION") return;
   if (session) {
     currentUser = session.user;
     localStorage.setItem("userId", currentUser.id);
@@ -134,17 +135,28 @@ async function updateUserProfile() {
     saveBtn.disabled = true;
     saveBtn.innerHTML = "Saving...";
 
-    const { error: profileError } = await supabase
+    const profileData = {
+      name: fullname,
+      phone: phone,
+      photo: currentImage,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: updated, error: profileError } = await supabase
       .from("profiles")
-      .upsert({
-        id: currentUser.id,
-        name: fullname,
-        phone: phone,
-        photo: currentImage,
-        updated_at: new Date().toISOString(),
-      });
+      .update(profileData)
+      .eq("id", currentUser.id)
+      .select();
 
     if (profileError) throw profileError;
+
+    if (!updated || updated.length === 0) {
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert({ id: currentUser.id, ...profileData });
+
+      if (insertError && insertError.code !== "23505") throw insertError;
+    }
 
     if (newPassword !== "") {
       const { error: pwError } = await supabase.auth.updateUser({

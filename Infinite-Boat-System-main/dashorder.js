@@ -15,6 +15,7 @@ function safeNum(val) {
 }
 
 let orders = [];
+let profilePhoneMap = {};
 const ordersGrid = document.getElementById('ordersGrid');
 const totalOrders = document.getElementById('totalOrders');
 const pendingOrders = document.getElementById('pendingOrders');
@@ -374,7 +375,7 @@ function viewOrder(index) {
     <div class="view-grid">
         <div><strong>Customer</strong><p>${order.customerName || 'N/A'}</p></div>
         <div><strong>Email</strong><p>${order.customerEmail || 'N/A'}</p></div>
-        <div><strong>Phone</strong><p>${order.customerPhone || 'N/A'}</p></div>
+        <div><strong>Phone</strong><p>${order.customerPhone || profilePhoneMap[order.userId]?.phone || 'N/A'}</p></div>
         <div><strong>Address</strong><p>${order.customerAddress || 'N/A'}</p></div>
         <div><strong>Boat Name</strong><p>${order.boatName || 'N/A'}</p></div>
         <div><strong>Price</strong><p>${price}</p></div>
@@ -534,6 +535,15 @@ window.updateProgress = updateProgress;
         "Load orders"
     );
     orders = (result && !result.error ? result.data : []) || [];
+
+    const orderUserIds = [...new Set(orders.map(o => o.userId).filter(Boolean))];
+    if (orderUserIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("id, phone").in("id", orderUserIds);
+        if (profiles) {
+            profiles.forEach(p => { profilePhoneMap[p.id] = p; });
+        }
+    }
+
     renderOrders('All');
 
     const channel = supabase.channel("dashorder-realtime");
