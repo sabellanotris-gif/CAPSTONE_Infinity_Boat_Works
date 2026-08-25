@@ -1151,9 +1151,14 @@ app.post("/api/workers/seed", authenticate, requireAdmin, async (req, res) => {
     const { data: existing } = await adminDb.from("workers").select("name").limit(1);
     if (existing && existing.length > 0) return res.json({ seeded: false, reason: "already seeded" });
     const { data, error } = await adminDb.from("workers").insert(req.body.workers).select();
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      console.error("[SEED] Insert error:", error.message);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log("[SEED] Seeded", data.length, "workers");
     res.status(201).json({ seeded: true, count: data.length });
   } catch (err) {
+    console.error("[SEED] Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

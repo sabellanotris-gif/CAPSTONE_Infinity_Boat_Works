@@ -28,22 +28,22 @@ async function ensureWorkerRegistry() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
+    if (!token) return;
     const res = await fetch(API_BASE + "/workers/seed", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: "Bearer " + token } : {})
+        Authorization: "Bearer " + token
       },
       body: JSON.stringify({ workers: WORKER_REGISTRY.map(w => ({ name: w.name, specialty: w.specialty })) })
     });
-    if (res.status === 403) return;
+    if (!res.ok) {
+      console.error("[WORKERS] Seed failed with status:", res.status);
+      return;
+    }
     const result = await res.json();
     if (result.seeded) {
       console.log("[WORKERS] Seeded " + result.count + " workers");
-    } else if (result.reason === "already seeded") {
-      // already seeded
-    } else {
-      console.error("[WORKERS] Seed failed:", result.error || result);
     }
   } catch (err) {
     console.error("[WORKERS] Seed error:", err);
@@ -719,14 +719,32 @@ async function populateWorkerSelect() {
   const sel = document.getElementById("workerNameInput");
   if (!sel) return;
   sel.innerHTML = '<option value="">— Select a worker —</option>';
-  const workers = await fetchMasterWorkers();
-  workers.forEach(w => {
-    const opt = document.createElement("option");
-    opt.value = w.name;
-    opt.textContent = w.name + ' — ' + w.specialty + (w.available === false ? ' (busy)' : '');
-    opt.dataset.specialty = w.specialty;
-    sel.appendChild(opt);
-  });
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    let res = await fetch(API_BASE + "/workers/master", {
+      headers: token ? { Authorization: "Bearer " + token } : {}
+    });
+    let workers = res.ok ? await res.json() : [];
+
+    if (!workers.length) {
+      await ensureWorkerRegistry();
+      res = await fetch(API_BASE + "/workers/master", {
+        headers: token ? { Authorization: "Bearer " + token } : {}
+      });
+      workers = res.ok ? await res.json() : [];
+    }
+
+    workers.forEach(w => {
+      const opt = document.createElement("option");
+      opt.value = w.name;
+      opt.textContent = w.name + ' — ' + w.specialty + (w.available === false ? ' (busy)' : '');
+      opt.dataset.specialty = w.specialty;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    console.error("Failed to populate worker select:", e);
+  }
 }
 
 document.getElementById("workerNameInput")?.addEventListener("change", function() {
