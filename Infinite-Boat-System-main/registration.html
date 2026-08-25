@@ -152,6 +152,33 @@ class="container">
 
 
 
+        <!-- ACCOUNT TYPE SELECTOR -->
+        <div id="accountTypeGroup" class="input-group" style="margin-bottom:18px;">
+            <label style="font-size:26px;">Account Type</label>
+            <div style="display:flex;gap:12px;margin-top:8px;">
+                <button type="button" id="typeCustomer" class="account-type-btn active" onclick="setAccountType('customer')">
+                    <i class="fa-solid fa-user" style="margin-right:6px;"></i> Customer
+                </button>
+                <button type="button" id="typeWorker" class="account-type-btn" onclick="setAccountType('worker')">
+                    <i class="fa-solid fa-wrench" style="margin-right:6px;"></i> Worker
+                </button>
+            </div>
+            <input type="hidden" id="accountType" value="customer">
+        </div>
+
+        <!-- SPECIALTY (Worker only) -->
+        <div id="specialtyGroup" class="input-group" style="display:none;margin-bottom:18px;">
+            <label for="specialty" style="font-size:26px;">Specialty</label>
+            <select id="specialty" name="specialty" style="width:100%;height:58px;border:1px solid #ddd;border-radius:15px;padding:0 18px;font-size:22px;font-family:'Poppins',sans-serif;margin-bottom:18px;background:#fff;color:#333;">
+                <option value="Builder">Builder</option>
+                <option value="Welder">Welder</option>
+                <option value="Engineer">Engineer</option>
+                <option value="Electrician">Electrician</option>
+                <option value="Painter">Painter</option>
+                <option value="Fiberglass Specialist">Fiberglass Specialist</option>
+            </select>
+        </div>
+
         <!-- REGISTER FORM -->
 
         <form

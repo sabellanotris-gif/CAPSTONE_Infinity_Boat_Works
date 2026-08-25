@@ -681,6 +681,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
                     ${renderWarrantySection(order)}
 
+                    ${order.paymentStep >= 1 ? `
                     <div class="workers-section">
                         <div class="workers-header">
                             <h4>Workers <span style="font-weight:400;color:#64748b;font-size:13px;">(${workers.length})</span></h4>
@@ -688,6 +689,12 @@ window.addEventListener("DOMContentLoaded", async () => {
                         </div>
                         <div class="workers-list" id="workersPreview${idx}"></div>
                     </div>
+                    ` : `
+                    <div class="workers-section" style="text-align:center;padding:20px;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;">
+                        <i class="fa-solid fa-users" style="font-size:24px;color:#94a3b8;margin-bottom:8px;display:block;"></i>
+                        <p style="color:#64748b;font-size:13px;margin:0;">Workers will be visible after payment.</p>
+                    </div>
+                    `}
 
                     ${order.buildType === "custom" ? `
                     <div class="timeline">
@@ -780,7 +787,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
             ordersGrid.appendChild(card);
 
-            renderWorkersPreview(workers, `workersPreview${idx}`);
+            if (order.paymentStep >= 1) {
+                renderWorkersPreview(workers, `workersPreview${idx}`);
+            }
 
             const minimizeBtn = card.querySelector(".minimize-btn");
             minimizeBtn.addEventListener("click", (e) => {
@@ -804,9 +813,11 @@ window.addEventListener("DOMContentLoaded", async () => {
             }
 
             const viewAllBtn = card.querySelector(".view-all-btn");
-            viewAllBtn.addEventListener("click", () => {
-                openWorkersModal(workers, order.boatName || "Boat");
-            });
+            if (viewAllBtn && order.paymentStep >= 1) {
+                viewAllBtn.addEventListener("click", () => {
+                    openWorkersModal(workers, order.boatName || "Boat");
+                });
+            }
 
             const tabBtn = card.querySelector(".project-tab-btn");
             if (tabBtn) {

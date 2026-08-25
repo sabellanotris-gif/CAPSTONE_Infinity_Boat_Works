@@ -257,6 +257,47 @@ form input
 }
 
 
+.account-type-btn
+{
+    flex:1;
+
+    height:50px;
+
+    border:2px solid #ddd;
+
+    border-radius:12px;
+
+    background:#fff;
+
+    color:#666;
+
+    font-size:18px;
+
+    font-family:'Poppins',sans-serif;
+
+    font-weight:500;
+
+    cursor:pointer;
+
+    transition:0.3s;
+}
+
+.account-type-btn:hover
+{
+    border-color:#295385;
+
+    color:#295385;
+}
+
+.account-type-btn.active
+{
+    border-color:#295385;
+
+    background:#295385;
+
+    color:#fff;
+}
+
 .signup-btn
 {
     width:100%;

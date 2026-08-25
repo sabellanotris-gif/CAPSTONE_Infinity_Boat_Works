@@ -2035,6 +2035,31 @@ window.closeDeliveryModal = function() {
     document.getElementById('deliveryModal').classList.remove('show');
 };
 
+/* ============ WORKER ACCOUNTS & REGISTRATIONS ============ */
+
+function escWorkerHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+window.switchProgressTab = function(tab) {
+    return;
+};
+
+async function loadWorkerAccounts() {
+    return;
+}
+
+async function loadRegistrations() {
+    return;
+}
+
+window.approveRegistration = async function(id) { return; };
+window.rejectRegistration = async function(id) { return; };
+window.showCreateWorkerModal = function() { return; };
+window.closeCreateWorkerModal = function() { return; };
+window.submitCreateWorker = async function() { return; };
+
 (async function init() {
     await ensureWorkerRegistry();
     const result = await handleDbError(
@@ -2046,7 +2071,7 @@ window.closeDeliveryModal = function() {
     await populateWorkerSelect();
     await renderRegistryList();
     if (select.options.length > 1) {
-        for (let i = 1; i < select.options.length; i++) {
+        for (var i = 1; i < select.options.length; i++) {
             if (!select.options[i].disabled && select.options[i].value !== "") {
                 select.value = select.options[i].value;
                 break;
@@ -2054,4 +2079,5 @@ window.closeDeliveryModal = function() {
         }
         await renderDetail(getSelectedOrder());
     }
+    loadRegistrations();
 })();

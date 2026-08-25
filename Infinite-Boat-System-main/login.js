@@ -48,12 +48,36 @@ window.login = async function () {
   localStorage.setItem("customerImage", profile?.photo || "./images/user.png");
   localStorage.setItem("customerPhone", profile?.phone || "");
 
-  const isAdmin = profile?.role === "admin" || user?.user_metadata?.role === "admin";
+  const userRole = profile?.role || user?.user_metadata?.role || "user";
 
-  if (isAdmin) {
+  if (userRole === "admin") {
     alert("Welcome Admin!");
     localStorage.setItem("role", "admin");
     window.location.href = "dashboard.html";
+  } else if (userRole === "worker") {
+    const { data: regStatus } = await supabase
+      .from("worker_registrations")
+      .select("status")
+      .eq("userId", user.id)
+      .order("createdAt", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (regStatus && regStatus.status === "pending") {
+      alert("Your account is pending admin approval. You will receive an email once approved.");
+      await supabase.auth.signOut();
+      return;
+    }
+
+    if (regStatus && regStatus.status === "rejected") {
+      alert("Your registration has been rejected. Please contact admin for details.");
+      await supabase.auth.signOut();
+      return;
+    }
+
+    alert("Welcome Worker!");
+    localStorage.setItem("role", "worker");
+    window.location.href = "worker.html";
   } else {
     alert("Login Successful!");
     localStorage.setItem("role", "user");

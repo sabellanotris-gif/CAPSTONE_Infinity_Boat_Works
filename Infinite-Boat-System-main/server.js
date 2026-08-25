@@ -318,6 +318,450 @@ app.post("/api/auth/resend-verification", async (req, res) => {
   }
 });
 
+/* ============ WORKER REGISTRATION & APPROVAL ============ */
+
+app.post("/api/auth/register-worker", async (req, res) => {
+  try {
+    const { email, password, fullname, phone, specialty } = req.body;
+
+    if (!email || !password || !fullname || !specialty) {
+      return res.status(400).json({ error: "Missing required fields: email, password, fullname, specialty" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+
+    if (!supabaseServiceRole) {
+      return res.status(500).json({ error: "Server not configured for registration." });
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const { data: userData, error: userError } = await supabaseServiceRole.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name: fullname, role: "worker", specialty, verification_token: verificationToken },
+    });
+
+    if (userError) {
+      if (userError.message?.includes("already registered") || userError.message?.includes("already exists")) {
+        return res.status(409).json({ error: "Email already registered." });
+      }
+      return res.status(500).json({ error: userError.message });
+    }
+
+    const { error: profileError } = await supabaseServiceRole.from("profiles").upsert({
+      id: userData.user.id,
+      email,
+      name: fullname,
+      phone: phone || "",
+      role: "worker",
+    }, { onConflict: "id" });
+
+    if (profileError) {
+      console.error("[REGISTER WORKER] Profile upsert failed:", profileError);
+    }
+
+    const { error: regError } = await supabaseServiceRole.from("worker_registrations").insert({
+      userId: userData.user.id,
+      email,
+      name: fullname,
+      phone: phone || "",
+      specialty,
+      status: "pending",
+    });
+
+    if (regError) {
+      console.error("[REGISTER WORKER] Registration record failed:", regError);
+    }
+
+    sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `New Worker Registration — ${fullname}`,
+      html: `
+        <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
+          <h2 style="color:#1e3a5f;">New Worker Registration 🛠️</h2>
+          <p>A new worker has registered and is awaiting your approval.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Name</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(fullname)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Email</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(email)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Phone</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(phone || "—")}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Specialty</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(specialty)}</td></tr>
+          </table>
+          <p>Please review this registration in the admin dashboard.</p>
+          <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        </div>`
+    }).catch(err => console.error("[REGISTER WORKER] Admin notification email failed:", err));
+
+    res.status(201).json({ success: true, message: "Registration successful! Your account is pending admin approval. You will receive an email once approved." });
+  } catch (err) {
+    console.error("[REGISTER WORKER] Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/worker-registrations", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await adminDb.from("worker_registrations").select("*").order("createdAt", { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/worker-registrations/:id/approve", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data: reg, error: fetchErr } = await adminDb
+      .from("worker_registrations")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !reg) return res.status(404).json({ error: "Registration not found" });
+    if (reg.status !== "pending") return res.status(400).json({ error: "Registration already processed" });
+
+    const { error: updateErr } = await adminDb
+      .from("worker_registrations")
+      .update({ status: "approved", reviewedBy: req.user.id, reviewedAt: new Date().toISOString() })
+      .eq("id", id);
+
+    if (updateErr) return res.status(500).json({ error: updateErr.message });
+
+    await adminDb.from("workers").insert({
+      name: reg.name,
+      specialty: reg.specialty,
+      status: "Active",
+      userId: reg.userId,
+    });
+
+    await adminDb.from("notifications").insert({
+      userId: reg.userId,
+      title: "Registration Approved",
+      message: `Your worker registration has been approved! You can now access your dashboard.`,
+      type: "approval",
+    });
+
+    sendEmail({
+      to: reg.email,
+      subject: `Registration Approved — Infinity Boat Works`,
+      html: `
+        <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
+          <h2 style="color:#22c55e;">Registration Approved! ✅</h2>
+          <p>Hi <strong>${escHtml(reg.name)}</strong>,</p>
+          <p>Your worker registration has been approved. You can now log in and access your worker dashboard.</p>
+          <p style="margin:24px 0;text-align:center">
+            <a href="${process.env.SERVER_URL || "http://localhost:3000"}/login.html"
+               style="background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;display:inline-block;font-size:16px">
+              Login Now
+            </a>
+          </p>
+          <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        </div>`
+    }).catch(err => console.error("[APPROVE WORKER] Email failed:", err));
+
+    res.json({ success: true, message: "Worker registration approved" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/worker-registrations/:id/reject", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+
+    const { data: reg, error: fetchErr } = await adminDb
+      .from("worker_registrations")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchErr || !reg) return res.status(404).json({ error: "Registration not found" });
+    if (reg.status !== "pending") return res.status(400).json({ error: "Registration already processed" });
+
+    const { error: updateErr } = await adminDb
+      .from("worker_registrations")
+      .update({ status: "rejected", reviewedBy: req.user.id, reviewedAt: new Date().toISOString() })
+      .eq("id", id);
+
+    if (updateErr) return res.status(500).json({ error: updateErr.message });
+
+    await adminDb.from("notifications").insert({
+      userId: reg.userId,
+      title: "Registration Rejected",
+      message: reason ? `Your worker registration was rejected. Reason: ${reason}` : "Your worker registration was rejected. Please contact admin for details.",
+      type: "rejection",
+    });
+
+    res.json({ success: true, message: "Worker registration rejected" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/create-worker", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { email, password, fullname, phone, specialty } = req.body;
+
+    if (!email || !password || !fullname || !specialty) {
+      return res.status(400).json({ error: "Missing required fields: email, password, fullname, specialty" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
+
+    if (!supabaseServiceRole) {
+      return res.status(500).json({ error: "Server not configured." });
+    }
+
+    const { data: userData, error: userError } = await supabaseServiceRole.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name: fullname, role: "worker", specialty },
+    });
+
+    if (userError) {
+      if (userError.message?.includes("already registered") || userError.message?.includes("already exists")) {
+        return res.status(409).json({ error: "Email already registered." });
+      }
+      return res.status(500).json({ error: userError.message });
+    }
+
+    const { error: profileError } = await supabaseServiceRole.from("profiles").upsert({
+      id: userData.user.id,
+      email,
+      name: fullname,
+      phone: phone || "",
+      role: "worker",
+    }, { onConflict: "id" });
+
+    if (profileError) {
+      console.error("[CREATE WORKER] Profile upsert failed:", profileError);
+    }
+
+    const { data: workerEntry, error: workerErr } = await adminDb.from("workers").insert({
+      name: fullname,
+      specialty,
+      status: "Active",
+      userId: userData.user.id,
+    }).select();
+
+    if (workerErr) {
+      console.error("[CREATE WORKER] Worker registry insert failed:", workerErr);
+    }
+
+    await adminDb.from("notifications").insert({
+      userId: userData.user.id,
+      title: "Account Created",
+      message: `Your worker account has been created by admin. You can now log in and access your dashboard.`,
+      type: "approval",
+    });
+
+    sendEmail({
+      to: email,
+      subject: `Your Worker Account is Ready — Infinity Boat Works`,
+      html: `
+        <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
+          <h2 style="color:#1e3a5f;">Your Account is Ready! 🛠️</h2>
+          <p>Hi <strong>${escHtml(fullname)}</strong>,</p>
+          <p>An admin has created your worker account. You can now log in with the following credentials:</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0">
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Email</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(email)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Password</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(password)}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Specialty</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(specialty)}</td></tr>
+          </table>
+          <p style="color:#c0392b;font-size:13px"><strong>Important:</strong> Please change your password after your first login for security.</p>
+          <p style="margin:24px 0;text-align:center">
+            <a href="${process.env.SERVER_URL || "http://localhost:3000"}/login.html"
+               style="background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;display:inline-block;font-size:16px">
+              Login Now
+            </a>
+          </p>
+          <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        </div>`
+    }).catch(err => console.error("[CREATE WORKER] Welcome email failed:", err));
+
+    res.status(201).json({ success: true, message: "Worker account created successfully" });
+  } catch (err) {
+    console.error("[CREATE WORKER] Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/auth/worker-status", authenticate, async (req, res) => {
+  try {
+    const { data: reg, error } = await adminDb
+      .from("worker_registrations")
+      .select("status")
+      .eq("userId", req.user.id)
+      .order("createdAt", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ status: reg?.status || "approved" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============ NOTIFICATIONS ============ */
+
+app.get("/api/notifications", authenticate, async (req, res) => {
+  try {
+    const { data, error } = await adminDb
+      .from("notifications")
+      .select("*")
+      .eq("userId", req.user.id)
+      .order("createdAt", { ascending: false })
+      .limit(50);
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/notifications/:id/read", authenticate, async (req, res) => {
+  try {
+    const { data, error } = await adminDb
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", req.params.id)
+      .eq("userId", req.user.id)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/notifications/read-all", authenticate, async (req, res) => {
+  try {
+    const { data, error } = await adminDb
+      .from("notifications")
+      .update({ read: true })
+      .eq("userId", req.user.id)
+      .eq("read", false)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, count: data?.length || 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/notifications", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { userId, title, message, type, orderId } = req.body;
+    if (!userId || !title || !message) {
+      return res.status(400).json({ error: "Missing required fields: userId, title, message" });
+    }
+
+    const { data, error } = await adminDb
+      .from("notifications")
+      .insert({ userId, title, message, type: type || "general", orderId: orderId || null })
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.status(201).json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============ WORKER-SPECIFIC ============ */
+
+app.get("/api/worker/my-assignments", authenticate, async (req, res) => {
+  try {
+    const { data: worker, error: wErr } = await adminDb
+      .from("workers")
+      .select("*")
+      .eq("userId", req.user.id)
+      .maybeSingle();
+
+    if (wErr || !worker) return res.json([]);
+
+    const { data, error } = await adminDb
+      .from("project_workers")
+      .select("*, boat_orders(boatName, boatImage, boatPrice, status, progress, orderPhase)")
+      .eq("name", worker.name)
+      .order("createdAt", { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/worker/update-task/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+
+    const { data: assignment, error: fetchErr } = await adminDb
+      .from("project_workers")
+      .select("*, workers(userId)")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (fetchErr || !assignment) return res.status(404).json({ error: "Assignment not found" });
+
+    const workerUserId = assignment.workers?.userId;
+    if (workerUserId !== req.user.id) {
+      return res.status(403).json({ error: "Not authorized to update this task" });
+    }
+
+    const updates = { updatedAt: new Date().toISOString() };
+    if (status) {
+      updates.status = status;
+      if (status === "Completed") updates.completedAt = new Date().toISOString();
+    }
+
+    const { data, error } = await adminDb
+      .from("project_workers")
+      .update(updates)
+      .eq("id", id)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    if (status === "Completed") {
+      const { data: order } = await adminDb
+        .from("boat_orders")
+        .select("userId, boatName")
+        .eq("orderId", assignment.orderId)
+        .maybeSingle();
+
+      if (order?.userId) {
+        await adminDb.from("notifications").insert({
+          userId: order.userId,
+          title: "Task Completed",
+          message: `Worker ${assignment.name} has completed the ${assignment.phase} phase for ${order.boatName || assignment.orderId}.`,
+          type: "task_update",
+          orderId: assignment.orderId,
+        });
+      }
+    }
+
+    res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ============ ORDERS ============ */
 
 app.get("/api/orders", authenticate, async (req, res) => {
@@ -852,6 +1296,30 @@ async function assignWorkersForPhase(orderId, phase, opts = {}) {
     const { data, error } = await adminDb.from("project_workers").insert(assignments).select();
     if (error) return { error: error.message, status: 500 };
     inserted = data;
+
+    for (const assignment of inserted) {
+      const { data: worker } = await adminDb
+        .from("workers")
+        .select("userId, name")
+        .eq("name", assignment.name)
+        .maybeSingle();
+
+      if (worker?.userId) {
+        const { data: order } = await adminDb
+          .from("boat_orders")
+          .select("boatName")
+          .eq("orderId", orderId)
+          .maybeSingle();
+
+        await adminDb.from("notifications").insert({
+          userId: worker.userId,
+          title: "New Assignment",
+          message: `You have been assigned to project ${orderId}${order?.boatName ? " (" + order.boatName + ")" : ""} — Phase: ${phase}`,
+          type: "assignment",
+          orderId,
+        });
+      }
+    }
   }
   return { assigned: true, count: inserted.length, phase, skipped };
 }
@@ -939,6 +1407,70 @@ app.delete("/api/workers/master/:id", authenticate, requireAdmin, async (req, re
     const { error } = await adminDb.from("workers").delete().eq("id", req.params.id);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/workers-detail", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { data: workers, error } = await adminDb
+      .from("workers")
+      .select("*")
+      .order("name", { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+
+    const userIds = (workers || []).filter(w => w.userId).map(w => w.userId);
+    let profilesMap = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await adminDb
+        .from("profiles")
+        .select("id, email, name, phone, role")
+        .in("id", userIds);
+      (profiles || []).forEach(p => { profilesMap[p.id] = p; });
+    }
+
+    const { data: activeAssignments } = await adminDb
+      .from("project_workers")
+      .select("name, orderId, phase, status")
+      .eq("status", "Active");
+
+    const busy = new Map();
+    (activeAssignments || []).forEach(a => {
+      if (!busy.has(a.name)) busy.set(a.name, { orderId: a.orderId, phase: a.phase });
+    });
+
+    const { data: regData } = await adminDb
+      .from("worker_registrations")
+      .select("userId, status")
+      .order("createdAt", { ascending: false });
+
+    const regMap = {};
+    (regData || []).forEach(r => {
+      if (!regMap[r.userId]) regMap[r.userId] = r.status;
+    });
+
+    const result = (workers || []).map(w => {
+      const profile = profilesMap[w.userId] || {};
+      const current = busy.get(w.name);
+      return {
+        id: w.id,
+        name: w.name,
+        specialty: w.specialty,
+        status: w.status,
+        userId: w.userId,
+        email: profile.email || "",
+        phone: profile.phone || "",
+        hasAccount: !!w.userId,
+        accountRole: profile.role || "",
+        regStatus: w.userId ? (regMap[w.userId] || "approved") : null,
+        available: !current,
+        currentOrderId: current ? current.orderId : null,
+        currentPhase: current ? current.phase : null,
+        createdAt: w.createdAt,
+      };
+    });
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,0 +1,463 @@
+@import url('dashboard.css');
+
+/* ============ TABS ============ */
+.ww-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    background: #fff;
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    width: fit-content;
+}
+
+.ww-tab {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    background: transparent;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all .2s;
+}
+
+.ww-tab.active {
+    background: #295dff;
+    color: #fff;
+}
+
+.ww-badge {
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+/* ============ STATS ============ */
+.workers-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.workers-stat-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px 24px;
+    flex: 1;
+    box-shadow: 0 4px 20px rgba(0,0,0,.04);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.workers-stat-card .stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+.workers-stat-card .stat-info h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.workers-stat-card .stat-info p {
+    font-size: 13px;
+    color: #64748b;
+}
+
+/* ============ FILTERS ============ */
+.workers-filter-bar,
+.ww-reg-filter-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.workers-filter-bar input,
+.ww-reg-filter-bar input {
+    flex: 1;
+    max-width: 320px;
+    padding: 10px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color .2s;
+}
+
+.workers-filter-bar input:focus,
+.ww-reg-filter-bar input:focus {
+    border-color: #295dff;
+}
+
+.workers-filter-bar select,
+.ww-reg-filter-bar select {
+    padding: 10px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    outline: none;
+    background: #fff;
+    cursor: pointer;
+}
+
+/* ============ WORKER GRID ============ */
+.workers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+
+.worker-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 22px;
+    transition: box-shadow .2s, transform .15s;
+}
+
+.worker-card:hover {
+    box-shadow: 0 8px 30px rgba(0,0,0,.08);
+    transform: translateY(-2px);
+}
+
+.worker-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+.worker-card-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 2px;
+}
+
+.worker-card-email {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.worker-badge {
+    padding: 3px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.worker-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.worker-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #475569;
+}
+
+.worker-detail-row i {
+    width: 16px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.worker-card-assignment {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #475569;
+}
+
+.worker-card-assignment strong {
+    color: #1e293b;
+}
+
+.worker-empty {
+    text-align: center;
+    padding: 64px 32px;
+    color: #94a3b8;
+    grid-column: 1 / -1;
+}
+
+.worker-empty i {
+    font-size: 52px;
+    margin-bottom: 16px;
+    display: block;
+}
+
+.worker-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ============ REGISTRATION STATS ============ */
+.ww-reg-stats {
+    display: flex;
+    gap: 10px;
+}
+
+.ww-reg-stat {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ============ REGISTRATION CARD ============ */
+.ww-reg-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 22px;
+    transition: box-shadow .2s;
+}
+
+.ww-reg-card:hover {
+    box-shadow: 0 8px 30px rgba(0,0,0,.08);
+}
+
+.ww-reg-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.ww-reg-card-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 2px;
+}
+
+.ww-reg-card-email {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.ww-reg-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.ww-reg-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.ww-reg-card-actions button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+    cursor: pointer;
+    transition: opacity .2s;
+    color: #fff;
+}
+
+.ww-reg-card-actions button:hover {
+    opacity: .85;
+}
+
+.ww-reg-date {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 8px;
+}
+
+/* ============ MODAL ============ */
+.ww-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.ww-modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 0;
+    max-width: 560px;
+    width: 92%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0,0,0,.2);
+}
+
+.ww-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 28px 0;
+}
+
+.ww-modal-header h2 {
+    font-size: 18px;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ww-modal-header h2 i {
+    color: #295dff;
+}
+
+.ww-modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.ww-modal-close:hover {
+    color: #1e293b;
+}
+
+.ww-form-group {
+    margin-bottom: 16px;
+    flex: 1;
+}
+
+.ww-form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+.ww-form-group input,
+.ww-form-group select {
+    width: 100%;
+    padding: 11px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color .2s;
+}
+
+.ww-form-group input:focus,
+.ww-form-group select:focus {
+    border-color: #295dff;
+}
+
+.ww-form-row {
+    display: flex;
+    gap: 16px;
+}
+
+.ww-form-note {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #0369a1;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.ww-form-note i {
+    margin-top: 2px;
+}
+
+.ww-form-actions {
+    display: flex;
+    gap: 10px;
+    padding: 0 28px 24px;
+}
+
+.ww-btn-primary {
+    background: #295dff;
+    color: #fff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    font-family: 'Poppins', sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: opacity .2s;
+}
+
+.ww-btn-primary:hover {
+    opacity: .88;
+}
+
+.ww-btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    font-family: 'Poppins', sans-serif;
+    transition: background .2s;
+}
+
+.ww-btn-secondary:hover {
+    background: #e2e8f0;
+}
+
+.ww-form-body {
+    padding: 24px 28px;
+}

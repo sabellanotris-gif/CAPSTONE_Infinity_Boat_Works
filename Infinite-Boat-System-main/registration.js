@@ -2,12 +2,33 @@ import { supabase, API_BASE } from "./supabase.js";
 
 const DEFAULT_PROFILE = "./images/user.png";
 
+window.setAccountType = function (type) {
+  const typeInput = document.getElementById("accountType");
+  const specialtyGroup = document.getElementById("specialtyGroup");
+  const typeCustomer = document.getElementById("typeCustomer");
+  const typeWorker = document.getElementById("typeWorker");
+
+  typeInput.value = type;
+
+  if (type === "worker") {
+    specialtyGroup.style.display = "block";
+    typeCustomer.classList.remove("active");
+    typeWorker.classList.add("active");
+  } else {
+    specialtyGroup.style.display = "none";
+    typeCustomer.classList.add("active");
+    typeWorker.classList.remove("active");
+  }
+};
+
 window.validateForm = async function () {
   const fullname = document.getElementById("fullname").value.trim();
   const email = document.getElementById("email").value.trim();
   const phone = document.getElementById("phone").value.trim();
   const password = document.getElementById("password").value.trim();
   const confirmPassword = document.getElementById("confirmPassword").value.trim();
+  const accountType = document.getElementById("accountType").value;
+  const specialty = document.getElementById("specialty")?.value || "";
 
   if (fullname === "") {
     alert("Please enter your full name.");
@@ -39,6 +60,11 @@ window.validateForm = async function () {
     return;
   }
 
+  if (accountType === "worker" && !specialty) {
+    alert("Please select your specialty.");
+    return;
+  }
+
   const submitBtn = document.querySelector("#registerForm button[type='submit']");
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -46,10 +72,14 @@ window.validateForm = async function () {
   }
 
   try {
-    const res = await fetch(API_BASE + "/auth/register", {
+    const endpoint = accountType === "worker" ? "/auth/register-worker" : "/auth/register";
+    const body = { email, password, fullname, phone };
+    if (accountType === "worker") body.specialty = specialty;
+
+    const res = await fetch(API_BASE + endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, fullname, phone }),
+      body: JSON.stringify(body),
     });
 
     const result = await res.json();
@@ -59,7 +89,11 @@ window.validateForm = async function () {
       return;
     }
 
-    alert("Registration successful! Please check your email to confirm your account.");
+    if (accountType === "worker") {
+      alert("Registration successful! Your account is pending admin approval. You will receive an email once approved.");
+    } else {
+      alert("Registration successful! Please check your email to confirm your account.");
+    }
     window.location.href = "login.html";
   } catch (error) {
     console.log(error);

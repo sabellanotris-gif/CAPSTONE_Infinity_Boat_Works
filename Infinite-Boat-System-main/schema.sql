@@ -159,6 +159,7 @@ CREATE TABLE public.workers (
   "name" TEXT NOT NULL,
   "specialty" TEXT NOT NULL DEFAULT 'Builder',
   "status" TEXT DEFAULT 'Active',
+  "userId" UUID REFERENCES public.profiles(id),
   "createdAt" TIMESTAMPTZ DEFAULT NOW(),
   "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
