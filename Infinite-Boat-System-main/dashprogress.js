@@ -50,6 +50,29 @@ async function ensureWorkerRegistry() {
   }
 }
 
+async function backfillRegistry() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+    const res = await fetch(API_BASE + "/workers/backfill", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+      }
+    });
+    if (!res.ok) {
+      console.error("[WORKERS] Backfill failed with status:", res.status);
+      return;
+    }
+    const result = await res.json();
+    if (result.added > 0) console.log("[WORKERS] Backfilled " + result.added + " approved workers");
+  } catch (err) {
+    console.error("[WORKERS] Backfill error:", err);
+  }
+}
+
 async function fetchMasterWorkers() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -57,6 +80,7 @@ async function fetchMasterWorkers() {
     const res = await fetch(API_BASE + "/workers/master", {
       headers: token ? { Authorization: "Bearer " + token } : {}
     });
+
     if (!res.ok) return [];
     return await res.json();
   } catch (e) {
@@ -202,26 +226,6 @@ async function releaseWorkersForPhase(orderId, phase) {
         return await res.json();
     } catch (e) {
         console.error("Failed to release phase workers:", e);
-        return null;
-    }
-}
-
-async function assignWorkersForPhase(orderId, phase) {
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const res = await fetch(API_BASE + "/workers/assign-phase/" + orderId, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: "Bearer " + token } : {})
-            },
-            body: JSON.stringify({ phase })
-        });
-        if (!res.ok) return null;
-        return await res.json();
-    } catch (e) {
-        console.error("Failed to assign phase workers:", e);
         return null;
     }
 }
@@ -403,19 +407,11 @@ async function toggleMilestone(index) {
     }
     addAutoActivityLog(order, m);
 
-    // Phase-based worker scheduling: release this phase, assign next phase
+    // Phase-based worker scheduling: release this phase (admin assigns next phase manually)
     const phaseKey = m.key || "";
     if (phaseKey) {
       await releaseWorkersForPhase(order.orderId, phaseKey);
-      const nextMilestone = milestones.find(ms => !ms.completed && ms.percentage > m.percentage);
-      if (nextMilestone && nextMilestone.key) {
-        const assignRes = await assignWorkersForPhase(order.orderId, nextMilestone.key);
-        if (assignRes && assignRes.skipped && assignRes.skipped.length > 0) {
-          showToast("Assigned " + assignRes.count + " worker(s) for " + getMilestoneKeyLabel(nextMilestone.key) + ". " + assignRes.skipped.length + " skipped (busy).", "warning");
-        }
-      } else {
-        showToast("Released " + getMilestoneKeyLabel(phaseKey) + " workers. They are now available for other boats.", "success");
-      }
+      showToast("Released " + getMilestoneKeyLabel(phaseKey) + " workers. They are now available for other boats.", "success");
     }
   }
   order.milestones = milestones;
@@ -725,6 +721,9 @@ async function populateWorkerSelect() {
     let res = await fetch(API_BASE + "/workers/master", {
       headers: token ? { Authorization: "Bearer " + token } : {}
     });
+    if (!res.ok) {
+      console.error("[WORKERS] /workers/master returned", res.status, await res.text().catch(() => ""));
+    }
     let workers = res.ok ? await res.json() : [];
 
     if (!workers.length) {
@@ -746,6 +745,12 @@ async function populateWorkerSelect() {
     console.error("Failed to populate worker select:", e);
   }
 }
+
+window.addEventListener("focus", function() {
+  if (document.getElementById("workerNameInput")) {
+    populateWorkerSelect();
+  }
+});
 
 document.getElementById("workerNameInput")?.addEventListener("change", function() {
   const sel = document.getElementById("workerRoleInput");
@@ -1012,24 +1017,7 @@ async function renderDetail(order) {
     document.getElementById("detailBuildType").textContent = order.buildType === "custom" ? "Custom Build" : "Standard Build";
 
     const orderId = order.orderId;
-    let workers = await getDBWorkers(orderId);
-
-    if (workers.length === 0 && order.status === "Approved") {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: "Bearer " + token } : {})
-          }
-        });
-        workers = await getDBWorkers(orderId);
-      } catch (e) {
-        console.error("Auto-assign error:", e);
-      }
-    }
+    const workers = await getDBWorkers(orderId);
 
     const wContainer = document.getElementById("detailWorkers");
     if (workers.length === 0) {
@@ -2080,6 +2068,7 @@ window.submitCreateWorker = async function() { return; };
 
 (async function init() {
     await ensureWorkerRegistry();
+    await backfillRegistry();
     const result = await handleDbError(
         supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
         "Load orders"

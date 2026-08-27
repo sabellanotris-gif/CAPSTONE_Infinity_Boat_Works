@@ -9,30 +9,6 @@ window.handleLogout = async function () {
 let allApprovals = [];
 let activeFilter = 'all';
 
-async function autoAssignWorkers(orderId) {
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: "Bearer " + token } : {})
-            }
-        });
-        const result = await res.json();
-        if (result.assigned) {
-            console.log("[WORKERS] Assigned " + result.count + " workers for order:", orderId);
-        } else if (result.reason === "already assigned") {
-            console.log("[WORKERS] Already assigned for order:", orderId);
-        } else {
-            console.warn("[WORKERS] Auto-assign result:", result);
-        }
-    } catch (err) {
-        console.error("[WORKERS] Error in autoAssignWorkers:", err);
-    }
-}
-
 function showToast(msg, type = 'success') {
     let container = document.querySelector('.toast-container');
     if (!container) {
@@ -415,9 +391,8 @@ window.approveScheduleApproval = async function(idx) {
 
     if (result?.error) return;
 
-    await autoAssignWorkers(order.orderId);
     sendEmailNotification({ type: 'status_changed', recipient: order.customerEmail, data: order });
-    showToast('Schedule approved! Workers assigned. Customer can now proceed to payment.', 'success');
+    showToast('Schedule approved! Assign workers in the Manage Progress page.', 'success');
     loadData();
 };
 
@@ -507,7 +482,6 @@ window.approvePaymentApproval = async function(idx) {
 
     console.log('[APPROVE] Update result:', updateResult);
 
-    await autoAssignWorkers(order.orderId);
     sendEmailNotification({ type: 'payment_approved', recipient: payment.customerEmail || order.customerEmail, data: payment });
     showToast('Payment approved successfully!', 'success');
     loadData();

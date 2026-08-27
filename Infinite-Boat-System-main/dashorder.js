@@ -274,22 +274,6 @@ async function requestRevision(index) {
     document.getElementById('revisionModal').classList.add('show');
 }
 
-async function autoAssignWorkers(orderId) {
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: "Bearer " + token } : {})
-            }
-        });
-    } catch (e) {
-        console.error("Auto-assign error:", e);
-    }
-}
-
 async function approveSchedule(index) {
     if (!confirm('Approve this contract signing schedule? The customer will be notified and can proceed to payment.')) return;
     const order = orders[index];
@@ -302,9 +286,8 @@ async function approveSchedule(index) {
         "Approve schedule"
     );
     if (result?.error) { order.status = oldStatus; return; }
-    await autoAssignWorkers(order.orderId);
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
-    showToast('Schedule approved! Workers assigned. Customer can now proceed to payment.', 'success');
+    showToast('Schedule approved! Assign workers in the Manage Progress page.', 'success');
     renderOrders(getActiveFilter());
 }
 

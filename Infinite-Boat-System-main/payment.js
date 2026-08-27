@@ -234,27 +234,6 @@ function renderWorkersChips(workers, containerId) {
     ).join('');
 }
 
-async function autoAssignWorkers(orderId) {
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: "Bearer " + token } : {})
-            }
-        });
-        const result = await res.json();
-        if (result.assigned) {
-            workersCache = await loadWorkersForOrder(orderId);
-            renderWorkersChips(workersCache, "workersList");
-        }
-    } catch (e) {
-        console.error("Auto-assign workers error:", e);
-    }
-}
-
 (async () => {
     workersCache = await loadWorkersForOrder(savedOrder.orderId);
     renderWorkersChips(workersCache, "workersList");
@@ -847,8 +826,6 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
       alert("Payment submission failed: " + payError.message);
       return;
     }
-
-    autoAssignWorkers(savedOrder.orderId);
 
     const emailRecipient = savedOrder.customerEmail || localStorage.getItem("customerEmail") || "";
     sendEmailNotification({

@@ -76,30 +76,36 @@ async function authenticate(req, res, next) {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 
-  // Create an authed client with the user's token so RLS policies apply
+  // Read the profile with the service-role client so it is never blocked by RLS
+  // and the request is guaranteed an accurate role. Fall back to the user's
+  // own token client if the service-role lookup returns nothing.
   let profile = null;
   try {
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: "Bearer " + token } },
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
-    const { data } = await userClient
+    const { data: svcProfile } = await adminDb
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
-    profile = data;
-    // Fallback: try by email if id lookup fails
-    if (!profile && user.email) {
+      .maybeSingle();
+    profile = svcProfile || null;
+  } catch (e) {
+    console.warn("[AUTH] Service-role profile fetch failed (non-fatal):", e?.message || e);
+  }
+
+  if (!profile) {
+    try {
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: "Bearer " + token } },
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
       const { data: emailProfile } = await userClient
         .from("profiles")
         .select("*")
         .eq("email", user.email)
         .maybeSingle();
-      profile = emailProfile;
+      profile = emailProfile || null;
+    } catch (e) {
+      console.warn("[AUTH] Profile fetch failed (non-fatal):", e?.message || e);
     }
-  } catch (e) {
-    console.warn("[AUTH] Profile fetch failed (non-fatal):", e?.message || e);
   }
 
   req.user = user;
@@ -432,12 +438,30 @@ app.put("/api/worker-registrations/:id/approve", authenticate, requireAdmin, asy
 
     if (updateErr) return res.status(500).json({ error: updateErr.message });
 
-    await adminDb.from("workers").insert({
-      name: reg.name,
-      specialty: reg.specialty,
-      status: "Active",
-      userId: reg.userId,
-    });
+    try {
+      const { data: existingWorker } = await adminDb
+        .from("workers")
+        .select("id")
+        .eq("name", reg.name)
+        .maybeSingle();
+      if (existingWorker) {
+        await adminDb.from("workers").update({ specialty: reg.specialty, status: "Active", userId: reg.userId }).eq("id", existingWorker.id);
+      } else {
+        const { error: insertWorkerErr } = await adminDb.from("workers").insert({
+          name: reg.name,
+          specialty: reg.specialty,
+          status: "Active",
+          userId: reg.userId,
+        });
+        if (insertWorkerErr) {
+          console.error("[APPROVE WORKER] Worker registry insert failed:", insertWorkerErr);
+          return res.status(500).json({ error: "Worker approved but failed to add to worker registry: " + insertWorkerErr.message });
+        }
+      }
+    } catch (workerSyncErr) {
+      console.error("[APPROVE WORKER] Worker registry sync failed:", workerSyncErr);
+      return res.status(500).json({ error: "Worker registry sync failed: " + workerSyncErr.message });
+    }
 
     await adminDb.from("notifications").insert({
       userId: reg.userId,
@@ -546,15 +570,33 @@ app.post("/api/admin/create-worker", authenticate, requireAdmin, async (req, res
       console.error("[CREATE WORKER] Profile upsert failed:", profileError);
     }
 
-    const { data: workerEntry, error: workerErr } = await adminDb.from("workers").insert({
-      name: fullname,
-      specialty,
-      status: "Active",
-      userId: userData.user.id,
-    }).select();
-
-    if (workerErr) {
-      console.error("[CREATE WORKER] Worker registry insert failed:", workerErr);
+    try {
+      const { data: existingWorker } = await adminDb
+        .from("workers")
+        .select("id")
+        .eq("name", fullname)
+        .maybeSingle();
+      if (existingWorker) {
+        const { error: updateWorkerErr } = await adminDb
+          .from("workers")
+          .update({ specialty, status: "Active", userId: userData.user.id })
+          .eq("id", existingWorker.id);
+        if (updateWorkerErr) console.error("[CREATE WORKER] Worker registry update failed:", updateWorkerErr);
+      } else {
+        const { error: workerErr } = await adminDb.from("workers").insert({
+          name: fullname,
+          specialty,
+          status: "Active",
+          userId: userData.user.id,
+        }).select();
+        if (workerErr) {
+          console.error("[CREATE WORKER] Worker registry insert failed:", workerErr);
+          return res.status(500).json({ error: "Account created but failed to add worker to registry: " + workerErr.message });
+        }
+      }
+    } catch (workerSyncErr) {
+      console.error("[CREATE WORKER] Worker registry sync failed:", workerSyncErr);
+      return res.status(500).json({ error: "Worker registry sync failed: " + workerSyncErr.message });
     }
 
     await adminDb.from("notifications").insert({
@@ -1122,6 +1164,39 @@ app.get("/api/workers", authenticate, async (req, res) => {
   }
 });
 
+// Master worker registry (must be defined BEFORE /api/workers/:orderId so it
+// is not shadowed by the parameterized route)
+app.get("/api/workers/master", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { data: workers, error } = await adminDb.from("workers").select("*").order("name", { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+
+    const { data: activeAssignments, error: assignErr } = await adminDb
+      .from("project_workers")
+      .select("name, orderId, phase, status")
+      .eq("status", "Active");
+    if (assignErr) return res.status(500).json({ error: assignErr.message });
+
+    const busy = new Map();
+    (activeAssignments || []).forEach(a => {
+      if (!busy.has(a.name)) busy.set(a.name, { orderId: a.orderId, phase: a.phase });
+    });
+
+    const result = (workers || []).map(w => {
+      const current = busy.get(w.name);
+      return {
+        ...w,
+        available: !current,
+        currentOrderId: current ? current.orderId : null,
+        currentPhase: current ? current.phase : null
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/workers/:orderId", authenticate, async (req, res) => {
   try {
     const { data, error } = await adminDb
@@ -1163,32 +1238,37 @@ app.post("/api/workers/seed", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-app.get("/api/workers/master", authenticate, requireAdmin, async (req, res) => {
+// Backfill: sync worker registrations (approved and pending) into the workers table
+app.post("/api/workers/backfill", authenticate, requireAdmin, async (req, res) => {
   try {
-    const { data: workers, error } = await adminDb.from("workers").select("*").order("name", { ascending: true });
-    if (error) return res.status(500).json({ error: error.message });
+    const { data: registrations, error: regErr } = await adminDb
+      .from("worker_registrations")
+      .select("userId, name, specialty, status")
+      .in("status", ["approved", "pending"]);
+    if (regErr) return res.status(500).json({ error: regErr.message });
 
-    const { data: activeAssignments, error: assignErr } = await adminDb
-      .from("project_workers")
-      .select("name, orderId, phase, status")
-      .eq("status", "Active");
-    if (assignErr) return res.status(500).json({ error: assignErr.message });
+    const { data: existingWorkers } = await adminDb.from("workers").select("name, userId");
+    const knownNames = new Set((existingWorkers || []).map(w => w.name));
 
-    const busy = new Map();
-    (activeAssignments || []).forEach(a => {
-      if (!busy.has(a.name)) busy.set(a.name, { orderId: a.orderId, phase: a.phase });
-    });
+    let added = 0;
+    let skipped = 0;
+    for (const reg of (registrations || [])) {
+      if (!reg.name || knownNames.has(reg.name)) { skipped++; continue; }
+      const { error: insertErr } = await adminDb.from("workers").insert({
+        name: reg.name,
+        specialty: reg.specialty || "Builder",
+        status: "Active",
+        userId: reg.userId || null,
+      });
+      if (insertErr) {
+        console.error("[BACKFILL] Insert failed for", reg.name, insertErr.message);
+        continue;
+      }
+      added++;
+      knownNames.add(reg.name);
+    }
 
-    const result = (workers || []).map(w => {
-      const current = busy.get(w.name);
-      return {
-        ...w,
-        available: !current,
-        currentOrderId: current ? current.orderId : null,
-        currentPhase: current ? current.phase : null
-      };
-    });
-    res.json(result);
+    res.json({ success: true, added, skipped });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

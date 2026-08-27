@@ -249,34 +249,8 @@ async function approvePayment(index) {
 
     sendEmailNotification({ type: "payment_approved", recipient: payment.customerEmail, data: payment });
 
-    await autoAssignWorkers(order.orderId);
-
     loadPayments();
     showToast('Payment approved successfully!', 'success');
-}
-
-async function autoAssignWorkers(orderId) {
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: "Bearer " + token } : {})
-            }
-        });
-        const result = await res.json();
-        if (result.assigned) {
-            console.log("[WORKERS] Assigned " + result.count + " workers for order:", orderId);
-        } else if (result.reason === "already assigned") {
-            console.log("[WORKERS] Already assigned for order:", orderId);
-        } else {
-            console.warn("[WORKERS] Auto-assign result:", result);
-        }
-    } catch (err) {
-        console.error("[WORKERS] Error in autoAssignWorkers:", err);
-    }
 }
 
 document.addEventListener('click', (e) => {
