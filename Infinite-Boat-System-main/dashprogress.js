@@ -1,4 +1,4 @@
-import { supabase, supabaseUrl, handleDbError, API_BASE } from "./supabase.js";
+import { supabase, supabaseUrl, handleDbError, API_BASE, ensureSession } from "./supabase.js";
 import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS } from "./boatData.js";
 
 window.handleLogout = async function () {
@@ -6,6 +6,11 @@ window.handleLogout = async function () {
   localStorage.clear();
   window.location.href = "index.html";
 };
+
+function handleSessionExpired() {
+  showToast("Session expired. Please log in again.", "error");
+  setTimeout(() => { window.location.href = "login.html"; }, 1500);
+}
 
 const STORAGE_BUCKET = "boat-files";
 
@@ -73,61 +78,6 @@ async function backfillRegistry() {
   }
 }
 
-async function fetchMasterWorkers() {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    const res = await fetch(API_BASE + "/workers/master", {
-      headers: token ? { Authorization: "Bearer " + token } : {}
-    });
-
-    if (!res.ok) return [];
-    return await res.json();
-  } catch (e) {
-    console.error("Failed to load worker list:", e);
-    return [];
-  }
-}
-
-async function addWorkerToRegistry(name, specialty) {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    const res = await fetch(API_BASE + "/workers/master", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: "Bearer " + token } : {})
-      },
-      body: JSON.stringify({ name, specialty })
-    });
-    if (!res.ok) { showToast("Failed to add worker", "error"); return false; }
-    showToast("Worker added to registry.", "success");
-    return true;
-  } catch (e) {
-    showToast("Failed to add worker", "error");
-    return false;
-  }
-}
-
-async function removeWorkerFromRegistry(workerId) {
-  if (!confirm("Remove this worker from registry?")) return false;
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    const res = await fetch(API_BASE + "/workers/master/" + workerId, {
-      method: "DELETE",
-      headers: token ? { Authorization: "Bearer " + token } : {}
-    });
-    if (!res.ok) { showToast("Failed to remove worker", "error"); return false; }
-    showToast("Worker removed from registry.", "success");
-    return true;
-  } catch (e) {
-    showToast("Failed to remove worker", "error");
-    return false;
-  }
-}
-
 let orders = [];
 const select = document.getElementById("orderSelect");
 
@@ -179,8 +129,8 @@ async function getDBWorkers(orderId) {
 
 async function addDBWorker(orderId, name, role, type) {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await ensureSession();
+        if (!token) { handleSessionExpired(); return null; }
         const res = await fetch(API_BASE + "/workers", {
           method: "POST",
             headers: {
@@ -199,8 +149,8 @@ async function addDBWorker(orderId, name, role, type) {
 
 async function removeDBWorker(workerId) {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await ensureSession();
+        if (!token) { handleSessionExpired(); return; }
         await fetch(API_BASE + "/workers/" + workerId, {
             method: "DELETE",
             headers: token ? { Authorization: "Bearer " + token } : {}
@@ -212,8 +162,8 @@ async function removeDBWorker(workerId) {
 
 async function releaseWorkersForPhase(orderId, phase) {
     try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = await ensureSession();
+        if (!token) { handleSessionExpired(); return null; }
         const res = await fetch(API_BASE + "/workers/release-phase/" + orderId, {
             method: "POST",
             headers: {
@@ -233,43 +183,6 @@ async function releaseWorkersForPhase(orderId, phase) {
 function getMilestoneKeyLabel(key) {
     return MILESTONE_KEY_LABELS[key] || key || "";
 }
-
-async function renderRegistryList() {
-  const container = document.getElementById("registryList");
-  if (!container) return;
-  const workers = await fetchMasterWorkers();
-  if (workers.length === 0) {
-    container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">No workers in registry.</span>';
-    return;
-  }
-  container.innerHTML = workers.map(w => {
-    const busy = w.available === false;
-    return '<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:#f1f5f9;border-radius:6px;font-size:11px;">' +
-    w.name + ' — <strong>' + w.specialty + '</strong>' +
-    ' <span class="worker-status-badge ' + (busy ? 'busy' : 'active') + '" style="padding:1px 6px;border-radius:20px;font-size:10px;">' + (busy ? 'Working' : 'Available') + '</span>' +
-    ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;font-size:12px;" onclick="window.deleteRegistryWorker(\'' + w.id + '\')"></i></span>';
-  }).join("");
-}
-
-window.deleteRegistryWorker = async function(id) {
-  const ok = await removeWorkerFromRegistry(id);
-  if (ok) await renderRegistryList();
-};
-
-document.getElementById("addRegistryBtn")?.addEventListener("click", async () => {
-  const nameInput = document.getElementById("registryNameInput");
-  const specInput = document.getElementById("registrySpecialtyInput");
-  const name = nameInput.value.trim();
-  const specialty = specInput.value.trim() || "Builder";
-  if (!name) { showToast("Please enter a worker name.", "warning"); return; }
-  const ok = await addWorkerToRegistry(name, specialty);
-  if (ok) {
-    nameInput.value = "";
-    specInput.value = "";
-    await renderRegistryList();
-    await populateWorkerSelect();
-  }
-});
 
 function getOrderMilestones(order) {
   if (order.milestones && order.milestones.length > 0) {
@@ -711,6 +624,52 @@ async function removeWorker(workerId) {
     }
 }
 
+function getBoatRef(orderId) {
+    if (!orderId) return null;
+    const order = orders.find(o => o.orderId === orderId);
+    if (!order) return null;
+    return { boatName: order.boatName || "", customerName: order.customerName || "" };
+}
+
+async function renderMasterWorkers() {
+    const container = document.getElementById("masterWorkersList");
+    if (!container) return;
+    const filter = document.getElementById("masterSpecialtyFilter")?.value || "";
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers/master", {
+            headers: token ? { Authorization: "Bearer " + token } : {}
+        });
+        if (!res.ok) { container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">Failed to load workers.</span>'; return; }
+        let workers = await res.json();
+        if (filter) workers = workers.filter(w => (w.specialty || "") === filter);
+        if (workers.length === 0) {
+            container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">No workers found.</span>';
+            return;
+        }
+        container.innerHTML = workers.map(w => {
+            const available = w.available !== false;
+            const ref = getBoatRef(w.currentOrderId);
+            const phaseLabel = getMilestoneKeyLabel(w.currentPhase);
+            const statusHtml = available
+                ? '<span class="worker-status-badge active">Available</span>'
+                : '<span class="worker-status-badge busy">Busy</span>';
+            const assignHtml = (!available && ref)
+                ? ' <span style="font-size:11px;color:#2563eb;">→ ' + (ref.boatName || 'Boat') + (ref.customerName ? ' (' + ref.customerName + ')' : '') + (phaseLabel ? ' · ' + phaseLabel : '') + '</span>'
+                : '';
+            return '<span class="worker-chip" style="flex-wrap:wrap;width:100%;justify-content:space-between;">' +
+                '<span><i class="fa-solid fa-user"></i> ' + w.name + ' — <strong>' + (w.specialty || 'Builder') + '</strong></span>' +
+                '<span style="display:inline-flex;align-items:center;gap:6px;">' + assignHtml + statusHtml + '</span>' +
+                '</span>';
+        }).join("");
+    } catch (e) {
+        container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">Failed to load workers.</span>';
+    }
+}
+
+document.getElementById("masterSpecialtyFilter")?.addEventListener("change", renderMasterWorkers);
+
 async function populateWorkerSelect() {
   const sel = document.getElementById("workerNameInput");
   if (!sel) return;
@@ -750,6 +709,9 @@ window.addEventListener("focus", function() {
   if (document.getElementById("workerNameInput")) {
     populateWorkerSelect();
   }
+  if (document.getElementById("masterWorkersList")) {
+    renderMasterWorkers();
+  }
 });
 
 document.getElementById("workerNameInput")?.addEventListener("change", function() {
@@ -772,8 +734,9 @@ document.getElementById("addWorkerBtn")?.addEventListener("click", async () => {
     const name = sel.value;
     const roleLabel = document.getElementById("workerRoleInput").options[document.getElementById("workerRoleInput").selectedIndex].text;
     await addDBWorker(id, name, roleLabel, document.getElementById("workerRoleInput").value);
-    sel.value = "";
+    await populateWorkerSelect();
     await renderWorkers(id);
+    await renderMasterWorkers();
     await renderDetail(order);
 });
 
@@ -2067,6 +2030,15 @@ window.closeCreateWorkerModal = function() { return; };
 window.submitCreateWorker = async function() { return; };
 
 (async function init() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { window.location.href = "login.html"; return; }
+    const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+    if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+
     await ensureWorkerRegistry();
     await backfillRegistry();
     const result = await handleDbError(
@@ -2076,7 +2048,7 @@ window.submitCreateWorker = async function() { return; };
     orders = (result && !result.error ? result.data : []) || [];
     populateSelect();
     await populateWorkerSelect();
-    await renderRegistryList();
+    await renderMasterWorkers();
     if (select.options.length > 1) {
         for (var i = 1; i < select.options.length; i++) {
             if (!select.options[i].disabled && select.options[i].value !== "") {

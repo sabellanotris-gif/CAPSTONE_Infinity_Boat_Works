@@ -6,6 +6,14 @@ window.handleLogout = async function () {
   window.location.href = "index.html";
 };
 
+// Session & role guard
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { window.location.href = "login.html"; return; }
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
+  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+})();
+
 const DEFAULT_ITEMS = [
   { name: 'Marine Engine', category: 'Equipment', stock: 24, price: 450000 },
   { name: 'Fiberglass Sheet', category: 'Material', stock: 8, price: 12000 },

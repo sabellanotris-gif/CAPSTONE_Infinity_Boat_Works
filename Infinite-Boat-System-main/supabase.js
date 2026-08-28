@@ -1,5 +1,72 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/* =============================================
+   AUTH / SESSION HELPERS
+   ============================================= */
+
+// Ensure a valid (non-expired) Supabase session and return its access token.
+// Refreshes the token if it is about to expire or already expired.
+export async function ensureSession() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return null;
+    try {
+      const payload = JSON.parse(atob(session.access_token.split(".")[1]));
+      const expiresIn = payload.exp * 1000 - Date.now();
+      if (expiresIn < 60000) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        return refreshed?.session?.access_token || session.access_token;
+      }
+    } catch (e) {
+      // token decode failed — fall through and return the existing token
+    }
+    return session.access_token;
+  } catch (e) {
+    console.error("[AUTH] ensureSession error:", e);
+    return null;
+  }
+}
+
+// Ensure the current Supabase user is still signed in, returning the session or null.
+export async function getSessionOrNull() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  } catch (e) {
+    console.error("[AUTH] getSession error:", e);
+    return null;
+  }
+}
+
+// Re-fetch the logged-in user's profile from the DB. Falls back to localStorage
+// values when there is no userId or the lookup fails.
+export async function getCustomerIdentity() {
+  const userId = localStorage.getItem("userId");
+  const fallback = {
+    name: localStorage.getItem("customerName") || "",
+    email: localStorage.getItem("customerEmail") || "",
+    phone: localStorage.getItem("customerPhone") || "",
+    photo: localStorage.getItem("customerImage") || "",
+  };
+  if (!userId) return fallback;
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("name, email, phone, photo")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error || !data || !data.name) return fallback;
+    return {
+      name: data.name || fallback.name,
+      email: data.email || fallback.email,
+      phone: data.phone || fallback.phone,
+      photo: data.photo || fallback.photo,
+    };
+  } catch (e) {
+    return fallback;
+  }
+}
+
 const supabaseUrl = "https://brpblkvthpdfbjqckqbk.supabase.co";
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycGJsa3Z0aHBkZmJqcWNrcWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODU3MTEsImV4cCI6MjA5NzQ2MTcxMX0.lTaInjC-MbYS1w1PVbN-RVK6_1Cj2pPAei4CpWj8G9w";
 

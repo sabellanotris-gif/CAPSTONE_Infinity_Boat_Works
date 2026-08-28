@@ -53,6 +53,11 @@ window.login = async function () {
   if (userRole === "admin") {
     alert("Welcome Admin!");
     localStorage.setItem("role", "admin");
+    localStorage.setItem("currentUser", JSON.stringify({
+      name: profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email,
+      email: user.email,
+      photo: profile?.photo || "./images/user.png",
+    }));
     window.location.href = "dashboard.html";
   } else if (userRole === "worker") {
     const { data: regStatus } = await supabase

@@ -1,4 +1,15 @@
-import { supabase, handleDbError, sendEmailNotification } from "./supabase.js";
+import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity } from "./supabase.js";
+
+// Ensure the logged-in customer's identity (never a stale admin/worker name)
+(async () => {
+  try {
+    const identity = await getCustomerIdentity();
+    if (identity.name) localStorage.setItem("customerName", identity.name);
+    if (identity.email) localStorage.setItem("customerEmail", identity.email);
+    if (identity.phone) localStorage.setItem("customerPhone", identity.phone);
+    if (identity.photo) localStorage.setItem("customerImage", identity.photo);
+  } catch (e) { /* non-fatal */ }
+})();
 
 const canvas = document.getElementById('boatCanvas');
 const ctx = canvas.getContext('2d');

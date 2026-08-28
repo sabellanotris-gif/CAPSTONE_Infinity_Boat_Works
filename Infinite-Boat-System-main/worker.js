@@ -513,7 +513,6 @@ window.saveProfile = async function () {
       }
     }
 
-    localStorage.setItem("customerName", name);
     document.getElementById("workerName").textContent = name;
     document.getElementById("profileName").textContent = name;
     showToast("Profile updated successfully", "success");

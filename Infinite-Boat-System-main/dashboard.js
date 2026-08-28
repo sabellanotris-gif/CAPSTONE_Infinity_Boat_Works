@@ -12,14 +12,50 @@ window.handleLogout = async function () {
 
 const adminNameSpan = document.querySelector('.topbar h1 span');
 const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-if (storedUser.email) {
-  adminNameSpan.textContent = storedUser.email.split('@')[0].charAt(0).toUpperCase() + storedUser.email.split('@')[0].slice(1);
+function applyAdminIdentity(user) {
+  const displayName = (user && (user.name || user.email))
+    ? (user.name || user.email.split('@')[0])
+    : "Admin";
+  if (adminNameSpan && displayName) {
+    adminNameSpan.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+  }
+  const adminProfile = document.getElementById('adminprofile');
+  if (user && user.photo) {
+    adminProfile.src = user.photo;
+  }
+}
+applyAdminIdentity(storedUser);
+if (!storedUser.email && !storedUser.name) {
+  (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("name, photo, email")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        applyAdminIdentity({
+          name: profile?.name || session.user.email,
+          email: profile?.email || session.user.email,
+          photo: profile?.photo
+        });
+      }
+    } catch (e) { console.error("Failed to load admin identity:", e); }
+  })();
 }
 
-const adminProfile = document.getElementById('adminprofile');
-if (storedUser.photo) {
-  adminProfile.src = storedUser.photo;
-}
+// Session & role guard
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { window.location.href = "login.html"; return; }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+})();
 
 /* =============================================
    HELPERS
