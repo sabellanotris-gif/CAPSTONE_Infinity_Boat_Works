@@ -12,7 +12,7 @@ let allRegistrations = [];
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await window.refreshValidSession();
   if (!session) { window.location.href = "login.html"; return; }
 
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();

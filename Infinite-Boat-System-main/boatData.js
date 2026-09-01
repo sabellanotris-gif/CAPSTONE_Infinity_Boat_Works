@@ -388,9 +388,9 @@ function matchBoatKey(boatName, dict) {
 // ---- Specialty to phase mapping (phase-based worker scheduling) ----
 // Maps a worker specialty to the boat milestone keys (phases) they participate in.
 const SPECIALTY_PHASES = {
-  "Engineer": ["design", "engineering", "engines", "systems"],
-  "Builder": ["construction"],
-  "Welder": ["construction"],
+  "Engineer": ["design", "engineering", "marina", "seatrial"],
+  "Builder": ["construction", "outfitting"],
+  "Welder": ["construction", "winch"],
   "Fiberglass Specialist": ["construction", "winch"],
   "Electrician": ["engines", "systems", "outfitting"],
   "Painter": ["outfitting", "delivery"]
@@ -409,9 +409,173 @@ const MILESTONE_KEY_LABELS = {
   "delivery": "Ready for Delivery"
 };
 
-// ---- Public API ----
+// Invert SPECIALTY_PHASES into phase key -> list of required specialties.
+export function getPhaseSpecialties(phaseKey) {
+  const result = [];
+  for (const [spec, keys] of Object.entries(SPECIALTY_PHASES)) {
+    if (keys.includes(phaseKey)) result.push(spec);
+  }
+  return result;
+}
 
-export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO, SPECIALTY_PHASES, MILESTONE_KEY_LABELS };
+// ---- Phase schedule (per-phase deadline) helpers ----
+
+// Attribute a duration (from BOAT_TIMELINE) to each milestone key.
+// The lookup runs against the boat's timeline phase strings.
+const PHASE_KEY_TIMELINE_FRAGMENTS = {
+  design: ["Design Phase", "Design"],
+  engineering: ["Design Phase", "Design"],
+  marina: ["Material Procurement"],
+  construction: ["Hull Construction", "Hull & Deck", "Hull Reinforcement", "Hull Mold"],
+  engines: ["Engine & Systems", "Twin Engine", "Engine and Propulsion", "Engine Installation"],
+  systems: ["Systems Integration", "Weapons & Comms", "Navigation Systems", "Electrical System"],
+  winch: ["Winch System"],
+  outfitting: ["Cabin & Interior", "Interior Fit-Out", "Interior"],
+  seatrial: ["Sea Trial & Delivery", "Testing", "Sea Trial"],
+  delivery: ["Sea Trial & Delivery", "Delivery"]
+};
+
+export function parseDurationToDays(durationStr) {
+  if (!durationStr) return 7;
+  const num = parseInt(durationStr);
+  if (isNaN(num)) return 7;
+  if (durationStr.includes("Week")) return num * 7;
+  if (durationStr.includes("Day")) return num;
+  if (durationStr.includes("Month")) return num * 30;
+  return 7;
+}
+
+function resolveTimelinePhaseDays(boatName, key) {
+  const tl = matchBoatKey(boatName, BOAT_TIMELINE) || BOAT_TIMELINE["Passenger Boat"];
+  if (!tl || !Array.isArray(tl.phases)) return null;
+  const fragments = PHASE_KEY_TIMELINE_FRAGMENTS[key] || [];
+  for (const fragment of fragments) {
+    const found = tl.phases.find(p => p.toLowerCase().includes(fragment.toLowerCase()));
+    if (found) {
+      const parts = found.split(" - ");
+      return parseDurationToDays(parts[1] || "");
+    }
+  }
+  return null;
+}
+
+// Combined, milestone-ordered schedule for a boat:
+// [{ key, label, pct, days }] where days is the per-phase duration.
+// Phases without an explicit timeline match fall back to a default duration.
+export function getPhaseSchedule(boatName) {
+  const milestones = getBoatMilestones(boatName) || [];
+  return milestones.map(m => {
+    const days = resolveTimelinePhaseDays(boatName, m.key) || 14;
+    return { key: m.key, label: m.label || (MILESTONE_KEY_LABELS[m.key] || m.key), pct: m.percentage, days };
+  });
+}
+
+// Compute start / end dates for a worker assigned to a phase, spread over the
+// boat's total timeline. Returns { startDate, endDate } as ISO date strings.
+export function getPhaseDateRange(boatName, phaseKey, orderCreatedAt, schedule) {
+  const sched = schedule || getPhaseSchedule(boatName);
+  const orderDate = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
+  let startOffset = 0;
+  for (const p of sched) {
+    if (p.key === phaseKey) {
+      const startDate = new Date(orderDate.getTime() + startOffset * 86400000);
+      const endDate = new Date(orderDate.getTime() + (startOffset + p.days) * 86400000);
+      return {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      };
+    }
+    startOffset += p.days;
+  }
+  // Fallback: phase runs immediately, default 14 days
+  const startDate = new Date(orderDate.getTime());
+  const endDate = new Date(orderDate.getTime() + 14 * 86400000);
+  return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
+}
+
+// Detect phases where every assigned worker is Completed but the corresponding
+// milestone has not yet been approved by the admin.
+export function getPendingPhaseApprovals(order, workers) {
+  const workerList = Array.isArray(workers) ? workers : [];
+  const milestones = (order && Array.isArray(order.milestones)) ? order.milestones : [];
+  const boatName = order && order.boatName;
+  const byPhase = {};
+  workerList.forEach(w => {
+    if (!w.phase) return;
+    (byPhase[w.phase] = byPhase[w.phase] || []).push(w);
+  });
+  const pending = [];
+  for (const phaseKey of Object.keys(byPhase)) {
+    const ws = byPhase[phaseKey];
+    const done = ws.filter(w => w.status === "Completed").length;
+    if (ws.length > 0 && done === ws.length) {
+      const milestone = milestones.find(m => (m.key || resolveMilestoneKey(boatName, m)) === phaseKey);
+      if (milestone && !milestone.completed) {
+        const latest = ws.reduce((last, w) =>
+          w.completedAt && (!last || new Date(w.completedAt) > new Date(last)) ? w.completedAt : last, null);
+        pending.push({
+          phaseKey,
+          label: MILESTONE_KEY_LABELS[phaseKey] || milestone.label || phaseKey,
+          pct: milestone.percentage || 0,
+          workersDone: done,
+          workersTotal: ws.length,
+          completedAt: latest,
+          orderId: order && order.orderId
+        });
+      }
+    }
+  }
+  return pending;
+}
+
+// Bill of Materials — how many units of each inventory item one boat consumes.
+// Quantities are expressed in the admin inventory's "units" (not per-gallon).
+const BOAT_BOM = {
+  "Speed Boat": {
+    "Marine Engine": 1, "Propeller": 1, "Fiberglass Sheet": 2, "Fiberglass Resin": 1,
+    "Marine Paint": 2, "Boat Seats": 5, "Life Jackets": 2, "Navigation Lights": 1,
+    "Stainless Steel Rails": 1, "Electrical Wiring": 1
+  },
+  "Parasail Boat": {
+    "Marine Engine": 1, "Propeller": 1, "Fiberglass Sheet": 3, "Fiberglass Resin": 2,
+    "Marine Paint": 3, "Boat Seats": 10, "Life Jackets": 4, "Navigation Lights": 1,
+    "Anchor Chain": 1, "Stainless Steel Rails": 2, "Electrical Wiring": 1, "Deck Hatches": 1
+  },
+  "Patrol Boat": {
+    "Marine Engine": 2, "Propeller": 2, "Fiberglass Sheet": 3, "Fiberglass Resin": 2,
+    "Marine Paint": 4, "Boat Seats": 4, "Life Jackets": 4, "Navigation Lights": 2,
+    "Engine Parts": 1, "Anchor Chain": 1, "Stainless Steel Rails": 2, "Electrical Wiring": 1,
+    "Porthole Windows": 2, "Deck Hatches": 2
+  },
+  "Passenger Boat": {
+    "Marine Engine": 1, "Propeller": 1, "Fiberglass Sheet": 4, "Fiberglass Resin": 3,
+    "Marine Paint": 5, "Boat Seats": 40, "Life Jackets": 45, "Navigation Lights": 2,
+    "Engine Parts": 1, "Anchor Chain": 1, "Stainless Steel Rails": 3, "Electrical Wiring": 2,
+    "Porthole Windows": 4, "Deck Hatches": 2
+  },
+  "1950 Passenger Boat": {
+    "Marine Engine": 1, "Propeller": 1, "Fiberglass Sheet": 6, "Fiberglass Resin": 4,
+    "Marine Paint": 8, "Boat Seats": 65, "Life Jackets": 70, "Navigation Lights": 2,
+    "Engine Parts": 1, "Anchor Chain": 1, "Stainless Steel Rails": 4, "Electrical Wiring": 3,
+    "Porthole Windows": 6, "Deck Hatches": 3
+  },
+  "2680 Passenger Boat": {
+    "Marine Engine": 2, "Propeller": 2, "Fiberglass Sheet": 10, "Fiberglass Resin": 6,
+    "Marine Paint": 12, "Boat Seats": 180, "Life Jackets": 190, "Navigation Lights": 3,
+    "Engine Parts": 2, "Anchor Chain": 2, "Stainless Steel Rails": 6, "Electrical Wiring": 5,
+    "Porthole Windows": 10, "Deck Hatches": 5
+  }
+};
+
+export function getBoatBom(boatName) {
+  for (const key of Object.keys(BOAT_BOM)) {
+    if (boatName && boatName.toLowerCase().includes(key.toLowerCase())) return BOAT_BOM[key];
+  }
+  return null;
+}
+
+// Public API
+export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, BOAT_BOM };
 
 export function getBoatSpecs(boatName) {
   return matchBoatKey(boatName, BOAT_SPECS) || BOAT_SPECS["Passenger Boat"];

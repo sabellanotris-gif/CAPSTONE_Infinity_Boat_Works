@@ -352,6 +352,37 @@ html, body {
     font-weight: 600;
 }
 
+.filter-tabs {
+    display: flex;
+    gap: 8px;
+    background: #e2e8f0;
+    padding: 4px;
+    border-radius: 10px;
+}
+
+.filter-tab {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Poppins', sans-serif;
+    transition: all 0.2s;
+}
+
+.filter-tab:hover {
+    color: #334155;
+}
+
+.filter-tab.active {
+    background: #fff;
+    color: #3b82f6;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
 .assignments-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -370,6 +401,55 @@ html, body {
 .assignment-card:hover {
     box-shadow: 0 4px 16px rgba(0,0,0,0.1);
     transform: translateY(-2px);
+}
+
+.card-img-wrap {
+    position: relative;
+    height: 160px;
+    background: #f1f5f9;
+    overflow: hidden;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.card-img-wrap .card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.card-img-wrap .status-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+}
+
+.progress-track {
+    height: 8px;
+    background: #e8ecf1;
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+    transition: width 0.4s ease;
+}
+
+.progress-fill.done {
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.note-preview {
+    max-width: 60%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-style: italic;
+    color: #64748b !important;
 }
 
 .assignment-card .card-header {
@@ -436,6 +516,20 @@ html, body {
     color: #7c3aed;
 }
 
+.due-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 4px;
+    white-space: nowrap;
+}
+
+.due-chip.on-track { background: #e0e7ff; color: #3730a3; }
+.due-chip.due-soon { background: #fef3c7; color: #92400e; }
+.due-chip.overdue { background: #fee2e2; color: #b91c1c; }
+
 .assignment-card .card-footer {
     padding: 12px 20px;
     background: #f8fafc;
@@ -491,7 +585,7 @@ html, body {
 .empty-state {
     grid-column: 1 / -1;
     text-align: center;
-    padding: 48px;
+    padding: 56px 32px;
     color: #94a3b8;
 }
 
@@ -501,8 +595,15 @@ html, body {
     display: block;
 }
 
+.empty-state h3 {
+    font-size: 17px;
+    color: #475569;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
 .empty-state p {
-    font-size: 15px;
+    font-size: 14px;
 }
 
 .profile-card {
@@ -747,8 +848,42 @@ html, body {
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid #e2e8f0;
+}
+
+.task-actions-row {
     display: flex;
     gap: 12px;
+    margin-top: 12px;
+}
+
+.notes-block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.notes-block label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.notes-block textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+.notes-block textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
 }
 
 .task-actions select {
@@ -908,4 +1043,7 @@ html, body {
     .main-content { margin-left: 60px; padding: 16px; }
     .stats-row { grid-template-columns: 1fr; }
     .assignments-grid { grid-template-columns: 1fr; }
+    .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .filter-tabs { width: 100%; }
+    .filter-tab { flex: 1; }
 }

@@ -1,5 +1,5 @@
 import { supabase, supabaseUrl, handleDbError, API_BASE, ensureSession } from "./supabase.js";
-import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS } from "./boatData.js";
+import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, getPendingPhaseApprovals, getPhaseSpecialties } from "./boatData.js";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -139,10 +139,14 @@ async function addDBWorker(orderId, name, role, type) {
             },
             body: JSON.stringify({ orderId, name, role, specialty: role, status: "Active" })
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data?.error || "Failed to add worker");
+        }
         return await res.json();
     } catch (e) {
         console.error("Failed to add worker:", e);
+        alert(e?.message || "Failed to add worker.");
         return null;
     }
 }
@@ -206,6 +210,12 @@ function getOrderMilestones(order) {
   return ms;
 }
 
+function phaseKeyAtProgress(order, progress) {
+  const presets = getBoatMilestones(order.boatName) || [];
+  const active = presets.find(p => progress < p.percentage);
+  return active ? active.key : "";
+}
+
 function getOrderActivityLog(order) {
   return order.activityLog || [];
 }
@@ -226,7 +236,7 @@ async function saveOrderActivityLog(order, log) {
   );
 }
 
-function renderMilestones(order, readonly = false) {
+async function renderMilestones(order, readonly = false) {
   const container = document.getElementById("milestonesList");
   if (!container) return;
   const milestones = getOrderMilestones(order);
@@ -234,7 +244,8 @@ function renderMilestones(order, readonly = false) {
     container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">Milestones available once order is Approved.</span>';
     return;
   }
-  if (readonly) {
+  const workers = await getDBWorkers(order.orderId);
+  if (readonly || workers.length === 0) {
     container.innerHTML = `
       <div style="padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;font-size:13px;color:#991b1b;text-align:center;">
         <i class="fa-solid fa-users-gear"></i> Assign workers first to unlock milestone tracking.
@@ -242,10 +253,31 @@ function renderMilestones(order, readonly = false) {
     `;
     return;
   }
+  const workersByPhase = {};
+  workers.forEach(w => {
+    if (!w.phase) return;
+    (workersByPhase[w.phase] = workersByPhase[w.phase] || []).push(w);
+  });
   container.innerHTML = milestones.map((m, i) => {
     const completed = m.completed;
+    const phaseWorkers = workersByPhase[m.key || ""] || [];
+    const needs = getPhaseSpecialties(m.key || "");
+    const needsHtml = needs.length > 0
+      ? '<div style="font-size:11px;color:#64748b;margin-top:4px;"><i class="fa-solid fa-wrench"></i> Needs: ' + needs.join(" · ") + '</div>'
+      : '';
+    const workerLine = phaseWorkers.length > 0
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
+          ${phaseWorkers.map(w => {
+            const st = w.status === "Completed"
+              ? '<span class="worker-status-badge done">Done</span>'
+              : '<span class="worker-status-badge active">Working</span>' + workerDueChip(w);
+            return '<span class="mini-worker-chip"><i class="fa-solid fa-user"></i>' + w.name + ' ' + st + '</span>';
+          }).join('')}
+         </div>`
+      : '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">No workers assigned for this phase.</div>';
     return `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;background:${completed ? '#f0fdf4' : '#f8fafc'};border:1px solid ${completed ? '#bbf7d0' : '#e2e8f0'};cursor:pointer;" onclick="toggleMilestone(${i})">
+    <div style="padding:8px 12px;border-radius:10px;background:${completed ? '#f0fdf4' : '#f8fafc'};border:1px solid ${completed ? '#bbf7d0' : '#e2e8f0'};">
+      <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="toggleMilestone(${i})">
       <div style="width:22px;height:22px;border-radius:50%;background:${completed ? '#22c55e' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:12px;flex-shrink:0;">
         ${completed ? '<i class="fa-solid fa-check"></i>' : ''}
       </div>
@@ -254,6 +286,9 @@ function renderMilestones(order, readonly = false) {
         <span style="font-size:11px;color:#64748b;">${m.percentage}% — ${completed ? (m.completedDate ? new Date(m.completedDate).toLocaleDateString() : 'Completed') : 'Pending'}</span>
       </div>
       ${m.history && m.history.length > 0 ? `<span style="font-size:11px;color:#2563eb;"><i class="fa-solid fa-clock-rotate-left"></i> ${m.history.length}</span>` : ''}
+      </div>
+      ${needsHtml}
+      ${workerLine}
     </div>`;
   }).join("");
 }
@@ -261,6 +296,89 @@ function renderMilestones(order, readonly = false) {
 function getPaymentGate(paymentStep) {
   const gates = { 0: 0, 1: 40, 2: 75, 3: 100 };
   return gates[paymentStep] || 0;
+}
+
+function getWorkerDueStatus(w) {
+  if (!w || w.status !== "Active" || !w.endDate) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(w.endDate); end.setHours(0, 0, 0, 0);
+  if (isNaN(end.getTime())) return null;
+  const diffDays = Math.round((end - today) / 86400000);
+  if (diffDays < 0) return { label: "Overdue", cls: "overdue", days: Math.abs(diffDays) };
+  if (diffDays <= 3) return { label: "Due Soon", cls: "due-soon", days: diffDays };
+  return { label: "On Track", cls: "on-track", days: diffDays };
+}
+
+function workerDueChip(w) {
+  const s = getWorkerDueStatus(w);
+  if (!s) return "";
+  const daysText = s.cls === "overdue" ? " " + s.days + "d overdue" : (s.cls === "due-soon" ? " in " + s.days + "d" : "");
+  const dateText = w.endDate ? " · Due " + new Date(w.endDate).toLocaleDateString() : "";
+  return '<span class="due-chip ' + s.cls + '">' + s.label + daysText + dateText + '</span>';
+}
+
+function renderPendingApprovals(order, workers) {
+  const card = document.getElementById("pendingApprovalsCard");
+  const list = document.getElementById("pendingApprovalsList");
+  if (!card || !list) return;
+  const pending = getPendingPhaseApprovals(order, workers || []);
+  if (!order || order.status !== "Approved" || pending.length === 0) {
+    card.style.display = "none";
+    list.innerHTML = "";
+    return;
+  }
+  card.style.display = "block";
+  list.innerHTML = pending.map(p => {
+    const dateText = p.completedAt ? new Date(p.completedAt).toLocaleDateString() : "";
+    return `
+      <div style="padding:10px 12px;border:1px solid #fbcfe8;background:#fdf2f8;border-radius:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div>
+            <strong style="font-size:13px;color:#86198f;display:block;">${p.label}</strong>
+            <span style="font-size:11px;color:#a21caf;">${p.pct}% — ${p.workersDone}/${p.workersTotal} workers finished${dateText ? ' · ' + dateText : ''}</span>
+          </div>
+          <button onclick="approvePhase('${p.phaseKey}')" class="approve-phase-btn">Approve</button>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+async function approvePhase(phaseKey) {
+  const order = getSelectedOrder();
+  if (!order || !order.orderId) return;
+  const confirmed = confirm("Approve the " + getMilestoneKeyLabel(phaseKey) + " phase for " + (order.boatName || order.orderId) + "?");
+  if (!confirmed) return;
+  try {
+    const token = await ensureSession();
+    if (!token) { handleSessionExpired(); return; }
+    const res = await fetch(API_BASE + "/worker/approve-phase", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {})
+      },
+      body: JSON.stringify({ orderId: order.orderId, phaseKey })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data?.error || "Approval failed.", "error");
+      return;
+    }
+    showToast("Phase approved successfully.", "success");
+    const idx = parseInt(select.value);
+    const refreshed = await handleDbError(
+      supabase.from("boat_orders").select("*").eq("orderId", order.orderId).maybeSingle(),
+      "Refresh order"
+    );
+    if (refreshed && !refreshed.error && refreshed.data && !isNaN(idx)) {
+      orders[idx] = refreshed.data;
+    }
+    await renderDetail(getSelectedOrder());
+    renderActivityLog(getSelectedOrder());
+  } catch (e) {
+    console.error("Approve phase error:", e);
+    showToast("Approval error.", "error");
+  }
 }
 
 async function toggleMilestone(index) {
@@ -273,6 +391,7 @@ async function toggleMilestone(index) {
   }
   const milestones = getOrderMilestones(order);
   const m = milestones[index];
+  let releasedPhaseKey = "";
   if (m.completed) {
     m.completed = false;
     milestones.forEach((ms, i) => {
@@ -320,11 +439,11 @@ async function toggleMilestone(index) {
     }
     addAutoActivityLog(order, m);
 
-    // Phase-based worker scheduling: release this phase (admin assigns next phase manually)
-    const phaseKey = m.key || "";
-    if (phaseKey) {
-      await releaseWorkersForPhase(order.orderId, phaseKey);
-      showToast("Released " + getMilestoneKeyLabel(phaseKey) + " workers. They are now available for other boats.", "success");
+    // Phase-based worker scheduling: release this phase's workers, then
+    // auto-assign the required-specialty workers for the NEXT phase.
+    releasedPhaseKey = m.key || "";
+    if (releasedPhaseKey) {
+      await releaseWorkersForPhase(order.orderId, releasedPhaseKey);
     }
   }
   order.milestones = milestones;
@@ -336,6 +455,18 @@ async function toggleMilestone(index) {
     "Toggle milestone"
   );
   if (result?.error) return;
+
+  let autoMsg = null;
+  if (m.completed && releasedPhaseKey && m.percentage < 100) {
+    const assign = await autoAssignForOrder(order.orderId);
+    if (assign.ok && assign.count > 0) {
+      autoMsg = "Released " + getMilestoneKeyLabel(releasedPhaseKey) + " workers. Auto-assigned " + assign.count + " worker(s) for " + (getMilestoneKeyLabel(assign.phase) || "the next phase") + ".";
+    } else {
+      autoMsg = "Released " + getMilestoneKeyLabel(releasedPhaseKey) + " workers. No available workers to auto-assign for the next phase — assign manually.";
+    }
+  }
+  if (autoMsg) showToast(autoMsg, "success");
+
   await renderDetail(order);
   renderActivityLog(order);
   updateProgressInput(order);
@@ -610,6 +741,7 @@ async function renderWorkers(orderId) {
             w.name + ' — <strong>' + (w.specialty || w.role) + '</strong>' +
             (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
             ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
+            (isActive ? workerDueChip(w) : '') +
             (isActive ? ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i>' : '') +
             '</span>';
     }).join('');
@@ -693,10 +825,15 @@ async function populateWorkerSelect() {
       workers = res.ok ? await res.json() : [];
     }
 
+    const currentOrder = getSelectedOrder();
+    const currentOrderId = currentOrder?.orderId || '';
+
     workers.forEach(w => {
       const opt = document.createElement("option");
       opt.value = w.name;
-      opt.textContent = w.name + ' — ' + w.specialty + (w.available === false ? ' (busy)' : '');
+      const busyOnOther = w.available === false && w.currentOrderId && w.currentOrderId !== currentOrderId;
+      opt.textContent = w.name + ' — ' + w.specialty + (busyOnOther ? ' (busy — assigned to another project)' : (w.available === false ? ' (busy)' : ''));
+      opt.disabled = busyOnOther;
       opt.dataset.specialty = w.specialty;
       sel.appendChild(opt);
     });
@@ -734,6 +871,46 @@ document.getElementById("addWorkerBtn")?.addEventListener("click", async () => {
     const name = sel.value;
     const roleLabel = document.getElementById("workerRoleInput").options[document.getElementById("workerRoleInput").selectedIndex].text;
     await addDBWorker(id, name, roleLabel, document.getElementById("workerRoleInput").value);
+    await populateWorkerSelect();
+    await renderWorkers(id);
+    await renderMasterWorkers();
+    await renderDetail(order);
+});
+
+async function autoAssignForOrder(orderId) {
+  try {
+    const token = await ensureSession();
+    if (!token) { handleSessionExpired(); return { ok: false, count: 0, phase: "", skipped: [] }; }
+    const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {})
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error("Auto-assign failed:", res.status, data?.error);
+      return { ok: false, count: 0, phase: "", skipped: [], error: data?.error || "Auto-assign failed" };
+    }
+    return { ok: true, count: data?.count || 0, phase: data?.phase || "", skipped: data?.skipped || [] };
+  } catch (e) {
+    console.error("Auto-assign failed:", e);
+    return { ok: false, count: 0, phase: "", skipped: [], error: e?.message || "Auto-assign failed" };
+  }
+}
+
+document.getElementById("autoAssignBtn")?.addEventListener("click", async () => {
+    const order = getSelectedOrder();
+    if (!order) return;
+    const id = order.orderId;
+    if (!id) return;
+    if (!confirm("Auto-assign available workers for the current phase?")) return;
+    const data = await autoAssignForOrder(id);
+    if (!data.ok) { alert(data?.error || "Auto-assign failed."); return; }
+    const skipped = (data.skipped || []).filter(s => s.reason === "busy").map(s => s.name);
+    const msg = (data.count || 0) + " worker(s) auto-assigned for phase '" + (getMilestoneKeyLabel(data.phase) || data.phase || "") + "'.";
+    showToast(skipped.length > 0 ? msg + " Skipped busy workers: " + skipped.join(", ") : msg, 'success');
     await populateWorkerSelect();
     await renderWorkers(id);
     await renderMasterWorkers();
@@ -992,11 +1169,13 @@ async function renderDetail(order) {
             return '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '"><i class="fa-solid fa-user"></i>' + w.name +
                 ' <span style="font-size:10px;color:#64748b;">— ' + (w.specialty || w.role) + '</span>' +
                 (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
-                ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span></span>';
+                ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
+                (isActive ? workerDueChip(w) : '') + '</span>';
         }).join("");
     }
 
     renderWorkers(orderId);
+    renderPendingApprovals(order, workers);
 
     const updateBtn = document.getElementById("updateProgressBtn");
     const progressInput = document.getElementById("progressInput");
@@ -1129,6 +1308,7 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
       return;
     }
 
+    const beforePhaseKey = phaseKeyAtProgress(order, Number(order.progress || 0));
     order.progress = progress;
 
     if (progress >= 100) {
@@ -1164,6 +1344,17 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
       }).eq("orderId", order.orderId),
       "Update progress"
     );
+
+    const afterPhaseKey = phaseKeyAtProgress(order, progress);
+    if (afterPhaseKey && afterPhaseKey !== beforePhaseKey && progress < 100) {
+      const assign = await autoAssignForOrder(order.orderId);
+      if (assign.ok && assign.count > 0) {
+        showToast("Auto-assigned " + assign.count + " worker(s) for " + (getMilestoneKeyLabel(assign.phase) || afterPhaseKey) + ".", "success");
+      } else {
+        showToast("Phase changed to " + (getMilestoneKeyLabel(afterPhaseKey) || afterPhaseKey) + ". No available workers to auto-assign — assign manually.", "warning");
+      }
+    }
+
     await renderDetail(order);
     renderMilestones(order);
     renderActivityLog(order);
@@ -2030,6 +2221,7 @@ window.closeCreateWorkerModal = function() { return; };
 window.submitCreateWorker = async function() { return; };
 
 (async function init() {
+    const token = await ensureSession();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { window.location.href = "login.html"; return; }
     const { data: profile } = await supabase

@@ -9,7 +9,7 @@ window.handleLogout = async function () {
 
 // Session & role guard
 (async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await window.refreshValidSession();
   if (!session) { window.location.href = "login.html"; return; }
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
   if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
@@ -54,7 +54,7 @@ async function loadCustomers() {
 
         if (profiles.length > 0) {
             tbody.innerHTML = '';
-            profiles.filter(p => p.role !== 'admin').forEach((profile) => {
+            profiles.filter(p => p.role !== 'admin' && p.role !== 'worker').forEach((profile) => {
                 const email = (profile.email || '').toLowerCase();
                 const count = boatCounts[email] || 0;
                 const boatDisplay = count > 0 ? count + ' boat' + (count > 1 ? 's' : '') : 'None';

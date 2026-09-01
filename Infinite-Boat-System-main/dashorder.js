@@ -1,4 +1,5 @@
-import { supabase, handleDbError, sendEmailNotification, API_BASE } from "./supabase.js";
+import { supabase, handleDbError, sendEmailNotification, API_BASE, ensureSession } from "./supabase.js";
+import { getBoatBom } from "./boatData.js";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -8,7 +9,7 @@ window.handleLogout = async function () {
 
 // Session & role guard
 (async () => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await window.refreshValidSession();
   if (!session) { window.location.href = "login.html"; return; }
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
   if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
@@ -166,7 +167,6 @@ function renderOrders(filter) {
                         <button class="revision-btn" onclick="requestRevision(${realIndex})"><i class="fa-solid fa-pen"></i> Request Revision</button>
                     ` : ''}
                     <button class="view-btn" onclick="viewOrder(${realIndex})"><i class="fa-solid fa-eye"></i> View</button>
-                    ${(order.status === 'Approved' && order.progress < 100) ? `<button class="progress-btn" onclick="updateProgress(${realIndex})"><i class="fa-solid fa-arrow-up"></i> + Progress</button>` : ''}
                 </div>
             </div>
         </div>`;
@@ -188,6 +188,108 @@ async function decrementInventory(itemId, qty) {
   }
 }
 
+async function checkAndDeductByIds(items) {
+  const ids = items.map(i => i.id).filter(Boolean);
+  if (ids.length === 0) return { ok: true, msg: "" };
+  const { data: rows, error } = await supabase.from("inventory").select("id, name, stock").in("id", ids);
+  if (error) return { ok: false, msg: "Could not load inventory." };
+  const byId = {};
+  (rows || []).forEach(r => { byId[r.id] = r; });
+
+  const short = [];
+  items.forEach(i => {
+    if (!i.id) return;
+    const row = byId[i.id];
+    if (!row) { short.push(i.name + " (not found)"); return; }
+    if ((row.stock || 0) < i.qty) short.push(row.name + " (need " + i.qty + ", have " + (row.stock || 0) + ")");
+  });
+  if (short.length) return { ok: false, msg: "Insufficient stock: " + short.join(", ") + ". Restock in Inventory first." };
+
+  for (const i of items) {
+    if (!i.id || !byId[i.id]) continue;
+    await supabase.from("inventory").update({ stock: Math.max(0, (byId[i.id].stock || 0) - i.qty) }).eq("id", i.id);
+  }
+  return { ok: true, msg: "" };
+}
+
+async function checkAndDeductBom(bom) {
+  const names = Object.keys(bom);
+  const { data: rows, error } = await supabase.from("inventory").select("id, name, stock").in("name", names);
+  if (error) { console.error("BOM lookup failed:", error); return { ok: false, msg: "Could not load inventory." }; }
+  const byName = {};
+  (rows || []).forEach(r => { byName[r.name] = r; });
+
+  const missing = [];
+  names.forEach(n => {
+    if (!byName[n]) missing.push(n);
+  });
+  if (missing.length) {
+    return { ok: false, msg: "Inventory items not found: " + missing.join(", ") };
+  }
+
+  const short = [];
+  names.forEach(n => {
+    const need = bom[n];
+    const have = byName[n].stock || 0;
+    if (have < need) short.push(n + " (need " + need + ", have " + have + ")");
+  });
+  if (short.length) {
+    return { ok: false, msg: "Insufficient stock: " + short.join(", ") + ". Restock in Inventory first." };
+  }
+
+  for (const n of names) {
+    await supabase.from("inventory").update({ stock: Math.max(0, (byName[n].stock || 0) - bom[n]) }).eq("id", byName[n].id);
+  }
+  return { ok: true, msg: "" };
+}
+
+async function deductMaterials(order) {
+  if (order.materialsDeducted) return { ok: true, already: true, msg: "" };
+  if (!order || order.status !== "Approved") return { ok: true, already: true, msg: "" };
+
+  let result = { ok: true, msg: "" };
+
+  if (order.customConfig) {
+    const cfg = order.customConfig;
+    const items = [];
+    if (cfg.engineItem) items.push({ id: cfg.engineItem, qty: 1, name: cfg.engineName || "Engine" });
+    if (cfg.ledItem) items.push({ id: cfg.ledItem, qty: 1, name: cfg.ledName || "LED" });
+    const seatQty = parseInt(cfg.seats) || 0;
+    if (cfg.seatsItem && seatQty > 0) items.push({ id: cfg.seatsItem, qty: seatQty, name: cfg.seatsName || "Seats" });
+    result = await checkAndDeductByIds(items);
+  } else {
+    const bom = getBoatBom(order.boatName || "");
+    if (bom) result = await checkAndDeductBom(bom);
+    else return { ok: true, already: true, msg: "" };
+  }
+
+  if (result.ok) {
+    order.materialsDeducted = true;
+    await supabase.from("boat_orders").update({ materialsDeducted: true }).eq("orderId", order.orderId).catch(() => {});
+  }
+  return result;
+}
+
+async function autoAssignWorkers(orderId) {
+  try {
+    const token = await ensureSession();
+    if (!token) return { ok: false, msg: "No session" };
+    const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+      }
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, msg: data?.error || "Auto-assign failed" };
+    return { ok: true, count: data?.count || 0, skipped: data?.skipped || [] };
+  } catch (e) {
+    console.error("Auto-assign failed:", e);
+    return { ok: false, msg: e?.message || "Auto-assign failed" };
+  }
+}
+
 async function approveOrder(index) {
     const order = orders[index];
     const oldStatus = order.status;
@@ -195,8 +297,14 @@ async function approveOrder(index) {
     order.status = 'Approved';
     order.progress = 0;
     order.orderPhase = 'Boat Construction Started';
+    const deduction = await deductMaterials(order);
+    if (!deduction.ok) {
+        order.status = oldStatus;
+        alert("Cannot approve: " + deduction.msg);
+        return;
+    }
     const result = await handleDbError(
-        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Boat Construction Started" }).eq("orderId", order.orderId),
+        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Boat Construction Started", materialsDeducted: !!order.materialsDeducted }).eq("orderId", order.orderId),
         "Approve order"
     );
     if (result?.error) {
@@ -204,7 +312,12 @@ async function approveOrder(index) {
         return;
     }
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
-    showToast('Order Approved Successfully', 'success');
+    const assigned = await autoAssignWorkers(order.orderId);
+    if (assigned.ok) {
+        showToast('Order Approved. ' + assigned.count + ' worker(s) auto-assigned.', 'success');
+    } else {
+        showToast('Order Approved Successfully', 'success');
+    }
     renderOrders(getActiveFilter());
 }
 
@@ -261,17 +374,18 @@ async function approveCustom(index) {
     order.orderPhase = 'Custom Design Approved';
     order.reviewFeedback = '';
     order.reviewStatus = 'approved';
+    const deduction = await deductMaterials(order);
+    if (!deduction.ok) {
+        order.status = oldStatus;
+        alert("Cannot approve: " + deduction.msg);
+        return;
+    }
     const result = await handleDbError(
-        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Custom Design Approved", reviewFeedback: "", reviewStatus: "approved" }).eq("orderId", order.orderId),
+        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Custom Design Approved", reviewFeedback: "", reviewStatus: "approved", materialsDeducted: !!order.materialsDeducted }).eq("orderId", order.orderId),
         "Approve custom design"
     );
     if (result?.error) { order.status = oldStatus; return; }
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
-    // Deduct customization parts from inventory
-    if (order.customConfig) {
-      if (order.customConfig.engineItem) await decrementInventory(order.customConfig.engineItem, 1);
-      if (order.customConfig.ledItem) await decrementInventory(order.customConfig.ledItem, 1);
-    }
     showToast('Custom design approved! Customer can now proceed to finalize the order.', 'success');
     renderOrders(getActiveFilter());
 }
@@ -289,13 +403,24 @@ async function approveSchedule(index) {
     order.status = 'Approved';
     order.progress = 0;
     order.orderPhase = 'Contract Signed - Awaiting Payment';
+    const deduction = await deductMaterials(order);
+    if (!deduction.ok) {
+        order.status = oldStatus;
+        alert("Cannot approve: " + deduction.msg);
+        return;
+    }
     const result = await handleDbError(
-        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Contract Signed - Awaiting Payment" }).eq("orderId", order.orderId),
+        supabase.from("boat_orders").update({ status: "Approved", progress: 0, orderPhase: "Contract Signed - Awaiting Payment", materialsDeducted: !!order.materialsDeducted }).eq("orderId", order.orderId),
         "Approve schedule"
     );
     if (result?.error) { order.status = oldStatus; return; }
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
-    showToast('Schedule approved! Assign workers in the Manage Progress page.', 'success');
+    const assigned = await autoAssignWorkers(order.orderId);
+    if (assigned.ok) {
+        showToast('Schedule approved. ' + assigned.count + ' worker(s) auto-assigned.', 'success');
+    } else {
+        showToast('Schedule approved! Assign workers in the Manage Progress page.', 'success');
+    }
     renderOrders(getActiveFilter());
 }
 

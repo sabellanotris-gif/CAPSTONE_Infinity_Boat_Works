@@ -26,20 +26,43 @@ function getPhaseLabel(key) {
   return MILESTONE_KEY_LABELS[key] || key || "";
 }
 
-const userId = localStorage.getItem("userId");
-const role = localStorage.getItem("role");
+let userId = localStorage.getItem("userId");
+let role = localStorage.getItem("role");
+
+// Always refresh the auth session so a short-lived Supabase token does not
+// cause an unexpected logout. Fall back to browser storage only when the
+// session endpoint is unreachable.
+async function resolveSession() {
+  try {
+    const { data: s } = await supabase.auth.refreshSession();
+    if (s?.session) {
+      userId = s.session.user.id;
+      role = s.session.user.user_metadata?.role || localStorage.getItem("role");
+    }
+  } catch (e) {
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      if (s?.session) {
+        userId = s.session.user.id;
+        role = s.session.user.user_metadata?.role || localStorage.getItem("role");
+      }
+    } catch (e2) { /* offline */ }
+  }
+}
 
 if (!userId || role !== "worker") {
   window.location.href = "login.html";
 }
 
 let currentPage = new URLSearchParams(window.location.search).get("page") || "assignments";
+let currentFilter = "all";
 let assignments = [];
 let workerProfile = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
+  await resolveSession();
   if (!userId) { window.location.href = "login.html"; return; }
 
   const { data: profile } = await supabase
@@ -115,48 +138,58 @@ function updateStats() {
 
 function renderAssignments() {
   const container = document.getElementById("assignmentsList");
-  const filtered = currentPage === "assignments"
-    ? assignments
-    : assignments.filter(a => {
-        if (currentPage === "active") return a.status === "Active";
-        if (currentPage === "completed") return a.status === "Completed";
-        return true;
-      });
+  const filtered = assignments.filter(a => {
+    if (currentFilter === "active") return a.status === "Active";
+    if (currentFilter === "completed") return a.status === "Completed";
+    return true;
+  });
 
   if (filtered.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <i class="fa-solid fa-clipboard-list"></i>
-        <p>No assignments yet</p>
+        <i class="fa-solid ${currentFilter === "active" ? "fa-spinner" : currentFilter === "completed" ? "fa-check-circle" : "fa-clipboard-list"}"></i>
+        <h3>${currentFilter === "active" ? "No active assignments" : currentFilter === "completed" ? "No completed assignments yet" : "You have no assignments yet"}</h3>
+        <p>${currentFilter === "all" ? "Once an admin assigns you to a project, it will appear here." : "Nothing to show for this filter right now."}</p>
       </div>`;
     return;
   }
 
   container.innerHTML = filtered.map(a => {
     const order = a.boat_orders || {};
+    const phaseLabel = getPhaseLabel(a.phase) || "Pre-Assignment";
+    const progress = clamp(Number(order.progress) || 0, 0, 100);
+    const boatImg = order.boatImage || "./images/boat.jpg";
     return `
       <div class="assignment-card" onclick="viewProject('${a.id}', '${a.orderId}')">
+        <div class="card-img-wrap">
+          <img class="card-img" src="${escAttr(boatImg)}" alt="${escHtml(order.boatName || 'Boat')}" onerror="this.src='./images/boat.jpg'">
+          <span class="status-badge ${escAttr(statusClass(a.status))}">${escHtml(a.status)}</span>
+        </div>
         <div class="card-header">
           <div>
             <h3>${escHtml(order.boatName || a.orderId)}</h3>
             <div class="order-id">${escHtml(a.orderId)}</div>
           </div>
-          <span class="status-badge ${a.status.toLowerCase()}">${a.status}</span>
         </div>
         <div class="card-body">
           <div class="detail-row">
             <span class="detail-label">Phase</span>
-            <span class="phase-badge">${escHtml(a.phase || "N/A")}</span>
+            <span class="phase-badge">${escHtml(phaseLabel)}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Progress</span>
-            <span class="detail-value">${order.progress || 0}%</span>
+            <span class="detail-value">${progress}%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill ${progress < 100 ? 'in-progress' : 'done'}" style="width:${progress}%"></div>
           </div>
           <div class="detail-row">
             <span class="detail-label">Order Status</span>
             <span class="detail-value">${escHtml(order.status || "N/A")}</span>
           </div>
           ${a.startDate ? `<div class="detail-row"><span class="detail-label">Started</span><span class="detail-value">${formatDate(a.startDate)}</span></div>` : ""}
+          ${a.status === "Active" ? `<div class="detail-row"><span class="detail-label">Deadline</span><span class="detail-value">${formatDate(a.endDate)} ${dueStatusHtml(a)}</span></div>` : ""}
+          ${a.notes ? `<div class="detail-row"><span class="detail-label">My Notes</span><span class="detail-value note-preview">${escHtml(a.notes)}</span></div>` : ""}
         </div>
         <div class="card-footer">
           <button class="action-btn btn-view" onclick="event.stopPropagation(); viewProject('${a.id}', '${a.orderId}')">View Details</button>
@@ -294,31 +327,41 @@ window.viewProject = async function (assignmentId, orderId) {
     <div class="detail-section">
       <h4>Your Assignment</h4>
       <div class="detail-grid">
-        <div class="detail-item"><label>Phase</label><span>${escHtml(assignment.phase || "N/A")}</span></div>
+        <div class="detail-item"><label>Phase</label><span>${escHtml(getPhaseLabel(assignment.phase) || "Pre-Assignment")}</span></div>
         <div class="detail-item"><label>Status</label><span>${escHtml(assignment.status)}</span></div>
         <div class="detail-item"><label>Specialty</label><span>${escHtml(assignment.specialty || assignment.role || "N/A")}</span></div>
         ${assignment.startDate ? `<div class="detail-item"><label>Start Date</label><span>${formatDate(assignment.startDate)}</span></div>` : ""}
+        ${assignment.status === "Active" ? `<div class="detail-item"><label>Deadline</label><span>${formatDate(assignment.endDate)} ${dueStatusHtml(assignment)}</span></div>` : ""}
         ${assignment.completedAt ? `<div class="detail-item"><label>Completed</label><span>${formatDate(assignment.completedAt)}</span></div>` : ""}
       </div>
     </div>
     ${milestonesHtml}
     ${workersHtml}
-    ${assignment.status === "Active" ? `
-      <div class="task-actions">
-        <select id="taskStatusSelect">
-          <option value="Active">In Progress</option>
-          <option value="Completed">Completed</option>
-        </select>
-        <button onclick="updateFromModal('${assignment.id}')">Update</button>
+    <div class="task-actions">
+      <div class="notes-block">
+        <label for="taskNotes">My Notes</label>
+        <textarea id="taskNotes" placeholder="Add notes or updates about this task...">${escHtml(assignment.notes || "")}</textarea>
       </div>
-    ` : ""}
+      ${assignment.status === "Active" ? `
+        <div class="task-actions-row">
+          <select id="taskStatusSelect">
+            <option value="Active">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+          <button onclick="updateFromModal('${assignment.id}')">Update</button>
+        </div>
+      ` : ""}
+    </div>
   `;
 
   document.getElementById("projectModal").style.display = "flex";
 };
 
 window.updateFromModal = async function (id) {
-  const status = document.getElementById("taskStatusSelect").value;
+  const statusEl = document.getElementById("taskStatusSelect");
+  const status = statusEl ? statusEl.value : null;
+  const notesEl = document.getElementById("taskNotes");
+  const notes = notesEl ? notesEl.value.trim() : "";
   if (status === "Completed" && !confirm("Mark this task as completed?")) return;
 
   try {
@@ -326,7 +369,7 @@ window.updateFromModal = async function (id) {
     const res = await fetch(API_BASE + `/worker/update-task/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, notes })
     });
     if (res.ok) {
       showToast("Task updated successfully", "success");
@@ -445,40 +488,60 @@ window.navigateTo = function (page) {
 
   document.querySelectorAll(".sidebar-menu a").forEach(a => a.classList.remove("active"));
   const links = document.querySelectorAll(".sidebar-menu a");
-  if (page === "assignments") links[0]?.classList.add("active");
-  else if (page === "profile") links[2]?.classList.add("active");
+  if (page === "profile") links[2]?.classList.add("active");
   else links[0]?.classList.add("active");
 
   const content = document.getElementById("contentArea");
   const statsRow = document.getElementById("statsRow");
-  const sectionTitle = document.getElementById("sectionTitle");
+  const sectionHeader = document.querySelector(".section-header");
   const profileSection = document.getElementById("profileSection");
   const assignmentsList = document.getElementById("assignmentsList");
   const pageTitle = document.getElementById("pageTitle");
+  const filterTabs = document.getElementById("filterTabs");
 
   if (page === "profile") {
     statsRow.style.display = "none";
-    sectionTitle.parentElement.style.display = "none";
+    sectionHeader.style.display = "none";
     assignmentsList.style.display = "none";
     profileSection.style.display = "block";
     pageTitle.textContent = "My Profile";
   } else {
     statsRow.style.display = "grid";
-    sectionTitle.parentElement.style.display = "flex";
+    sectionHeader.style.display = "flex";
     assignmentsList.style.display = "grid";
     profileSection.style.display = "none";
     pageTitle.textContent = "Dashboard";
-
-    if (page === "active") {
-      sectionTitle.textContent = "Active Assignments";
-    } else if (page === "completed") {
-      sectionTitle.textContent = "Completed Assignments";
-    } else {
-      sectionTitle.textContent = "My Assignments";
-    }
+    if (filterTabs) updateFilterTabs();
     renderAssignments();
   }
 };
+
+window.setFilter = function (filter) {
+  currentFilter = filter;
+  updateFilterTabs();
+  renderAssignments();
+};
+
+function updateFilterTabs() {
+  document.querySelectorAll(".filter-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.filter === currentFilter);
+  });
+}
+
+function statusClass(status) {
+  const s = (status || "").toLowerCase();
+  if (s === "active") return "active";
+  if (s === "completed") return "completed";
+  return "pending";
+}
+
+function clamp(n, min, max) {
+  return Math.min(Math.max(n, min), max);
+}
+
+function escAttr(str) {
+  return escHtml(str).replace(/'/g, "&#39;");
+}
 
 window.saveProfile = async function () {
   const name = document.getElementById("editName").value.trim();
@@ -539,6 +602,24 @@ function formatDate(dateStr) {
   } catch (e) {
     return dateStr;
   }
+}
+
+function getDueStatus(a) {
+  if (!a || a.status !== "Active" || !a.endDate) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(a.endDate); end.setHours(0, 0, 0, 0);
+  if (isNaN(end.getTime())) return null;
+  const diffDays = Math.round((end - today) / 86400000);
+  if (diffDays < 0) return { label: "Overdue", cls: "overdue", days: Math.abs(diffDays) };
+  if (diffDays <= 3) return { label: "Due Soon", cls: "due-soon", days: diffDays };
+  return { label: "On Track", cls: "on-track", days: diffDays };
+}
+
+function dueStatusHtml(a) {
+  const s = getDueStatus(a);
+  if (!s) return "";
+  const daysText = s.cls === "overdue" ? ` ${s.days}d overdue` : (s.cls === "due-soon" ? ` in ${s.days}d` : "");
+  return `<span class="due-chip ${s.cls}">${s.label}${daysText}</span>`;
 }
 
 function timeAgo(dateStr) {

@@ -97,6 +97,31 @@ export async function handleDbError(promise, context = '') {
    UTILITY HELPERS
    ============================================= */
 
+// Refresh the session if the current access token is missing or about to
+// expire. Returns the session (refreshed if needed) or null if there is none.
+export async function refreshValidSession() {
+  try {
+    const { data: { session: cur } } = await supabase.auth.getSession();
+    if (!cur?.access_token) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      return refreshed?.session || null;
+    }
+    try {
+      const payload = JSON.parse(atob(cur.access_token.split(".")[1]));
+      const expiresIn = payload.exp * 1000 - Date.now();
+      if (expiresIn < 300000) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        return refreshed?.session || cur;
+      }
+    } catch (e) { /* not a JWT we can decode — keep current */ }
+    return cur;
+  } catch (e) {
+    return null;
+  }
+}
+
+window.refreshValidSession = refreshValidSession;
+
 export function parseContractSchedule(order) {
     if (!order || !order.contractSchedule) return null;
     let s = order.contractSchedule;

@@ -272,6 +272,9 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                         </select>
                         <button id="addWorkerBtn" style="border:none;background:#295dff;color:white;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-plus"></i></button>
                     </div>
+                    <div style="display:flex;gap:8px;margin-bottom:10px;">
+                        <button id="autoAssignBtn" style="flex:1;border:2px solid #295dff;background:transparent;color:#295dff;padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:600;font-family:'Poppins',sans-serif;font-size:12px;"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-assign available workers (current phase)</button>
+                    </div>
                     <div id="storedWorkersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
                     <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0 8px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap;">
@@ -425,6 +428,11 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
                     <div id="detailWorkers" class="workers-list"></div>
 
+                </div>
+
+                <div class="progress-card" id="pendingApprovalsCard" style="display:none;">
+                    <h3><i class="fa-solid fa-circle-check"></i> Pending Approvals</h3>
+                    <div id="pendingApprovalsList" style="display:flex;flex-direction:column;gap:8px;"></div>
                 </div>
 
                 <div class="progress-card">

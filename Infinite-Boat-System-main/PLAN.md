@@ -109,3 +109,46 @@ if si user chooses installment or full payment and custom, napansin kong error i
 ### Scope
 - Only the `body` background changes to white
 - Right-side panel images (`mainboat.jpg`) remain unchanged
+
+---
+
+# SYSTEM TECHNOLOGY STACK (for Methodology)
+
+## Frontend (Client-Side)
+| Technology | Purpose in the System |
+|---|---|
+| HTML5 | Page structure and content of all views (customer, admin, worker) |
+| CSS3 | Styling, layout, and responsive design (per-page custom CSS) |
+| JavaScript (ES6 Modules) | Client-side logic and interactivity across pages |
+| Font Awesome (6.5.1) | UI and feature icons |
+| Google Fonts (Poppins) | Typography |
+
+## Visualization & 3D
+| Technology | Purpose in the System |
+|---|---|
+| HTML5 Canvas API | 2D rendering of the boat customizer/builder view (`boatcust.js`) |
+| Blender | 3D modeling and design of boat models used/represented in the system |
+
+## Backend (Server-Side)
+| Technology | Purpose in the System |
+|---|---|
+| Node.js | JavaScript runtime for the web server |
+| Express.js (v5) | Web framework / REST API server on port 3000 |
+| multer | File upload handling (project documents, progress photos) |
+| nodemailer | Email automation (SMTP/Gmail) — verification, order, payment, status notifications |
+| crypto (Node built-in) | Secure token generation for email verification |
+| dotenv | Environment configuration via `.env` |
+
+## Database & Backend-as-a-Service (Supabase)
+| Technology | Purpose in the System |
+|---|---|
+| PostgreSQL | Relational database (profiles, boat_orders, payments, project_workers, worker_registrations, project_tasks, project_documents, etc.) |
+| @supabase/supabase-js (v2) | Official JS client (anon-key user client + service-role admin client) |
+| Supabase Auth | Authentication — email/password + Google OAuth, JWT sessions |
+| Supabase Realtime | Real-time data updates and notifications |
+| Supabase Storage | File and photo storage (`boat-files` bucket) |
+| Row-Level Security (RLS) | Database access policies / permissions |
+
+## Declared Dependencies (in package.json, not actively imported in the code)
+- **jimp** — image manipulation (declared)
+- **pg** — PostgreSQL driver (declared; DB access goes through the Supabase client)

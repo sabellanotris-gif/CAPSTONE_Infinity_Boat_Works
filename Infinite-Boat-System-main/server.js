@@ -165,6 +165,7 @@ app.post("/api/auth/register", async (req, res) => {
       email,
       name: fullname,
       phone: phone || "",
+      role: "customer",
     }, { onConflict: "id" });
 
     if (profileError) {
@@ -727,18 +728,34 @@ app.post("/api/notifications", authenticate, requireAdmin, async (req, res) => {
 
 app.get("/api/worker/my-assignments", authenticate, async (req, res) => {
   try {
+    let workerName = null;
+
     const { data: worker, error: wErr } = await adminDb
       .from("workers")
       .select("*")
       .eq("userId", req.user.id)
       .maybeSingle();
 
-    if (wErr || !worker) return res.json([]);
+    // Fallback: if the logged-in user has no linked "workers" row, try to match
+    // their profile name against assignments directly. This covers seeded workers
+    // whose accounts were created after assignments were made (userId null).
+    if (wErr || !worker) {
+      const { data: profile } = await adminDb
+        .from("profiles")
+        .select("id, name")
+        .eq("id", req.user.id)
+        .maybeSingle();
+      workerName = profile?.name || null;
+    } else {
+      workerName = worker.name;
+    }
+
+    if (!workerName) return res.json([]);
 
     const { data, error } = await adminDb
       .from("project_workers")
       .select("*, boat_orders(boatName, boatImage, boatPrice, status, progress, orderPhase)")
-      .eq("name", worker.name)
+      .eq("name", workerName)
       .order("createdAt", { ascending: false });
 
     if (error) return res.status(500).json({ error: error.message });
@@ -761,8 +778,19 @@ app.put("/api/worker/update-task/:id", authenticate, async (req, res) => {
 
     if (fetchErr || !assignment) return res.status(404).json({ error: "Assignment not found" });
 
+    // Authorize via linked worker account OR by matching the profile name.
+    // The name fallback covers seeded workers whose "workers" row isn't linked.
     const workerUserId = assignment.workers?.userId;
-    if (workerUserId !== req.user.id) {
+    let isOwner = workerUserId === req.user.id;
+    if (!isOwner) {
+      const { data: profile } = await adminDb
+        .from("profiles")
+        .select("name")
+        .eq("id", req.user.id)
+        .maybeSingle();
+      isOwner = !!profile && profile.name === assignment.name;
+    }
+    if (!isOwner) {
       return res.status(403).json({ error: "Not authorized to update this task" });
     }
 
@@ -771,12 +799,29 @@ app.put("/api/worker/update-task/:id", authenticate, async (req, res) => {
       updates.status = status;
       if (status === "Completed") updates.completedAt = new Date().toISOString();
     }
+    if (typeof notes === "string") {
+      updates.notes = notes;
+    }
 
-    const { data, error } = await adminDb
+    let { data, error } = await adminDb
       .from("project_workers")
       .update(updates)
       .eq("id", id)
       .select();
+
+    // Graceful fallback: if the "notes" column isn't migrated yet, drop it from
+    // the payload and retry so the status update still succeeds.
+    if (error && updates.notes !== undefined) {
+      const { notes, ...withoutNotes } = updates;
+      const retry = await adminDb
+        .from("project_workers")
+        .update(withoutNotes)
+        .eq("id", id)
+        .select();
+      if (retry.error) return res.status(500).json({ error: retry.error.message });
+      data = retry.data;
+      error = null;
+    }
 
     if (error) return res.status(500).json({ error: error.message });
 
@@ -787,18 +832,158 @@ app.put("/api/worker/update-task/:id", authenticate, async (req, res) => {
         .eq("orderId", assignment.orderId)
         .maybeSingle();
 
-      if (order?.userId) {
-        await adminDb.from("notifications").insert({
-          userId: order.userId,
-          title: "Task Completed",
-          message: `Worker ${assignment.name} has completed the ${assignment.phase} phase for ${order.boatName || assignment.orderId}.`,
+      const { data: admins } = await adminDb
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin");
+
+      const adminIds = (admins || []).map(a => a.id);
+      const boatName = order?.boatName || assignment.orderId;
+      if (adminIds.length > 0) {
+        const notifications = adminIds.map(uid => ({
+          userId: uid,
+          title: "Phase Completed — Pending Approval",
+          message: `Worker ${assignment.name} has completed the ${assignment.phase} phase for ${boatName}. Please review and approve it.`,
           type: "task_update",
           orderId: assignment.orderId,
-        });
+        }));
+        await adminDb.from("notifications").insert(notifications);
       }
     }
 
     res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/worker/approve-phase", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { orderId, phaseKey } = req.body || {};
+    if (!orderId || !phaseKey) return res.status(400).json({ error: "orderId and phaseKey are required" });
+
+    const boatData = await import("./boatData.js");
+
+    const { data: order, error: orderErr } = await adminDb
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .maybeSingle();
+    if (orderErr) return res.status(500).json({ error: orderErr.message });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.status === "Completed" || order.status === "Cancelled") {
+      return res.status(400).json({ error: "Order is no longer active" });
+    }
+
+    let milestones = Array.isArray(order.milestones) ? order.milestones : [];
+    const presets = boatData.getBoatMilestones ? (boatData.getBoatMilestones(order.boatName) || []) : [];
+    if (milestones.length === 0) {
+      milestones = presets.map(p => ({
+        label: p.label,
+        percentage: p.percentage,
+        key: p.key,
+        completed: Number(order.progress || 0) >= p.percentage,
+        completedDate: Number(order.progress || 0) >= p.percentage ? new Date().toISOString() : null,
+        history: []
+      }));
+    } else {
+      milestones = milestones.map((m, i) => {
+        if (m.key) return m;
+        const preset = presets[i] || presets.find(p => p.percentage === m.percentage);
+        return { ...m, key: preset ? preset.key : "" };
+      });
+    }
+
+    const target = milestones.find(m => m.key === phaseKey);
+    if (!target) return res.status(404).json({ error: "Phase not found in this order" });
+    if (target.completed) return res.status(400).json({ error: "This phase is already approved" });
+
+    const prev = milestones.filter(m => m.percentage < target.percentage);
+    if (!prev.every(m => m.completed)) {
+      return res.status(400).json({ error: "Previous phases must be approved first" });
+    }
+
+    const paymentGate = { 0: 0, 1: 40, 2: 75, 3: 100 };
+    const maxProgress = paymentGate[order.paymentStep || 0] || 0;
+    if (target.percentage > maxProgress) {
+      const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
+      return res.status(400).json({ error: "Required payment not completed yet. Complete " + needed + " first." });
+    }
+    if (target.percentage === 100 && Number(order.remainingBalance || 0) > 0) {
+      return res.status(400).json({ error: "Order must be fully paid before completion." });
+    }
+
+    // Mark this phase approved
+    const now = new Date().toISOString();
+    target.completed = true;
+    target.completedDate = now;
+
+    let status = order.status;
+    let orderPhase = order.orderPhase;
+    let projectCompletedDate = order.projectCompletedDate || null;
+    if (target.percentage === 100) {
+      status = "Completed";
+      orderPhase = "Completed";
+      projectCompletedDate = now;
+    } else if (target.percentage >= 70) {
+      orderPhase = "Painting & Finishing";
+    } else if (target.percentage >= 45) {
+      orderPhase = "Interior Installation";
+    } else if (target.percentage >= 25) {
+      orderPhase = "Engine Assembly";
+    } else {
+      orderPhase = target.label;
+    }
+
+    // Append a system activity-log entry
+    const activity = Array.isArray(order.activityLog) ? order.activityLog : [];
+    const autoDesc = (() => {
+      const presetsForBoat = boatData.getBoatActivities ? (boatData.getBoatActivities(order.boatName) || {}) : {};
+      const list = presetsForBoat[phaseKey] || [];
+      return list.length ? list[0] : (target.label || phaseKey) + " approved.";
+    })();
+    activity.push({
+      title: target.label,
+      description: autoDesc,
+      date: now,
+      personnel: "Admin",
+      role: "Approved"
+    });
+
+    const { data: updated, error: updErr } = await adminDb
+      .from("boat_orders")
+      .update({
+        status,
+        progress: target.percentage,
+        orderPhase,
+        milestones,
+        projectCompletedDate,
+        activityLog: activity
+      })
+      .eq("orderId", orderId)
+      .select();
+    if (updErr) return res.status(500).json({ error: updErr.message });
+
+    // Release this phase's workers (they remain recorded as Completed)
+    await adminDb
+      .from("project_workers")
+      .update({ status: "Completed", completedAt: now })
+      .eq("orderId", orderId)
+      .eq("phase", phaseKey)
+      .eq("status", "Active");
+
+    // Notify the customer
+    if (order.userId) {
+      await adminDb.from("notifications").insert({
+        userId: order.userId,
+        title: target.percentage === 100 ? "Your boat is ready!" : "Progress Update",
+        message: `The ${target.label} phase (${order.boatName || orderId}) has been approved by our team. Current progress: ${target.percentage}%.`,
+        type: "progress",
+        orderId,
+      });
+    }
+
+    res.json(updated ? updated[0] : { ...order, status, progress: target.percentage, orderPhase, milestones });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1213,9 +1398,63 @@ app.get("/api/workers/:orderId", authenticate, async (req, res) => {
 
 app.post("/api/workers", authenticate, requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await adminDb.from("project_workers").insert(req.body).select();
+    let payload = Array.isArray(req.body) ? req.body : [req.body];
+    if (payload.some(w => w.orderId && w.phase)) {
+      try {
+        const boatData = await import("./boatData.js");
+        const orderId = payload[0].orderId;
+        const { data: order } = await adminDb
+          .from("boat_orders")
+          .select("boatName, createdAt")
+          .eq("orderId", orderId)
+          .maybeSingle();
+        if (order && order.createdAt) {
+          payload = payload.map(w => {
+            const range = w.phase ? boatData.getPhaseDateRange(order.boatName, w.phase, order.createdAt) : null;
+            return {
+              ...w,
+              startDate: range?.startDate || w.startDate || null,
+              endDate: range?.endDate || w.endDate || null
+            };
+          });
+        }
+      } catch (e) {
+        // fall through and insert without computed deadlines
+      }
+    }
+
+    // Single-project rule: a worker may not be Active on a different order.
+    const incomingOrderIds = new Set(payload.map(w => w.orderId).filter(Boolean));
+    let orderLabels = {};
+    try {
+      const { data: boatOrders } = await adminDb
+        .from("boat_orders")
+        .select("orderId, boatName")
+        .in("orderId", [...incomingOrderIds]);
+      (boatOrders || []).forEach(o => { orderLabels[o.orderId] = o.boatName || o.orderId; });
+    } catch (e) { /* labels are best-effort */ }
+
+    const { data: activeOthers } = await adminDb
+      .from("project_workers")
+      .select("name, orderId")
+      .eq("status", "Active");
+    const busyOnOrder = {};
+    (activeOthers || []).forEach(a => { busyOnOrder[a.name] = a.orderId; });
+
+    const conflict = payload.find(w => {
+      const busyOrderId = busyOnOrder[w.name];
+      return busyOrderId && busyOrderId !== w.orderId;
+    });
+    if (conflict) {
+      const busyBoat = orderLabels[busyOnOrder[conflict.name]] || busyOnOrder[conflict.name];
+      return res.status(400).json({
+        error: `${conflict.name} is already assigned (Active) to another project (${busyBoat}). Release or complete that phase before assigning them here.`
+      });
+    }
+
+    const { data, error } = await adminDb.from("project_workers").insert(payload).select();
     if (error) return res.status(500).json({ error: error.message });
-    res.status(201).json(data[0]);
+    res.status(201).json(Array.isArray(req.body) ? data : data[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1323,13 +1562,16 @@ async function resolveMilestoneKeyByPercentage(boatName, milestone) {
 async function assignWorkersForPhase(orderId, phase, opts = {}) {
   const { data: order } = await adminDb
     .from("boat_orders")
-    .select("userId, customerEmail")
+    .select("userId, customerEmail, boatName, createdAt")
     .eq("orderId", orderId)
     .single();
   if (!order) return { error: "Order not found", status: 404 };
 
   const boatData = await import("./boatData.js");
   const SPECIALTY_PHASES = boatData.SPECIALTY_PHASES || {};
+  const phaseDateRange = order.createdAt
+    ? boatData.getPhaseDateRange(order.boatName, phase, order.createdAt)
+    : null;
   const phasesForSpecialty = (spec) => {
     for (const [s, keys] of Object.entries(SPECIALTY_PHASES)) {
       if (s.toLowerCase() === String(spec).toLowerCase()) return keys;
@@ -1372,7 +1614,9 @@ async function assignWorkersForPhase(orderId, phase, opts = {}) {
       role: w.specialty,
       specialty: w.specialty,
       phase,
-      status: "Active"
+      status: "Active",
+      startDate: phaseDateRange?.startDate || null,
+      endDate: phaseDateRange?.endDate || null
     });
   });
 
@@ -1900,7 +2144,7 @@ app.get("/api/boat-data/:boatName", async (req, res) => {
 
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.use(express.static(__dirname, {
+ app.use(express.static(__dirname, {
   setHeaders(res, path, stat) {
     if (path.endsWith('.js') || path.endsWith('.css')) {
       res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1909,6 +2153,11 @@ app.use(express.static(__dirname, {
     }
   }
 }));
+
+ app.use((req, res) => {
+   console.error("[DEBUG 404] " + req.method + " " + req.originalUrl);
+   res.status(404).json({ error: "Not found" });
+ });
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));

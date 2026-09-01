@@ -2,3 +2,5 @@
 node_modules/
 uploads/
 server.log
+srv_out.log
+srv_err.log

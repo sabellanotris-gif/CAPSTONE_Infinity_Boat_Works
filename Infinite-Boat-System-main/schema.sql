@@ -311,6 +311,9 @@ ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "progressPhotos" JSONB D
 ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "budgetInfo" JSONB DEFAULT '{}';
 ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "documents" JSONB DEFAULT '[]';
 
+-- Migration: Mark orders whose materials were already deducted from inventory
+ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "materialsDeducted" BOOLEAN DEFAULT false;
+
 -- Migration: Delivery Tracking fields (stored in "deliveryInfo" JSONB on boat_orders)
 -- The "deliveryInfo" JSONB column stores the following delivery-related fields:
 -- {

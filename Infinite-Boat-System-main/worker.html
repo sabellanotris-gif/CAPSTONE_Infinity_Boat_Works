@@ -78,6 +78,11 @@
 
         <div class="section-header">
             <h2 id="sectionTitle">My Assignments</h2>
+            <div class="filter-tabs" id="filterTabs">
+                <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">All</button>
+                <button class="filter-tab" data-filter="active" onclick="setFilter('active')">Active</button>
+                <button class="filter-tab" data-filter="completed" onclick="setFilter('completed')">Completed</button>
+            </div>
         </div>
 
         <div id="assignmentsList" class="assignments-grid">
