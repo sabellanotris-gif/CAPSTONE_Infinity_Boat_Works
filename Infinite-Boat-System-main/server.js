@@ -950,11 +950,13 @@ app.post("/api/worker/approve-phase", authenticate, requireAdminOrManager, async
       const list = presetsForBoat[phaseKey] || [];
       return list.length ? list[0] : (target.label || phaseKey) + " approved.";
     })();
+    const actorRole = req.profile?.role || req.user?.user_metadata?.role || "admin";
+    const actorName = req.profile?.name || req.user?.user_metadata?.name || (actorRole === "manager" ? "Project Manager" : "Admin");
     activity.push({
       title: target.label,
       description: autoDesc,
       date: now,
-      personnel: "Admin",
+      personnel: actorName,
       role: "Approved"
     });
 
@@ -1088,7 +1090,7 @@ function calculateDelayPenalty(boatPrice, delayDays) {
   return { penalty, percent };
 }
 
-app.put("/api/orders/:orderId/delivery", authenticate, requireAdmin, async (req, res) => {
+app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { orderId } = req.params;
     const {
@@ -1468,7 +1470,7 @@ app.post("/api/workers", authenticate, requireAdminOrManager, async (req, res) =
   }
 });
 
-app.post("/api/workers/seed", authenticate, requireAdmin, async (req, res) => {
+app.post("/api/workers/seed", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data: existing } = await adminDb.from("workers").select("name").limit(1);
     if (existing && existing.length > 0) return res.json({ seeded: false, reason: "already seeded" });
@@ -1486,7 +1488,7 @@ app.post("/api/workers/seed", authenticate, requireAdmin, async (req, res) => {
 });
 
 // Backfill: sync worker registrations (approved and pending) into the workers table
-app.post("/api/workers/backfill", authenticate, requireAdmin, async (req, res) => {
+app.post("/api/workers/backfill", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data: registrations, error: regErr } = await adminDb
       .from("worker_registrations")
@@ -1670,10 +1672,11 @@ app.post("/api/workers/auto-assign/:orderId", authenticate, async (req, res) => 
       .eq("orderId", orderId)
       .single();
     if (!order) return res.status(404).json({ error: "Order not found" });
-    const isAdmin = req.profile?.role === "admin" || req.user?.user_metadata?.role === "admin";
+    const role = req.profile?.role || req.user?.user_metadata?.role;
+    const isStaff = role === "admin" || role === "manager";
     const isOwner = order.userId === req.user.id;
     const isCustomer = order.customerEmail?.toLowerCase() === req.user.email?.toLowerCase();
-    if (!isAdmin && !isOwner && !isCustomer) {
+    if (!isStaff && !isOwner && !isCustomer) {
       return res.status(403).json({ error: "Not your order" });
     }
 
@@ -1686,7 +1689,7 @@ app.post("/api/workers/auto-assign/:orderId", authenticate, async (req, res) => 
   }
 });
 
-app.post("/api/workers/release-phase/:orderId", authenticate, async (req, res) => {
+app.post("/api/workers/release-phase/:orderId", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const orderId = req.params.orderId;
     const { phase } = req.body || {};
@@ -1706,7 +1709,7 @@ app.post("/api/workers/release-phase/:orderId", authenticate, async (req, res) =
   }
 });
 
-app.post("/api/workers/assign-phase/:orderId", authenticate, async (req, res) => {
+app.post("/api/workers/assign-phase/:orderId", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const orderId = req.params.orderId;
     const { phase } = req.body || {};

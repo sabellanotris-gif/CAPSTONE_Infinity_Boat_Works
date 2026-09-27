@@ -13,7 +13,10 @@ import {
   getBoatTimeline as _getBoatTimeline,
   getBoatDeliveryInfo as _getBoatDeliveryInfo,
   getBoatMilestones,
-  MILESTONE_KEY_LABELS
+  MILESTONE_KEY_LABELS,
+  isCountedExpense,
+  sumCountedExpenses,
+  sumPendingExpenses
 } from "./boatData.js";
 
 function esc(str) {
@@ -1029,7 +1032,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         const total = bi.totalBudget || 0;
         if (!total) return "";
         const expenses = bi.expenses || [];
-        const spent = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+        const spent = sumCountedExpenses(expenses);
+        const pending = sumPendingExpenses(expenses);
         const pct = Math.min(100, (spent / total) * 100);
         const remaining = Math.max(0, total - spent);
         const statusColor = pct > 90 ? "#ef4444" : pct > 70 ? "#f59e0b" : "#22c55e";
@@ -1061,18 +1065,28 @@ window.addEventListener("DOMContentLoaded", async () => {
             <div style="height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden;margin-bottom:12px;">
                 <div style="height:100%;width:${pct}%;background:${statusColor};border-radius:5px;transition:width 0.3s;"></div>
             </div>
+            ${pending > 0 ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:6px 10px;font-size:11px;color:#92400e;margin-bottom:12px;">+ ₱${pending.toLocaleString()} pending approval (not counted as spent)</div>` : ''}
             ${expenses.length > 0 ? `
             <h5 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#475569;">Expenses</h5>
             <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;">
-                ${expenses.map(e => `
-                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                ${expenses.map(e => {
+                    const st = e.status || "approved";
+                    const isRejected = st === "rejected";
+                    const isPending = st === "pending";
+                    const sBg = isPending ? "#fef3c7" : isRejected ? "#fee2e2" : "#dcfce7";
+                    const sFg = isPending ? "#92400e" : isRejected ? "#991b1b" : "#166534";
+                    const sTx = isPending ? "Pending" : isRejected ? "Rejected" : "Approved";
+                    return `
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${isPending ? '#fffbeb' : isRejected ? '#fef2f2' : '#f8fafc'};border:1px solid ${isPending ? '#fcd34d' : isRejected ? '#fecaca' : '#e2e8f0'};border-radius:8px;">
                     <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:50px;background:${categoryColors[e.category] || '#f1f5f9'};color:${categoryTextColors[e.category] || '#475569'};white-space:nowrap;">${e.category || 'Other'}</span>
                     <div style="flex:1;min-width:0;">
-                        <strong style="font-size:12px;color:#0f172a;display:block;">${esc(e.description || '')}</strong>
+                        <strong style="font-size:12px;color:#0f172a;display:block;text-decoration:${isRejected ? 'line-through' : 'none'};">${esc(e.description || '')}</strong>
                         <span style="font-size:11px;color:#64748b;">${e.date ? new Date(e.date).toLocaleDateString() : ''}</span>
                     </div>
-                    <strong style="font-size:13px;color:#dc2626;">-₱${(parseFloat(e.amount) || 0).toLocaleString()}</strong>
-                </div>`).join('')}
+                    <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:50px;white-space:nowrap;background:${sBg};color:${sFg};">${sTx}</span>
+                    <strong style="font-size:13px;color:${isPending ? '#b45309' : '#dc2626'};">-₱${(parseFloat(e.amount) || 0).toLocaleString()}</strong>
+                </div>`;
+                }).join('')}
             </div>` : '<p style="font-size:13px;color:#94a3b8;text-align:center;padding:8px;">No expenses recorded yet.</p>'}
         </div>`;
     }

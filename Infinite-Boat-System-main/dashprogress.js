@@ -1,5 +1,5 @@
 import { supabase, supabaseUrl, handleDbError, API_BASE, ensureSession } from "./supabase.js";
-import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, getPendingPhaseApprovals, getPhaseSpecialties } from "./boatData.js";
+import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, getPendingPhaseApprovals, getPhaseSpecialties, isCountedExpense, sumCountedExpenses, sumPendingExpenses } from "./boatData.js";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -13,6 +13,116 @@ function handleSessionExpired() {
 }
 
 const STORAGE_BUCKET = "boat-files";
+
+function isManager() {
+  return window.currentRole === "manager";
+}
+
+function isAdmin() {
+  return window.currentRole === "admin";
+}
+
+function overrideOn() {
+  return window.overrideUnlocked === true;
+}
+
+function canEdit() {
+  return isManager() || (isAdmin() && overrideOn());
+}
+
+function canManageMoney() {
+  return isAdmin();
+}
+
+function canLogExpense() {
+  return isManager() || isAdmin();
+}
+
+function actorLabel() {
+  if (isManager()) return "Project Manager";
+  return overrideOn() ? "Admin (Override)" : "Admin";
+}
+
+window.overrideUnlocked = false;
+
+const MANAGER_ONLY_BTN_IDS = [
+  "addTaskBtn", "addWorkerBtn", "autoAssignBtn", "uploadDocBtn", "uploadProgressPhotoBtn",
+  "addActivityBtn", "updateProgressBtn"
+];
+
+const MONEY_INPUT_IDS = [
+  "budgetTotalInput", "expenseCategoryInput", "expenseDescInput", "expenseAmountInput"
+];
+
+function applyRoleLock() {
+  MANAGER_ONLY_BTN_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = canEdit() ? "" : "none";
+  });
+
+  document.getElementById("setBudgetBtn").style.display = canManageMoney() ? "" : "none";
+  MONEY_INPUT_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "";
+  });
+
+  const banner = document.getElementById("readonlyBanner");
+  if (banner) {
+    if (canEdit()) {
+      banner.style.display = "none";
+    } else {
+      banner.style.display = "block";
+      banner.innerHTML = '<i class="fa-solid fa-eye"></i> <strong>Read-only view.</strong> You are monitoring this build. Only the Project Manager can change milestones, workers, tasks, documents, or delivery.';
+    }
+  }
+
+  const overrideBanner = document.getElementById("overrideBanner");
+  if (overrideBanner) overrideBanner.style.display = (isAdmin() && overrideOn()) ? "block" : "none";
+
+  const toggle = document.getElementById("overrideToggleBtn");
+  if (toggle) {
+    toggle.style.display = isAdmin() ? "" : "none";
+    toggle.innerHTML = overrideOn()
+      ? '<i class="fa-solid fa-lock-open"></i> Release Editing'
+      : '<i class="fa-solid fa-lock-open"></i> Take Over Editing';
+  }
+}
+
+async function toggleOverride() {
+  if (!isAdmin()) return;
+  window.overrideUnlocked = !overrideOn();
+  applyRoleLock();
+  showToast(window.overrideUnlocked
+    ? "Override unlocked. Your edits will be logged as Admin (Override)."
+    : "Override released. Boat Progress is read-only again.", window.overrideUnlocked ? "warning" : "success");
+  const order = getSelectedOrder();
+  if (order) {
+    await renderDetail(order);
+    await logOverrideEvent(order, window.overrideUnlocked);
+  }
+}
+
+async function logOverrideEvent(order, unlocked) {
+  if (!order || !order.orderId) return;
+  const log = Array.isArray(order.activityLog) ? order.activityLog.slice() : [];
+  log.push({
+    title: unlocked ? "Admin Override - Editing Unlocked" : "Admin Override - Editing Released",
+    description: unlocked
+      ? "Admin took over editing on behalf of the Project Manager."
+      : "Admin released editing. Boat Progress returned to read-only.",
+    date: new Date().toISOString(),
+    personnel: "Admin",
+    role: "Override"
+  });
+  order.activityLog = log;
+  await handleDbError(
+    supabase.from("boat_orders").update({ activityLog: log, updatedAt: new Date().toISOString() }).eq("orderId", order.orderId),
+    "Log override"
+  );
+  renderActivityLog(order);
+}
+
+window.toggleOverride = toggleOverride;
 
 const WORKER_REGISTRY = [
   { name: "Juan dela Cruz", specialty: "Builder" },
@@ -128,6 +238,7 @@ async function getDBWorkers(orderId) {
 }
 
 async function addDBWorker(orderId, name, role, type) {
+  if (!canEdit()) return;
     try {
         const token = await ensureSession();
         if (!token) { handleSessionExpired(); return null; }
@@ -277,7 +388,7 @@ async function renderMilestones(order, readonly = false) {
       : '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">No workers assigned for this phase.</div>';
     return `
     <div style="padding:8px 12px;border-radius:10px;background:${completed ? '#f0fdf4' : '#f8fafc'};border:1px solid ${completed ? '#bbf7d0' : '#e2e8f0'};">
-      <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="toggleMilestone(${i})">
+      <div style="display:flex;align-items:center;gap:10px;${canEdit() ? 'cursor:pointer;' : ''}" ${canEdit() ? `onclick="toggleMilestone(${i})"` : ''}>
       <div style="width:22px;height:22px;border-radius:50%;background:${completed ? '#22c55e' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:12px;flex-shrink:0;">
         ${completed ? '<i class="fa-solid fa-check"></i>' : ''}
       </div>
@@ -337,13 +448,14 @@ function renderPendingApprovals(order, workers) {
             <strong style="font-size:13px;color:#86198f;display:block;">${p.label}</strong>
             <span style="font-size:11px;color:#a21caf;">${p.pct}% — ${p.workersDone}/${p.workersTotal} workers finished${dateText ? ' · ' + dateText : ''}</span>
           </div>
-          <button onclick="approvePhase('${p.phaseKey}')" class="approve-phase-btn">Approve</button>
+          ${canEdit() ? `<button onclick="approvePhase('${p.phaseKey}')" class="approve-phase-btn">Approve</button>` : ''}
         </div>
       </div>`;
   }).join("");
 }
 
 async function approvePhase(phaseKey) {
+  if (!canEdit()) return;
   const order = getSelectedOrder();
   if (!order || !order.orderId) return;
   const confirmed = confirm("Approve the " + getMilestoneKeyLabel(phaseKey) + " phase for " + (order.boatName || order.orderId) + "?");
@@ -382,6 +494,7 @@ async function approvePhase(phaseKey) {
 }
 
 async function toggleMilestone(index) {
+  if (!canEdit()) return;
   const order = getSelectedOrder();
   if (!order || order.status !== "Approved") return;
   const ww = await getDBWorkers(order.orderId);
@@ -742,12 +855,13 @@ async function renderWorkers(orderId) {
             (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
             ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
             (isActive ? workerDueChip(w) : '') +
-            (isActive ? ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i>' : '') +
+            (isActive && canEdit() ? ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i>' : '') +
             '</span>';
     }).join('');
 }
 
 async function removeWorker(workerId) {
+  if (!canEdit()) return;
     await removeDBWorker(workerId);
     const order = getSelectedOrder();
     if (order) {
@@ -817,7 +931,7 @@ async function populateWorkerSelect() {
     }
     let workers = res.ok ? await res.json() : [];
 
-    if (!workers.length && window.currentRole !== "manager") {
+    if (!workers.length) {
       await ensureWorkerRegistry();
       res = await fetch(API_BASE + "/workers/master", {
         headers: token ? { Authorization: "Bearer " + token } : {}
@@ -1011,6 +1125,7 @@ async function loadTasks(orderId) {
 }
 
 async function addTask(orderId) {
+  if (!canEdit()) return;
   const title = document.getElementById("taskTitleInput").value.trim();
   if (!title) { alert("Please enter a task title."); return; }
   const description = document.getElementById("taskDescInput").value.trim();
@@ -1037,6 +1152,7 @@ async function addTask(orderId) {
 }
 
 async function updateTaskStatus(taskId, newStatus) {
+  if (!canEdit()) return;
   const result = await handleDbError(
     supabase.from("project_tasks").update({ status: newStatus }).eq("id", taskId),
     "Update task status"
@@ -1048,6 +1164,7 @@ async function updateTaskStatus(taskId, newStatus) {
 }
 
 async function deleteTask(taskId) {
+  if (!canEdit()) return;
   if (!confirm("Delete this task?")) return;
   const result = await handleDbError(
     supabase.from("project_tasks").delete().eq("id", taskId),
@@ -1087,7 +1204,7 @@ function renderTasks() {
     const isOverdue = t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "Done";
     return `
       <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:${t.status === 'Done' ? '#f0fdf4' : '#f8fafc'};border:1px solid ${t.status === 'Done' ? '#bbf7d0' : isOverdue ? '#fca5a5' : '#e2e8f0'};">
-        <div style="cursor:pointer;width:20px;height:20px;border-radius:50%;background:${t.status === 'Done' ? '#22c55e' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;flex-shrink:0;" onclick="window.updateTaskStatus('${t.id}','${statusNext}')">
+        <div style="${canEdit() ? 'cursor:pointer;' : ''}width:20px;height:20px;border-radius:50%;background:${t.status === 'Done' ? '#22c55e' : '#e2e8f0'};display:flex;align-items:center;justify-content:center;color:white;font-size:10px;flex-shrink:0;" ${canEdit() ? `onclick="window.updateTaskStatus('${t.id}','${statusNext}')"` : ''}>
           ${t.status === 'Done' ? '<i class="fa-solid fa-check"></i>' : ''}
         </div>
         <div style="flex:1;min-width:0;">
@@ -1100,7 +1217,7 @@ function renderTasks() {
             <span style="font-size:10px;padding:1px 6px;border-radius:50px;background:${t.status === 'Done' ? '#dcfce7' : t.status === 'In Progress' ? '#dbeafe' : '#f1f5f9'};color:${t.status === 'Done' ? '#16a34a' : t.status === 'In Progress' ? '#2563eb' : '#64748b'};">${t.status}</span>
           </div>
         </div>
-        <i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:11px;cursor:pointer;flex-shrink:0;" onclick="window.deleteTask('${t.id}')"></i>
+        ${canEdit() ? `<i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:11px;cursor:pointer;flex-shrink:0;" onclick="window.deleteTask('${t.id}')"></i>` : ''}
       </div>
     `;
   }).join("");
@@ -1180,7 +1297,7 @@ async function renderDetail(order) {
     const updateBtn = document.getElementById("updateProgressBtn");
     const progressInput = document.getElementById("progressInput");
     const progressLockMsg = document.getElementById("progressLockMsg");
-    if (order.status === "Approved" && progress < 100) {
+    if (canEdit() && order.status === "Approved" && progress < 100) {
       if (workers.length > 0) {
         updateBtn.style.display = "block";
         progressInput.style.display = "";
@@ -1280,6 +1397,7 @@ select.addEventListener("change", async function() {
 });
 
 document.getElementById("updateProgressBtn").addEventListener("click", async function() {
+    if (!canEdit()) return;
     const order = getSelectedOrder();
     if (!order || order.status !== "Approved") return;
 
@@ -1361,6 +1479,7 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
 });
 
 document.getElementById("addActivityBtn")?.addEventListener("click", () => {
+    if (!canEdit()) return;
   const order = getSelectedOrder();
   if (!order) return;
   const title = document.getElementById("activityTitleInput").value.trim();
@@ -1427,6 +1546,7 @@ document.getElementById("activityPresetSelect")?.addEventListener("change", func
 let currentDocuments = [];
 
 async function uploadDocument(orderId) {
+  if (!canEdit()) return;
     const fileInput = document.getElementById("docFileInput");
     const nameInput = document.getElementById("docNameInput");
     const categorySelect = document.getElementById("docCategoryInput");
@@ -1461,7 +1581,7 @@ async function uploadDocument(orderId) {
             fileUrl: publicUrl,
             filename: file.name,
             fileSize: file.size,
-            uploadedBy: "Admin",
+            uploadedBy: actorLabel(),
             uploadedAt: new Date().toISOString()
         };
 
@@ -1511,7 +1631,7 @@ function renderDocuments() {
                 </span>
             </div>
             <a href="${d.fileUrl}" target="_blank" style="color:#295dff;font-size:14px;padding:4px 8px;text-decoration:none;" title="View"><i class="fa-solid fa-eye"></i></a>
-            <i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:12px;cursor:pointer;padding:4px;" onclick="deleteDocument('${d.id}')" title="Delete"></i>
+            ${canEdit() ? `<i class="fa-solid fa-trash-can" style="color:#ef4444;font-size:12px;cursor:pointer;padding:4px;" onclick="deleteDocument('${d.id}')" title="Delete"></i>` : ''}
         </div>
     `).join("");
 }
@@ -1540,6 +1660,7 @@ function renderDocumentsSide() {
 }
 
 async function deleteDocument(docId) {
+  if (!canEdit()) return;
     if (!confirm("Delete this document?")) return;
     const order = getSelectedOrder();
     if (!order) return;
@@ -1615,6 +1736,7 @@ function renderPhaseProgress(order) {
 let currentPhotos = [];
 
 async function uploadProgressPhoto(orderId) {
+  if (!canEdit()) return;
     const fileInput = document.getElementById("progressPhotoInput");
     const captionInput = document.getElementById("progressPhotoCaption");
     const file = fileInput.files[0];
@@ -1686,7 +1808,7 @@ function renderPhotos() {
         <div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;position:relative;">
             <img src="${p.fileUrl}" alt="${p.caption}" style="width:100%;height:100px;object-fit:cover;display:block;cursor:pointer;" onclick="window.open('${p.fileUrl}','_blank')">
             <div style="padding:4px 6px;font-size:10px;color:#64748b;background:white;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;">${p.caption} ${p.uploadedAt ? '• ' + new Date(p.uploadedAt).toLocaleDateString() : ''}</div>
-            <i class="fa-solid fa-trash-can" style="position:absolute;top:4px;right:4px;color:#ef4444;font-size:11px;cursor:pointer;background:rgba(255,255,255,0.9);padding:4px;border-radius:4px;" onclick="deleteProgressPhoto('${p.id}')" title="Delete"></i>
+            ${canEdit() ? `<i class="fa-solid fa-trash-can" style="position:absolute;top:4px;right:4px;color:#ef4444;font-size:11px;cursor:pointer;background:rgba(255,255,255,0.9);padding:4px;border-radius:4px;" onclick="deleteProgressPhoto('${p.id}')" title="Delete"></i>` : ''}
         </div>
     `).join("");
 }
@@ -1704,6 +1826,7 @@ function renderPhotosSide() {
 }
 
 async function deleteProgressPhoto(photoId) {
+  if (!canEdit()) return;
     if (!confirm("Delete this photo?")) return;
     const order = getSelectedOrder();
     if (!order) return;
@@ -1748,7 +1871,8 @@ function renderBudgetBar(order) {
     const bi = order.budgetInfo || getDefaultBudgetInfo(order);
     const total = bi.totalBudget || 0;
     const expenses = bi.expenses || [];
-    const spent = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+    const spent = sumCountedExpenses(expenses);
+    const pending = sumPendingExpenses(expenses);
     const pct = total > 0 ? Math.min(100, (spent / total) * 100) : 0;
 
     if (total > 0) {
@@ -1760,6 +1884,16 @@ function renderBudgetBar(order) {
         document.getElementById("budgetTotalLabel").textContent = "of ₱" + total.toLocaleString();
     } else {
         container.style.display = "none";
+    }
+
+    const pendingLabel = document.getElementById("budgetPendingLabel");
+    if (pendingLabel) {
+        if (pending > 0) {
+            pendingLabel.style.display = "block";
+            pendingLabel.textContent = "+ ₱" + pending.toLocaleString() + " pending approval (not counted as spent)";
+        } else {
+            pendingLabel.style.display = "none";
+        }
     }
 }
 
@@ -1783,17 +1917,31 @@ function renderExpenseList(order) {
         Transport: "#9d174d", Permits: "#065f46", Other: "#475569"
     };
 
-    container.innerHTML = expenses.map((e, i) => `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+    const statusStyle = (s) => s === "approved"
+        ? "background:#dcfce7;color:#166534"
+        : s === "rejected"
+            ? "background:#fee2e2;color:#991b1b"
+            : "background:#fef3c7;color:#92400e";
+    const statusLabel = (s) => s === "approved" ? "Approved" : s === "rejected" ? "Rejected" : "Pending";
+
+    container.innerHTML = expenses.map((e, i) => {
+        const st = e.status || "approved";
+        const isRejected = st === "rejected";
+        const isPending = st === "pending";
+        return `
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:${isPending ? '#fffbeb' : isRejected ? '#fef2f2' : '#f8fafc'};border:1px solid ${isPending ? '#fcd34d' : isRejected ? '#fecaca' : '#e2e8f0'};border-radius:10px;">
             <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:50px;background:${categoryColors[e.category] || '#f1f5f9'};color:${categoryTextColors[e.category] || '#475569'};white-space:nowrap;">${e.category || 'Other'}</span>
             <div style="flex:1;min-width:0;">
-                <strong style="font-size:12px;color:#0f172a;display:block;">${e.description || ''}</strong>
-                <span style="font-size:11px;color:#64748b;">${e.date ? new Date(e.date).toLocaleDateString() : ''}</span>
+                <strong style="font-size:12px;color:#0f172a;display:block;text-decoration:${isRejected ? 'line-through' : 'none'};">${e.description || ''}</strong>
+                <span style="font-size:11px;color:#64748b;">${e.date ? new Date(e.date).toLocaleDateString() : ''}${e.submittedBy ? ' · by ' + e.submittedBy : ''}</span>
             </div>
-            <strong style="font-size:13px;color:#dc2626;">-₱${(parseFloat(e.amount) || 0).toLocaleString()}</strong>
-            <i class="fa-solid fa-trash-can" style="color:#94a3b8;font-size:12px;cursor:pointer;padding:4px;" onclick="deleteExpense(${i})" title="Delete"></i>
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:50px;white-space:nowrap;${statusStyle(st)};">${statusLabel(st)}</span>
+            <strong style="font-size:13px;color:${isPending ? '#b45309' : '#dc2626'};${isPending ? 'text-decoration:underline dashed;' : ''}">-₱${(parseFloat(e.amount) || 0).toLocaleString()}</strong>
+            ${isPending && canManageMoney() ? `<button onclick="reviewExpense(${i},'approved')" title="Approve" style="border:none;background:#22c55e;color:white;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:11px;"><i class="fa-solid fa-check"></i></button><button onclick="reviewExpense(${i},'rejected')" title="Reject" style="border:none;background:#ef4444;color:white;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:11px;"><i class="fa-solid fa-xmark"></i></button>` : ''}
+            ${canManageMoney() ? `<i class="fa-solid fa-trash-can" style="color:#94a3b8;font-size:12px;cursor:pointer;padding:4px;" onclick="deleteExpense(${i})" title="Delete"></i>` : ''}
         </div>
-    `).join("");
+    `;
+    }).join("");
 }
 
 function renderBudgetSide(order) {
@@ -1802,7 +1950,8 @@ function renderBudgetSide(order) {
     const bi = order.budgetInfo || getDefaultBudgetInfo(order);
     const total = bi.totalBudget || 0;
     const expenses = bi.expenses || [];
-    const spent = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+    const spent = sumCountedExpenses(expenses);
+    const pending = sumPendingExpenses(expenses);
 
     if (!total) {
         container.innerHTML = '<span style="font-size:12px;color:#94a3b8;">No budget set.</span>';
@@ -1830,10 +1979,12 @@ function renderBudgetSide(order) {
             <div style="height:100%;width:${pct}%;background:${statusColor};border-radius:3px;transition:width 0.3s;"></div>
         </div>
         <span style="font-size:11px;color:#64748b;text-align:center;">${Math.round(pct)}% of budget utilized</span>
+        ${pending > 0 ? `<span style="font-size:11px;color:#b45309;text-align:center;display:block;">+ ₱${pending.toLocaleString()} pending approval</span>` : ''}
     `;
 }
 
 async function setBudget() {
+  if (!canManageMoney()) return;
     const order = getSelectedOrder();
     if (!order) { showToast("Please select an order first.", "warning"); return; }
     const input = document.getElementById("budgetTotalInput");
@@ -1855,6 +2006,7 @@ async function setBudget() {
 }
 
 async function addExpense() {
+  if (!canLogExpense()) return;
     const order = getSelectedOrder();
     if (!order) { showToast("Please select an order first.", "warning"); return; }
 
@@ -1870,10 +2022,15 @@ async function addExpense() {
     }
     if (!order.budgetInfo.expenses) order.budgetInfo.expenses = [];
 
+    const autoApproved = isAdmin();
     order.budgetInfo.expenses.push({
         category, description: desc,
         amount: amount,
-        date: new Date().toISOString()
+        date: new Date().toISOString(),
+        status: autoApproved ? "approved" : "pending",
+        submittedBy: actorLabel(),
+        reviewedBy: autoApproved ? "Admin" : null,
+        reviewedAt: autoApproved ? new Date().toISOString() : null
     });
 
     await handleDbError(
@@ -1882,13 +2039,40 @@ async function addExpense() {
     );
     document.getElementById("expenseDescInput").value = "";
     document.getElementById("expenseAmountInput").value = "";
-    showToast("Expense added.", "success");
+    showToast(autoApproved ? "Expense added and approved." : "Expense submitted for admin approval.", "success");
     renderBudgetBar(order);
     renderExpenseList(order);
     renderBudgetSide(order);
 }
 
+async function reviewExpense(index, decision) {
+  if (!canManageMoney()) return;
+  const order = getSelectedOrder();
+  if (!order || !order.budgetInfo || !order.budgetInfo.expenses) return;
+  const expense = order.budgetInfo.expenses[index];
+  if (!expense) return;
+
+  const isReject = decision === "rejected";
+  if (isReject && !confirm('Reject "' + (expense.description || "this expense") + '"? It stays in the list as Rejected for the record.')) return;
+
+  expense.status = isReject ? "rejected" : "approved";
+  expense.reviewedBy = "Admin";
+  expense.reviewedAt = new Date().toISOString();
+
+  await handleDbError(
+    supabase.from("boat_orders").update({ budgetInfo: order.budgetInfo, updatedAt: new Date().toISOString() }).eq("orderId", order.orderId),
+    isReject ? "Reject expense" : "Approve expense"
+  );
+  showToast(isReject ? "Expense rejected." : "Expense approved.", "success");
+  renderBudgetBar(order);
+  renderExpenseList(order);
+  renderBudgetSide(order);
+}
+
+window.reviewExpense = reviewExpense;
+
 async function deleteExpense(index) {
+  if (!canManageMoney()) return;
     if (!confirm("Delete this expense?")) return;
     const order = getSelectedOrder();
     if (!order) return;
@@ -1980,7 +2164,7 @@ function renderDeliveryCard(order) {
                 <span class="status-badge ${badgeClass}">${status}</span>
                 ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
             </div>
-            <button class="manage-btn" onclick="openDeliveryModal()" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:#356cff;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-edit"></i> Manage</button>
+            ${canEdit() ? '<button class="manage-btn" onclick="openDeliveryModal()" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:#356cff;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-edit"></i> Manage</button>' : ''}
         </div>
         <div class="card-details" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
             <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
@@ -2148,6 +2332,7 @@ window.previewPenalty = function() {
 };
 
 window.saveDelivery = async function() {
+    if (!canEdit()) return;
     const order = getSelectedOrder();
     if (!order) return;
     const btn = document.getElementById('saveDeliveryBtn');
@@ -2231,11 +2416,10 @@ window.submitCreateWorker = async function() { return; };
         .maybeSingle();
     if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
     window.currentRole = profile.role;
+    applyRoleLock();
 
-    if (window.currentRole !== "manager") {
-        await ensureWorkerRegistry();
-        await backfillRegistry();
-    }
+    await ensureWorkerRegistry();
+    await backfillRegistry();
     const result = await handleDbError(
         supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
         "Load orders"

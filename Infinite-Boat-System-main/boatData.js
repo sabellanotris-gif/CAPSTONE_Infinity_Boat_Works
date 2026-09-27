@@ -574,6 +574,18 @@ export function getBoatBom(boatName) {
   return null;
 }
 
+export function isCountedExpense(e) {
+  return !e.status || e.status === "approved";
+}
+
+export function sumCountedExpenses(expenses) {
+  return (expenses || []).filter(isCountedExpense).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+}
+
+export function sumPendingExpenses(expenses) {
+  return (expenses || []).filter(e => e.status === "pending").reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+}
+
 // Public API
 export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, BOAT_BOM };
 

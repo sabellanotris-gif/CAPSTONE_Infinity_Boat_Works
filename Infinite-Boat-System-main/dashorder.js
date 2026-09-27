@@ -268,9 +268,6 @@ async function deductMaterials(order) {
 
   if (result.ok) {
     order.materialsDeducted = true;
-    // This flag is the only thing stopping a re-approve from deducting stock a
-    // second time, so a failure here must block the approval instead of being
-    // swallowed. Stock is already gone at this point either way.
     const flag = await handleDbError(
       supabase.from("boat_orders").update({ materialsDeducted: true }).eq("orderId", order.orderId),
       "Mark materials deducted"
@@ -329,9 +326,16 @@ async function approveOrder(index) {
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
     const assigned = await autoAssignWorkers(order.orderId);
     if (assigned.ok) {
-        showToast('Order Approved. ' + assigned.count + ' worker(s) auto-assigned.', 'success');
+        const skipped = assigned.skipped || [];
+        if (assigned.count === 0 && skipped.length) {
+            showToast('Order Approved. No workers auto-assigned — ' + skipped.length + ' were skipped as busy on other projects. Assign manually in Boat Progress.', 'warning');
+        } else if (skipped.length) {
+            showToast('Order Approved. ' + assigned.count + ' worker(s) auto-assigned, ' + skipped.length + ' skipped (busy).', 'success');
+        } else {
+            showToast('Order Approved. ' + assigned.count + ' worker(s) auto-assigned.', 'success');
+        }
     } else {
-        showToast('Order Approved Successfully', 'success');
+        showToast('Order Approved, but no workers were auto-assigned: ' + assigned.msg + ' Assign them manually in Boat Progress.', 'warning');
     }
     renderOrders(getActiveFilter());
 }

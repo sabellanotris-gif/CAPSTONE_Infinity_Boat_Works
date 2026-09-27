@@ -25,7 +25,30 @@ async function init() {
   }
 
   await loadWorkers();
+  await backfillWorkerRegistry();
   if (window.currentRole === "admin") await loadRegistrations();
+}
+
+async function backfillWorkerRegistry() {
+  var token = await getToken();
+  if (!token) return;
+  try {
+    var res = await fetch(API_BASE + "/workers/backfill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }
+    });
+    if (!res.ok) {
+      console.error("[WORKERS] Backfill failed with status:", res.status);
+      return;
+    }
+    var result = await res.json();
+    if (result.added > 0) {
+      console.log("[WORKERS] Backfilled " + result.added + " worker(s) from registrations");
+      await loadWorkers();
+    }
+  } catch (err) {
+    console.error("[WORKERS] Backfill error:", err);
+  }
 }
 
 function getToken() {

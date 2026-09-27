@@ -1,5 +1,6 @@
 import { supabase } from "./supabase.js";
 import { handleDbError } from "./supabase.js";
+import { isCountedExpense } from "./boatData.js";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -55,7 +56,7 @@ async function loadSalesData() {
   const totalExpenses = orders.reduce((s, o) => {
     const bi = o.budgetInfo;
     if (!bi || !bi.expenses) return s;
-    return s + bi.expenses.reduce((es, e) => es + (parseFloat(e.amount) || 0), 0);
+    return s + bi.expenses.filter(isCountedExpense).reduce((es, e) => es + (parseFloat(e.amount) || 0), 0);
   }, 0);
 
   const actualProfit = totalRevenue - totalExpenses;
@@ -93,7 +94,7 @@ async function loadSalesData() {
   const expensesBreakdown = document.getElementById('expensesBreakdown');
   if (expensesEl) expensesEl.textContent = '₱' + totalExpenses.toLocaleString();
   if (expensesBreakdown) {
-    const orderCount = orders.filter(o => o.budgetInfo && o.budgetInfo.expenses && o.budgetInfo.expenses.length > 0).length;
+    const orderCount = orders.filter(o => o.budgetInfo && o.budgetInfo.expenses && o.budgetInfo.expenses.some(isCountedExpense)).length;
     expensesBreakdown.textContent = orderCount > 0
       ? 'Across ' + orderCount + ' order' + (orderCount > 1 ? 's' : '')
       : 'No expenses recorded yet';
