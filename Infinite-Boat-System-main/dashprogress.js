@@ -817,7 +817,7 @@ async function populateWorkerSelect() {
     }
     let workers = res.ok ? await res.json() : [];
 
-    if (!workers.length) {
+    if (!workers.length && window.currentRole !== "manager") {
       await ensureWorkerRegistry();
       res = await fetch(API_BASE + "/workers/master", {
         headers: token ? { Authorization: "Bearer " + token } : {}
@@ -2229,10 +2229,13 @@ window.submitCreateWorker = async function() { return; };
         .select("role")
         .eq("id", session.user.id)
         .maybeSingle();
-    if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+    if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
+    window.currentRole = profile.role;
 
-    await ensureWorkerRegistry();
-    await backfillRegistry();
+    if (window.currentRole !== "manager") {
+        await ensureWorkerRegistry();
+        await backfillRegistry();
+    }
     const result = await handleDbError(
         supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
         "Load orders"

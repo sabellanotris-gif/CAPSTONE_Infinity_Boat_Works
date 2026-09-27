@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Project Manager — Infinity Boat Works</title>
+<link rel="stylesheet" href="dashboard.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body>
+
+<script>
+window.onpageshow = function(e) {
+    if (e.persisted) window.location.reload();
+};
+</script>
+
+<div class="dashboard-layout">
+
+<aside class="sidebar">
+    <div>
+        <h1 class="logo">BoatShop</h1>
+        <nav class="sidebar-menu">
+            <a href="manager.html" >Dashboard</a>
+            <a href="dashorder.html">Orders</a>
+            <a href="dashsales.html">Sales</a>
+            <a href="dashanalytics.html">Analytics</a>
+            <a href="dashprogress.html">Boat Progress</a>
+            <a href="dashworkers.html">Workers</a>
+        </nav>
+    </div>
+    <button class="logout-btn" onclick="handleLogout();">Logout</button>
+</aside>
+
+<main class="main-content">
+
+    <div class="topbar">
+        <div>
+            <h1>Welcome Back, <span id="managerName">Project Manager</span></h1>
+            <p>Coordinate boat projects, assign workers, and monitor construction progress.</p>
+        </div>
+        <div class="topbar-right">
+            <img id="adminprofile" src="./images/user.png" class="profile-image">
+        </div>
+    </div>
+
+    <section class="quick-actions">
+        <a href="dashorder.html" style="text-decoration:none;color:inherit;">
+            <button><i class="fa-solid fa-list-check"></i> View Orders</button>
+        </a>
+        <a href="dashprogress.html" style="text-decoration:none;color:inherit;">
+            <button><i class="fa-solid fa-ship"></i> Manage Progress</button>
+        </a>
+        <a href="dashworkers.html" style="text-decoration:none;color:inherit;">
+            <button><i class="fa-solid fa-users"></i> Assign Workers</button>
+        </a>
+    </section>
+
+    <section class="analytics-section">
+
+        <div class="analytics-card">
+            <div class="circle-wrap">
+                <div class="circle orders-circle">
+                    <h2 id="statActive">0</h2>
+                </div>
+            </div>
+            <h3>Active Projects</h3>
+            <p>In construction</p>
+        </div>
+
+        <div class="analytics-card">
+            <div class="circle-wrap">
+                <div class="circle completed-circle">
+                    <h2 id="statCompleted">0</h2>
+                </div>
+            </div>
+            <h3>Completed</h3>
+            <p>Ready for delivery</p>
+        </div>
+
+        <div class="analytics-card">
+            <div class="circle-wrap">
+                <div class="circle pending-circle">
+                    <h2 id="statPending">0</h2>
+                </div>
+            </div>
+            <h3>Awaiting Approval</h3>
+            <p>Pending orders</p>
+        </div>
+
+    </section>
+
+    <section style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h3 style="margin:0;font-size:16px;"><i class="fa-solid fa-ship"></i> Recent Boat Projects</h3>
+            <a href="dashorder.html" style="font-size:13px;color:#2563eb;text-decoration:none;">View all →</a>
+        </div>
+        <div id="recentOrders"></div>
+    </section>
+
+</main>
+
+</div>
+
+<script type="module" src="manager.js"></script>
+
+</body>
+</html>

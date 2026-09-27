@@ -11,7 +11,8 @@ window.handleLogout = async function () {
   const session = await window.refreshValidSession();
   if (!session) { window.location.href = "login.html"; return; }
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+  if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
+  window.currentRole = profile.role;
 })();
 
 async function loadAnalytics() {

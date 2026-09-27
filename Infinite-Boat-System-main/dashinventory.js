@@ -51,32 +51,24 @@ const DEFAULT_ITEMS = [
 let totalMaterialsEl, lowStockEl, equipmentEl, inventoryValueEl;
 
 async function getInventory() {
-  const result = await handleDbError(
-    supabase.from("inventory").select("*").order("createdAt", { ascending: false }),
-    "Load inventory"
-  );
+  const query = () => supabase
+    .from("inventory")
+    .select("*")
+    .order("createdAt", { ascending: false })
+    .order("id", { ascending: true });
+
+  const result = await handleDbError(query(), "Load inventory");
   if (result && !result.error && result.data && result.data.length > 0) return result.data;
   // Seed defaults
   for (const item of DEFAULT_ITEMS) {
     await supabase.from("inventory").insert(item);
   }
-  const { data: seeded } = await supabase.from("inventory").select("*");
+  const { data: seeded } = await query();
   return seeded || [];
 }
 
-async function saveInventory(items) {
-  const { error } = await supabase.from("inventory").upsert(
-    items.map(i => ({
-      id: i.id || undefined,
-      name: i.name,
-      category: i.category,
-      stock: i.stock,
-      price: i.price,
-      metadata: i.metadata || null
-    })),
-    { onConflict: "id" }
-  );
-  if (error) showToast("Failed to save inventory: " + error.message, "error");
+function findItemById(items, id) {
+  return items.find(i => i.id === id) || null;
 }
 
 async function renderInventory() {
@@ -99,7 +91,7 @@ async function renderInventory() {
   if (inventoryValueEl) inventoryValueEl.textContent = '₱' + (totalValue / 1000000).toFixed(1) + 'M';
 
   const CUSTOMIZATION_CATEGORIES = ['Engine', 'Seats', 'LED', 'Color'];
-  tbody.innerHTML = items.map((item, idx) => {
+  tbody.innerHTML = items.map((item) => {
     const stock = item.stock || 0;
     const status = stock <= 5 ? 'Low Stock' : 'Available';
     const statusClass = stock <= 5 ? 'low-stock' : 'available';
@@ -111,8 +103,9 @@ async function renderInventory() {
       <td><span class="${statusClass}">${status}</span></td>
       <td>₱${(item.price || 0).toLocaleString()}</td>
       <td>
-        <button class="view-btn edit-btn" data-idx="${idx}">Edit</button>
-        <button class="view-btn delete-btn" style="background:#dc2626;margin-left:5px" data-idx="${idx}">Delete</button>
+        <button class="view-btn restock-btn" data-id="${item.id}">Restock</button>
+        <button class="view-btn edit-btn" data-id="${item.id}">Edit</button>
+        <button class="view-btn delete-btn" style="background:#dc2626;margin-left:5px" data-id="${item.id}">Delete</button>
       </td>
     </tr>`;
   }).join('');
@@ -129,7 +122,6 @@ document.querySelector('.add-btn')?.addEventListener('click', async () => {
   if (isNaN(stock)) return;
   const price = parseInt(prompt('Price (₱):'));
   if (isNaN(price)) return;
-  const items = await getInventory();
   let metadata = null;
   if (['Engine', 'Seats', 'LED', 'Color'].includes(category)) {
     try {
@@ -137,34 +129,63 @@ document.querySelector('.add-btn')?.addEventListener('click', async () => {
       if (metaStr) metadata = JSON.parse(metaStr);
     } catch { showToast('Invalid JSON, saved without metadata', 'warning'); }
   }
-  items.push({ name, category, stock, price, metadata });
-  await saveInventory(items);
+  const { error } = await supabase.from("inventory").insert({ name, category, stock, price, metadata });
+  if (error) {
+    showToast("Failed to add item: " + error.message, "error");
+    return;
+  }
   await renderInventory();
 });
 
 document.querySelector('#inventoryTable')?.addEventListener('click', async (e) => {
   const editBtn = e.target.closest('.edit-btn');
+  const restockBtn = e.target.closest('.restock-btn');
   const deleteBtn = e.target.closest('.delete-btn');
-  if (!editBtn && !deleteBtn) return;
+  const btn = editBtn || restockBtn || deleteBtn;
+  if (!btn) return;
 
-  const idx = parseInt((editBtn || deleteBtn).dataset.idx);
+  const id = btn.dataset.id;
   const items = await getInventory();
+  const item = findItemById(items, id);
+  if (!item) {
+    showToast('Item not found — it may have been deleted. Refresh and try again.', 'error');
+    return;
+  }
 
   if (deleteBtn) {
-    if (!confirm('Delete this item?')) return;
-    const item = items[idx];
-    if (item && item.id) {
-      await handleDbError(
-        supabase.from("inventory").delete().eq("id", item.id),
-        "Delete inventory item"
-      );
+    if (!confirm(`Delete "${item.name}"?`)) return;
+    await handleDbError(
+      supabase.from("inventory").delete().eq("id", item.id),
+      "Delete inventory item"
+    );
+    await renderInventory();
+    return;
+  }
+
+  if (restockBtn) {
+    const current = item.stock || 0;
+    const raw = prompt(`Add how many "${item.name}" to stock?\n\nCurrent stock: ${current}`, '10');
+    if (raw === null) return;
+    const qty = parseInt(raw, 10);
+    if (isNaN(qty) || qty <= 0) {
+      showToast('Enter a positive whole number.', 'error');
+      return;
     }
+    const newStock = current + qty;
+    const { error } = await supabase
+      .from("inventory")
+      .update({ stock: newStock, updatedAt: new Date().toISOString() })
+      .eq("id", item.id);
+    if (error) {
+      showToast('Failed to restock: ' + error.message, 'error');
+      return;
+    }
+    showToast(`${item.name}: stock ${current} → ${newStock}`, 'success');
     await renderInventory();
     return;
   }
 
   if (editBtn) {
-    const item = items[idx];
     const name = prompt('Item name:', item.name);
     if (!name) return;
     const category = prompt('Category:', item.category);
@@ -180,8 +201,14 @@ document.querySelector('#inventoryTable')?.addEventListener('click', async (e) =
         if (metaStr) metadata = JSON.parse(metaStr);
       } catch { showToast('Invalid JSON, metadata preserved', 'warning'); }
     }
-    items[idx] = { ...item, name, category, stock, price, metadata };
-    await saveInventory(items);
+    const { error } = await supabase
+      .from("inventory")
+      .update({ name, category, stock, price, metadata: metadata || null, updatedAt: new Date().toISOString() })
+      .eq("id", item.id);
+    if (error) {
+      showToast('Failed to save changes: ' + error.message, 'error');
+      return;
+    }
     await renderInventory();
   }
 });

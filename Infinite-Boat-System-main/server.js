@@ -122,6 +122,14 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
+async function requireAdminOrManager(req, res, next) {
+  const role = req.profile?.role || req.user?.user_metadata?.role;
+  if (role !== "admin" && role !== "manager") {
+    return res.status(403).json({ error: "Admin or Project Manager access required" });
+  }
+  next();
+}
+
 /* ============ AUTH ============ */
 
 app.post("/api/auth/me", authenticate, (req, res) => {
@@ -857,7 +865,7 @@ app.put("/api/worker/update-task/:id", authenticate, async (req, res) => {
   }
 });
 
-app.post("/api/worker/approve-phase", authenticate, requireAdmin, async (req, res) => {
+app.post("/api/worker/approve-phase", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { orderId, phaseKey } = req.body || {};
     if (!orderId || !phaseKey) return res.status(400).json({ error: "orderId and phaseKey are required" });
@@ -995,7 +1003,7 @@ app.get("/api/orders", authenticate, async (req, res) => {
   try {
     let query = supabase.from("boat_orders").select("*").order("createdAt", { ascending: false });
 
-    if (req.profile?.role !== "admin" && req.user?.user_metadata?.role !== "admin") {
+    if (req.profile?.role !== "admin" && req.user?.user_metadata?.role !== "admin" && req.profile?.role !== "manager" && req.user?.user_metadata?.role !== "manager") {
       query = query.eq("userId", req.user.id);
     }
 
@@ -1036,7 +1044,7 @@ app.put("/api/orders/:orderId", authenticate, async (req, res) => {
 
     if (!existing) return res.status(404).json({ error: "Order not found" });
 
-    if (req.profile?.role !== "admin" && req.user?.user_metadata?.role !== "admin" && existing.userId !== req.user.id) {
+    if (req.profile?.role !== "admin" && req.user?.user_metadata?.role !== "admin" && req.profile?.role !== "manager" && req.user?.user_metadata?.role !== "manager" && existing.userId !== req.user.id) {
       return res.status(403).json({ error: "Not authorized to update this order" });
     }
 
@@ -1351,7 +1359,7 @@ app.get("/api/workers", authenticate, async (req, res) => {
 
 // Master worker registry (must be defined BEFORE /api/workers/:orderId so it
 // is not shadowed by the parameterized route)
-app.get("/api/workers/master", authenticate, requireAdmin, async (req, res) => {
+app.get("/api/workers/master", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data: workers, error } = await adminDb.from("workers").select("*").order("name", { ascending: true });
     if (error) return res.status(500).json({ error: error.message });
@@ -1396,7 +1404,7 @@ app.get("/api/workers/:orderId", authenticate, async (req, res) => {
   }
 });
 
-app.post("/api/workers", authenticate, requireAdmin, async (req, res) => {
+app.post("/api/workers", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     let payload = Array.isArray(req.body) ? req.body : [req.body];
     if (payload.some(w => w.orderId && w.phase)) {
@@ -1711,7 +1719,7 @@ app.post("/api/workers/assign-phase/:orderId", authenticate, async (req, res) =>
   }
 });
 
-app.delete("/api/workers/:id", authenticate, requireAdmin, async (req, res) => {
+app.delete("/api/workers/:id", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { error } = await adminDb.from("project_workers").delete().eq("id", req.params.id);
     if (error) return res.status(500).json({ error: error.message });
@@ -1741,7 +1749,7 @@ app.delete("/api/workers/master/:id", authenticate, requireAdmin, async (req, re
   }
 });
 
-app.get("/api/admin/workers-detail", authenticate, requireAdmin, async (req, res) => {
+app.get("/api/admin/workers-detail", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data: workers, error } = await adminDb
       .from("workers")
@@ -1817,7 +1825,7 @@ app.get("/api/tasks", authenticate, async (req, res) => {
   }
 });
 
-app.post("/api/tasks", authenticate, requireAdmin, async (req, res) => {
+app.post("/api/tasks", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data, error } = await adminDb.from("project_tasks").insert(req.body).select();
     if (error) return res.status(500).json({ error: error.message });
@@ -1827,7 +1835,7 @@ app.post("/api/tasks", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-app.put("/api/tasks/:id", authenticate, requireAdmin, async (req, res) => {
+app.put("/api/tasks/:id", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data, error } = await adminDb
       .from("project_tasks")
@@ -1841,7 +1849,7 @@ app.put("/api/tasks/:id", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-app.delete("/api/tasks/:id", authenticate, requireAdmin, async (req, res) => {
+app.delete("/api/tasks/:id", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { error } = await adminDb.from("project_tasks").delete().eq("id", req.params.id);
     if (error) return res.status(500).json({ error: error.message });
@@ -1865,7 +1873,7 @@ app.post("/api/upload", authenticate, upload.single("file"), async (req, res) =>
 
 /* ============ REPORTS ============ */
 
-app.get("/api/reports/summary", authenticate, requireAdmin, async (req, res) => {
+app.get("/api/reports/summary", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { data: orders, error } = await adminDb.from("boat_orders").select("*");
     if (error) return res.status(500).json({ error: error.message });

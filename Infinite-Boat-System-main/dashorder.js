@@ -12,7 +12,8 @@ window.handleLogout = async function () {
   const session = await window.refreshValidSession();
   if (!session) { window.location.href = "login.html"; return; }
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+  if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
+  window.currentRole = profile.role;
 })();
 
 function safeNum(val) {
@@ -153,6 +154,7 @@ function renderOrders(filter) {
                     <p>${order.cancelRejectFeedback}</p>
                 </div>` : ''}
                 <div class="actions">
+                    ${window.currentRole === 'manager' ? '' : `
                     ${isCancellationRequested && !order.cancelPaidAt ? `
                         <button class="approve-btn" onclick="approveCancellation(${realIndex})"><i class="fa-solid fa-check"></i> Approve Cancellation</button>
                         <button class="reject-btn" onclick="rejectCancellation(${realIndex})"><i class="fa-solid fa-times"></i> Reject Cancellation</button>
@@ -166,6 +168,7 @@ function renderOrders(filter) {
                         <button class="approve-btn" onclick="approveOrder(${realIndex})"><i class="fa-solid fa-check"></i> Approve</button>
                         <button class="revision-btn" onclick="requestRevision(${realIndex})"><i class="fa-solid fa-pen"></i> Request Revision</button>
                     ` : ''}
+                    `}
                     <button class="view-btn" onclick="viewOrder(${realIndex})"><i class="fa-solid fa-eye"></i> View</button>
                 </div>
             </div>
@@ -265,7 +268,19 @@ async function deductMaterials(order) {
 
   if (result.ok) {
     order.materialsDeducted = true;
-    await supabase.from("boat_orders").update({ materialsDeducted: true }).eq("orderId", order.orderId).catch(() => {});
+    // This flag is the only thing stopping a re-approve from deducting stock a
+    // second time, so a failure here must block the approval instead of being
+    // swallowed. Stock is already gone at this point either way.
+    const flag = await handleDbError(
+      supabase.from("boat_orders").update({ materialsDeducted: true }).eq("orderId", order.orderId),
+      "Mark materials deducted"
+    );
+    if (flag?.error) {
+      return {
+        ok: false,
+        msg: "Stock was deducted but this order could not be flagged as deducted, so approving it again would deduct twice. Do not retry — ask an administrator to reconcile the stock."
+      };
+    }
   }
   return result;
 }
@@ -646,6 +661,16 @@ window.viewOrder = viewOrder;
 window.updateProgress = updateProgress;
 
 (async function init() {
+    const session = await window.refreshValidSession();
+    if (session) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
+        if (profile) window.currentRole = profile.role;
+    }
+    if (window.currentRole === 'manager') {
+        const addBtns = document.querySelectorAll('.add-btn');
+        addBtns.forEach(btn => { btn.style.display = 'none'; });
+    }
+
     const result = await handleDbError(
         supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
         "Load orders"

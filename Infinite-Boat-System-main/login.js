@@ -59,6 +59,15 @@ window.login = async function () {
       photo: profile?.photo || "./images/user.png",
     }));
     window.location.href = "dashboard.html";
+  } else if (userRole === "manager") {
+    alert("Welcome Project Manager!");
+    localStorage.setItem("role", "manager");
+    localStorage.setItem("currentUser", JSON.stringify({
+      name: profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email,
+      email: user.email,
+      photo: profile?.photo || "./images/user.png",
+    }));
+    window.location.href = "manager.html";
   } else if (userRole === "worker") {
     const { data: regStatus } = await supabase
       .from("worker_registrations")

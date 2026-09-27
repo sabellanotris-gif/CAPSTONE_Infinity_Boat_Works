@@ -16,10 +16,16 @@ async function init() {
   if (!session) { window.location.href = "login.html"; return; }
 
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
-  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+  if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
+  window.currentRole = profile.role;
+
+  if (window.currentRole === "manager") {
+    const regTab = document.querySelector('.ww-tab[data-tab="registrations"]');
+    if (regTab) regTab.style.display = "none";
+  }
 
   await loadWorkers();
-  await loadRegistrations();
+  if (window.currentRole === "admin") await loadRegistrations();
 }
 
 function getToken() {

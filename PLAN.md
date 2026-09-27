@@ -603,3 +603,117 @@ Task management for each boat order, used for tracking granular work items.
 Row-Level Security (RLS) is enabled on all tables. An is_admin() helper function checks if the authenticated user has an admin role. Customers can only access their own orders and payments, while administrators have full access across all records.
 
 The system also uses a boats_data module (boatData.js) that contains hardcoded specifications, materials, milestones, activities, timelines, and delivery information for six boat types: 1950 Passenger Boat, 2680 Passenger Boat, Passenger Boat, Speed Boat, Parasail Boat, and Patrol Boat.
+
+SYSTEM ROLES
+
+The system defines four user roles: Client, Worker, Admin, and Project Manager. Each role has a dedicated login destination, set of pages, and permission scope enforced both by Row-Level Security (RLS) on the database and by role guards in the application code.
+
+1. Client (Customer / "user")
+Login: home.html. The boat owner who orders and pays for a boat.
+Capabilities:
+- Place and manage orders through the 7-step order wizard (order.html): build type selection (standard/custom), customer information, acknowledgment questions, guideline review, contract schedule selection with calendar, order summary, and digital signature.
+- Customize a boat via the 2D/3D boat customization interface (boatcust.html).
+- Submit payments with proof-of-payment upload (payment.html).
+- Track only their own boat: order status, progress percentage, milestones, progress photos, notifications, and cancellation requests.
+- Manage their profile (profile.html) and browse the boat catalog (boat.html).
+Limits:
+- Can only view and edit their own orders, payments, and project information (enforced by RLS using auth.uid() = userId and by GET /api/orders filtering to req.user.id).
+- Has no access to any admin, worker, or analytics functionality.
+
+2. Worker
+Login: worker.html with tabs (Dashboard / My Assignments / Profile). A factory tradesman with a specialty: Engineer, Builder, Welder, Electrician, Painter, or Fiberglass Specialist.
+Capabilities:
+- View assignments and project tasks assigned to them across boat projects (via /api/worker/my-assignments).
+- Update task status (via /api/worker/update-task/:id).
+- Approve phase completion for their assigned phase (via /api/worker/approve-phase).
+Limits:
+- May only be Active on one project at a time (enforced by migration_worker_single_project.sql and a server-side check).
+- Cannot see customer information, financial data, or other workers' assignments.
+- Worker registration is not automatic: registrations require admin approval (dashapproval.html and /api/worker-registrations/*). Pending or rejected accounts cannot log in.
+
+3. Admin
+Login: dashboard.html. The system/company administrator. Oversees the entire operation but no longer needs to handle day-to-day project management once the Project Manager role is active.
+Capabilities:
+- Approve/reject orders and manage the order status pipeline (dashorder.html).
+- Manage payments; review and approve/reject payment proofs (dashpayment.html).
+- Manage inventory, including 3D customization part stock and Bill of Materials deduction (dashinventory.html).
+- Manage customers and user accounts (dashcustomer.html).
+- Approve worker registrations and manage worker accounts (dashapproval.html, dashworkers.html, /api/admin/create-worker).
+- Manage the master worker registry: add/remove/edit workers and their specialties.
+- Sales and analytics: revenue, reports, analytics dashboards (dashsales.html, dashanalytics.html, /api/reports/summary).
+- Manage delivery tracking: committed dates, sea trial results, delay penalty calculation (dashdelivery.html).
+- System settings and high-level administration: delete users/orders, broadcast notifications, AI video generation (aivideo.html).
+- Retains full visibility and can override project information when necessary (can still access dashprogress and all project records).
+Limits: none of consequence; admin is the top role. The admin role itself is protected so users cannot self-promote (migration_lock_admin_role.sql).
+
+4. Project Manager (NEW ROLE)
+Login: dashboard.html (shared portal, restricted navigation). A role responsible for day-to-day coordination of boat projects from order approval until completion. One fixed account: manager@gmail.com, created via a dedicated seeding script.
+Capabilities:
+- Manage boat projects and project progress (dashprogress.html).
+- Create and update milestones (interactive milestone toggles).
+- Update project progress percentage.
+- Manage the Gantt chart / project schedule.
+- Assign workers to project phases and monitor worker assignments and task progress.
+- Upload progress photos and project documents.
+- Monitor the project budget (budgetInfo: total, expended, remaining, expense list).
+- View project activity logs (audit trail).
+- View project delays and scheduling information through milestone and Gantt dates.
+- View the orders pipeline in READ-ONLY mode (dashorder.html) to coordinate from order approval until completion.
+- View sales and analytics in READ-ONLY mode (dashsales.html, dashanalytics.html).
+Limits:
+- Cannot approve/reject payments.
+- Cannot manage inventory.
+- Cannot manage customer accounts.
+- Cannot approve worker registrations or create worker accounts.
+- Cannot delete users or orders.
+- Cannot perform company-wide admin functions (delivery management, worker master writes, notification broadcasts, etc.).
+
+Role Permission Matrix
+Capability | Project Manager | Admin
+Manage projects, milestones, progress %, Gantt/schedule, budget, photos/docs, activity logs | Yes | Yes
+Assign workers to phases; monitor assignments & tasks | Yes (day-to-day) | No (override only)
+View orders pipeline (read-only for PM; full for admin) | Yes | Yes
+Sales and analytics (read-only) | Yes | Yes
+Approve/reject orders | No | Yes
+Approve payments, manage inventory, customers, worker approvals | No | Yes
+Delete users/orders | No | Yes
+Delivery management (dashdelivery) | No | Yes
+Company-wide admin / system settings / override project work | No | Yes
+Login destination | manager.html (restricted nav) | dashboard.html (full nav)
+
+PROJECT MANAGER ROLE - IMPLEMENTATION PLAN
+
+1) Database - new migration: migration_project_manager_role.sql
+- Add public.is_manager() and public.is_admin_or_manager() helper functions mirroring public.is_admin().
+- Relax RLS policies to include managers (add "OR public.is_admin_or_manager()"):
+  - boat_orders: SELECT + UPDATE (managers manage projects). INSERT and DELETE remain admin-only.
+  - project_workers and project_tasks: SELECT + INSERT + UPDATE + DELETE (managers assign workers and manage tasks).
+  - dashboard_payments: SELECT only (view payments). Writes remain admin-only.
+  - profiles: SELECT (managers may view customer names on the Orders page).
+  - workers (master): SELECT already open to all; writes remain admin-only.
+- Seed the fixed account: UPDATE public.profiles SET role = 'manager' WHERE email = 'manager@gmail.com';
+- Safe with lock_profile_role trigger because that trigger only protects the 'admin' role.
+
+2) Backend - server.js
+- Add a requireAdminOrManager middleware that accepts 'admin' or 'manager'.
+- Relax admin-only guards so the manager may: view all orders (GET /api/orders), update projects (PUT /api/orders/:orderId), approve phase progress (POST /api/worker/approve-phase), assign/release workers (POST /api/workers, POST /api/workers/assign-phase, /api/workers/auto-assign, /api/workers/release-phase, DELETE /api/workers/:id), view the worker master registry and worker detail (GET /api/workers/master, GET /api/admin/workers-detail), CRUD project tasks (/api/tasks), and view reports (GET /api/reports/summary).
+- Remain admin-only (no relaxation): order deletion, payment approval, inventory CRUD, customer/user management, worker-registration approval and create-worker, worker master writes (POST/DELETE /api/workers/master), notification broadcasts, and delivery endpoints.
+- Admin retains override access to project/assignment endpoints (same middleware permits admin); the "day-to-day vs override" separation is enforced in the UI, not by locking the admin out.
+
+3) Frontend
+- login.js: add a 'manager' branch that sets localStorage.role = 'manager' and redirects to manager.html.
+- New manager.html / manager.js: Project Manager home with restricted navigation (Dashboard, Orders, Sales, Analytics, Boat Progress, Workers) and summary cards. dashboard.html remains the admin home (strict admin guard).
+- New roleNav.js: shared sidebar filter — for managers it repoints Dashboard to manager.html and removes the admin-only links (Customers, Payments, Inventory, Approvals, Delivery).
+- Loosen the role guard pattern from "profile.role !== 'admin'" to "!['admin','manager'].includes(profile.role)" and set window.currentRole in: dashorder.js, dashworkers.js, dashsales.js, dashanalytics.js, and dashprogress.js.
+- Hide admin-only UI for managers:
+  - dashorder.html/js: read-only mode — approve/reject/status/cancel buttons and "+ New Order" are hidden (View remains).
+  - dashworkers.html/js: the Registrations tab is hidden (approvals + register controls remain admin-only); the worker list/registry view remains.
+  - dashprogress.html/js: worker registry seeding is skipped for managers (registry is populated by admin); phase approval, worker assignment, tasks, photos/docs, budget, and Gantt remain available.
+- Admin-only pages (dashpayment, dashinventory, dashcustomer, dashapproval, dashdelivery, dashboard) keep strict admin guards and are not linked for the manager.
+
+4) Seeding
+- Add setup-manager.mjs (mirrors setup-admin.mjs) that creates manager@gmail.com with role 'manager', run with the Supabase service-role key: node setup-manager.mjs <service_role_key>
+- Also run migration_project_manager_role.sql (creates is_manager() / is_admin_or_manager() and relaxes RLS policies) before seeding the account.
+
+5) Verification
+- Start the server (node server.js) and verify: manager login redirects to manager.html with restricted navigation; manager can update milestones, progress %, assign workers, create tasks, and view reports; read-only Orders page; manager receives 403 on admin-only endpoints; admin access is unchanged on all pages; admin can still override worker assignments from dashprogress if necessary.
