@@ -3,15 +3,13 @@ import { supabase, handleDbError, sendEmailNotification, API_BASE, parseContract
 window.handleLogout = async function () {
     await supabase.auth.signOut();
     localStorage.clear();
+    sessionStorage.clear();
     window.location.href = "index.html";
 };
 
 // Session & role guard
 (async () => {
-  const session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+  await window.requireRole(["admin"]);
 })();
 
 let allApprovals = [];
@@ -400,7 +398,7 @@ window.approveScheduleApproval = async function(idx) {
     if (result?.error) return;
 
     sendEmailNotification({ type: 'status_changed', recipient: order.customerEmail, data: order });
-    showToast('Schedule approved! Assign workers in the Manage Progress page.', 'success');
+    showToast('Schedule approved! Use Create Team in the Boat Progress page.', 'success');
     loadData();
 };
 
@@ -429,6 +427,23 @@ window.rejectScheduleApproval = async function(idx) {
 };
 
 // Payment Approval
+window.assignTeamForOrder = async function(orderId) {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/workers/assign-team/" + orderId, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { ok: false, msg: data?.error || "Team assignment failed" };
+        return { ok: true, count: data?.count || 0, skipped: data?.skipped || [] };
+    } catch (e) {
+        console.error("Assign team failed:", e);
+        return { ok: false, msg: e?.message || "Team assignment failed" };
+    }
+};
+
 window.approvePaymentApproval = async function(idx) {
     const a = allApprovals[idx];
     if (!a || a.type !== 'payment') return;
@@ -489,6 +504,20 @@ window.approvePaymentApproval = async function(idx) {
     );
 
     console.log('[APPROVE] Update result:', updateResult);
+
+    if (currentStep === 0 && nextStep === 1) {
+        const teamRes = await window.assignTeamForOrder(order.orderId);
+        if (teamRes.ok) {
+            const skippedBusy = (teamRes.skipped || []).length;
+            if (teamRes.count === 0 && skippedBusy) {
+                showToast('Payment approved. No assignments created — ' + skippedBusy + ' specialty(ies) had no available worker. Use Create Team in Boat Progress.', 'warning');
+            } else {
+                showToast('Payment approved. Build team created with ' + teamRes.count + ' assignment(s).' + (skippedBusy ? ' ' + skippedBusy + ' specialty(ies) skipped (no available worker).' : ''), 'success');
+            }
+        } else {
+            showToast('Payment approved, but team was not created: ' + teamRes.msg + ' Use Create Team in Boat Progress.', 'warning');
+        }
+    }
 
     sendEmailNotification({ type: 'payment_approved', recipient: payment.customerEmail || order.customerEmail, data: payment });
     showToast('Payment approved successfully!', 'success');

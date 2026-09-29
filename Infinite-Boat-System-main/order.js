@@ -4,10 +4,10 @@ import { supabase, sendEmailNotification, getCustomerIdentity } from "./supabase
 (async () => {
   try {
     const identity = await getCustomerIdentity();
-    if (identity.name) localStorage.setItem("customerName", identity.name);
-    if (identity.email) localStorage.setItem("customerEmail", identity.email);
-    if (identity.phone) localStorage.setItem("customerPhone", identity.phone);
-    if (identity.photo) localStorage.setItem("customerImage", identity.photo);
+    if (identity.name) sessionStorage.setItem("customerName", identity.name);
+    if (identity.email) sessionStorage.setItem("customerEmail", identity.email);
+    if (identity.phone) sessionStorage.setItem("customerPhone", identity.phone);
+    if (identity.photo) sessionStorage.setItem("customerImage", identity.photo);
   } catch (e) { /* non-fatal */ }
 })();
 
@@ -119,7 +119,7 @@ function init() {
     document.getElementById("orderDownPayment").textContent = boatData.downpayment || "N/A";
 
     const phoneInput = document.getElementById("customerPhoneInput");
-    if (phoneInput) phoneInput.value = localStorage.getItem("customerPhone") || "";
+    if (phoneInput) phoneInput.value = sessionStorage.getItem("customerPhone") || "";
 }
 
 function showApprovedDesignSummary(order) {
@@ -337,7 +337,7 @@ function validateSchedule(data) {
     if (data.location.length < 3) { markOrderError(document.getElementById("signingLocation"), "Please enter a valid meeting location (at least 3 characters)."); return false; }
     if (!data.signature) { markOrderError(document.getElementById("signingSignature"), "Please type your full name as your digital signature."); return false; }
     if (data.signature.length < 2) { markOrderError(document.getElementById("signingSignature"), "Please type your full name as signature (at least 2 characters)."); return false; }
-    const registeredName = localStorage.getItem("customerName");
+    const registeredName = sessionStorage.getItem("customerName");
     if (registeredName && data.signature !== registeredName) {
         markOrderError(document.getElementById("signingSignature"), 'Signature must match your registered name: "' + registeredName + '".');
         return false;
@@ -508,13 +508,13 @@ async function submitOrder() {
 
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id || "";
-    let customerName = localStorage.getItem("customerName") || user?.email?.split('@')[0] || "Customer";
-    let customerEmail = localStorage.getItem("customerEmail") || user?.email || "";
-    if (!localStorage.getItem("customerName")) localStorage.setItem("customerName", customerName);
-    if (!localStorage.getItem("customerEmail")) localStorage.setItem("customerEmail", customerEmail);
+    let customerName = sessionStorage.getItem("customerName") || user?.email?.split('@')[0] || "Customer";
+    let customerEmail = sessionStorage.getItem("customerEmail") || user?.email || "";
+    if (!sessionStorage.getItem("customerName")) sessionStorage.setItem("customerName", customerName);
+    if (!sessionStorage.getItem("customerEmail")) sessionStorage.setItem("customerEmail", customerEmail);
     const phoneInput = document.getElementById("customerPhoneInput");
-    const customerPhone = phoneInput ? phoneInput.value.trim() : localStorage.getItem("customerPhone") || "";
-    if (customerPhone) localStorage.setItem("customerPhone", customerPhone);
+    const customerPhone = phoneInput ? phoneInput.value.trim() : sessionStorage.getItem("customerPhone") || "";
+    if (customerPhone) sessionStorage.setItem("customerPhone", customerPhone);
 
     const comments = {};
     document.querySelectorAll(".guideline-item").forEach((item, i) => {

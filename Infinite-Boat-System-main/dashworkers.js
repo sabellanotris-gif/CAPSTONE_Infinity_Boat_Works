@@ -3,6 +3,7 @@ import { supabase, API_BASE } from "./supabase.js";
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
@@ -12,12 +13,9 @@ let allRegistrations = [];
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
-  const session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
-
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
-  if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
-  window.currentRole = profile.role;
+  const auth = await window.requireRole(["admin", "manager"]);
+  if (!auth) return;
+  window.currentRole = auth.profile.role;
 
   if (window.currentRole === "manager") {
     const regTab = document.querySelector('.ww-tab[data-tab="registrations"]');

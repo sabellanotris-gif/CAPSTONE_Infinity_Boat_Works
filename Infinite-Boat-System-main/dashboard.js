@@ -7,11 +7,12 @@ let supabase;
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
 const adminNameSpan = document.querySelector('.topbar h1 span');
-const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+const storedUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
 function applyAdminIdentity(user) {
   const displayName = (user && (user.name || user.email))
     ? (user.name || user.email.split('@')[0])
@@ -47,14 +48,26 @@ if (!storedUser.email && !storedUser.name) {
 
 // Session & role guard
 (async () => {
-  let session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", session.user.id)
-    .maybeSingle();
-  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+  // Ensure the supabase.js module (and its window.requireRole helper) is fully
+  // loaded before the guard runs — the top-level init() below imports it lazily.
+  if (typeof window.requireRole !== "function") {
+    await import("./supabase.js");
+  }
+  const auth = await window.requireRole(["admin"]);
+  if (auth?.profile) {
+    // Keep the topbar tuned to the LIVE profile for this tab's session, not a
+    // stale shared key. requireRole already cached the verified profile.
+    applyAdminIdentity({
+      name: auth.profile.name || auth.profile.email,
+      email: auth.profile.email,
+      photo: auth.profile.photo,
+    });
+    sessionStorage.setItem("currentUser", JSON.stringify({
+      name: auth.profile.name || auth.profile.email,
+      email: auth.profile.email,
+      photo: auth.profile.photo || "./images/user.png",
+    }));
+  }
 })();
 
 /* =============================================

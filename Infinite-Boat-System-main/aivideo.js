@@ -3,6 +3,7 @@ import { supabase, handleDbError } from "./supabase.js";
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
@@ -10,10 +11,8 @@ let selectedImages = [];
 let generatedVideos = [];
 
 (async function init() {
-  const session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (!profile || profile.role !== "admin") { window.location.href = "login.html"; return; }
+  const auth = await window.requireRole(["admin"]);
+  if (!auth) return;
 
   await loadCustomers();
   loadHistory();

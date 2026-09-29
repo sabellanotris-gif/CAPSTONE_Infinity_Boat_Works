@@ -5,10 +5,10 @@ import { companyBanks } from "./bankConfig.js";
 (async () => {
   try {
     const identity = await getCustomerIdentity();
-    if (identity.name) localStorage.setItem("customerName", identity.name);
-    if (identity.email) localStorage.setItem("customerEmail", identity.email);
-    if (identity.phone) localStorage.setItem("customerPhone", identity.phone);
-    if (identity.photo) localStorage.setItem("customerImage", identity.photo);
+    if (identity.name) sessionStorage.setItem("customerName", identity.name);
+    if (identity.email) sessionStorage.setItem("customerEmail", identity.email);
+    if (identity.phone) sessionStorage.setItem("customerPhone", identity.phone);
+    if (identity.photo) sessionStorage.setItem("customerImage", identity.photo);
   } catch (e) { /* non-fatal */ }
 })();
 
@@ -817,8 +817,8 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
       .from("dashboard_payments")
       .insert({
         orderId: savedOrder.orderId,
-        customerName: savedOrder.customerName || localStorage.getItem("customerName") || "Customer",
-        customerEmail: savedOrder.customerEmail || localStorage.getItem("customerEmail") || "",
+        customerName: savedOrder.customerName || sessionStorage.getItem("customerName") || "Customer",
+        customerEmail: savedOrder.customerEmail || sessionStorage.getItem("customerEmail") || "",
         boatName: savedOrder.boatName,
         amount: amount,
         phase: paymentCurrentPhase.innerText,
@@ -838,13 +838,13 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
       return;
     }
 
-    const emailRecipient = savedOrder.customerEmail || localStorage.getItem("customerEmail") || "";
+    const emailRecipient = savedOrder.customerEmail || sessionStorage.getItem("customerEmail") || "";
     sendEmailNotification({
       type: "payment_submitted",
       recipient: "infinityboatsystem@gmail.com",
       data: {
         orderId: savedOrder.orderId,
-        customerName: savedOrder.customerName || localStorage.getItem("customerName"),
+        customerName: savedOrder.customerName || sessionStorage.getItem("customerName"),
         boatName: savedOrder.boatName,
         amount: amount,
         bank: selectedBank,
@@ -891,8 +891,8 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
     if (_cancelFeeMode) {
         // Cancel fee receipt — minimal, distinct from boat payment receipt
         document.querySelector('.receipt-header h2').textContent = 'CANCELLATION FEE RECEIPT';
-        document.getElementById("receiptCustomerName").textContent = savedOrder.customerName || localStorage.getItem("customerName") || "N/A";
-        document.getElementById("receiptCustomerEmail").textContent = savedOrder.customerEmail || localStorage.getItem("customerEmail") || "N/A";
+        document.getElementById("receiptCustomerName").textContent = savedOrder.customerName || sessionStorage.getItem("customerName") || "N/A";
+        document.getElementById("receiptCustomerEmail").textContent = savedOrder.customerEmail || sessionStorage.getItem("customerEmail") || "N/A";
         document.getElementById("receiptOrderId").textContent = savedOrder.orderId || "N/A";
         document.getElementById("receiptAmount").textContent = "₱" + amount.toLocaleString();
         document.getElementById("receiptPhase").textContent = "Cancellation Fee";
@@ -944,8 +944,8 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
         document.getElementById("receiptCustomConfig").innerHTML = receiptHtml;
     }
 
-    document.getElementById("receiptCustomerName").textContent = savedOrder.customerName || localStorage.getItem("customerName") || "N/A";
-    document.getElementById("receiptCustomerEmail").textContent = savedOrder.customerEmail || localStorage.getItem("customerEmail") || "N/A";
+    document.getElementById("receiptCustomerName").textContent = savedOrder.customerName || sessionStorage.getItem("customerName") || "N/A";
+    document.getElementById("receiptCustomerEmail").textContent = savedOrder.customerEmail || sessionStorage.getItem("customerEmail") || "N/A";
     document.getElementById("receiptOrderId").textContent = savedOrder.orderId || "N/A";
     document.getElementById("receiptAmount").textContent = "₱" + amount.toLocaleString();
     document.getElementById("receiptPhase").textContent = paymentCurrentPhase.innerText || "N/A";

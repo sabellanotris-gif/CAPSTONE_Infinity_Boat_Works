@@ -5,16 +5,15 @@ import { isCountedExpense } from "./boatData.js";
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
 // Session & role guard
 (async () => {
-  const session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
-  window.currentRole = profile.role;
+  const auth = await window.requireRole(["admin", "manager"]);
+  if (!auth) return;
+  window.currentRole = auth.profile.role;
 })();
 
 function cleanPrice(val) {

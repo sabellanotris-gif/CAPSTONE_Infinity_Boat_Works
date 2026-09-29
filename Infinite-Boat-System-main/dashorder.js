@@ -4,16 +4,15 @@ import { getBoatBom } from "./boatData.js";
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
 // Session & role guard
 (async () => {
-  const session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
-  if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
-  window.currentRole = profile.role;
+  const auth = await window.requireRole(["admin", "manager"]);
+  if (!auth) return;
+  window.currentRole = auth.profile.role;
 })();
 
 function safeNum(val) {
@@ -282,11 +281,11 @@ async function deductMaterials(order) {
   return result;
 }
 
-async function autoAssignWorkers(orderId) {
+async function createTeamForOrder(orderId) {
   try {
     const token = await ensureSession();
     if (!token) return { ok: false, msg: "No session" };
-    const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
+    const res = await fetch(API_BASE + "/workers/assign-team/" + orderId, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -294,11 +293,11 @@ async function autoAssignWorkers(orderId) {
       }
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, msg: data?.error || "Auto-assign failed" };
+    if (!res.ok) return { ok: false, msg: data?.error || "Create team failed" };
     return { ok: true, count: data?.count || 0, skipped: data?.skipped || [] };
   } catch (e) {
-    console.error("Auto-assign failed:", e);
-    return { ok: false, msg: e?.message || "Auto-assign failed" };
+    console.error("Create team failed:", e);
+    return { ok: false, msg: e?.message || "Create team failed" };
   }
 }
 
@@ -324,18 +323,18 @@ async function approveOrder(index) {
         return;
     }
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
-    const assigned = await autoAssignWorkers(order.orderId);
+    const assigned = await createTeamForOrder(order.orderId);
     if (assigned.ok) {
         const skipped = assigned.skipped || [];
         if (assigned.count === 0 && skipped.length) {
-            showToast('Order Approved. No workers auto-assigned — ' + skipped.length + ' were skipped as busy on other projects. Assign manually in Boat Progress.', 'warning');
+            showToast('Order Approved. No build team created — ' + skipped.length + ' specialty(ies) had no available worker. Use Create Team in Boat Progress.', 'warning');
         } else if (skipped.length) {
-            showToast('Order Approved. ' + assigned.count + ' worker(s) auto-assigned, ' + skipped.length + ' skipped (busy).', 'success');
+            showToast('Order Approved. Build team created with ' + assigned.count + ' assignment(s), ' + skipped.length + ' specialty(ies) skipped (no available worker).', 'success');
         } else {
-            showToast('Order Approved. ' + assigned.count + ' worker(s) auto-assigned.', 'success');
+            showToast('Order Approved. Build team created with ' + assigned.count + ' assignment(s).', 'success');
         }
     } else {
-        showToast('Order Approved, but no workers were auto-assigned: ' + assigned.msg + ' Assign them manually in Boat Progress.', 'warning');
+        showToast('Order Approved, but the build team was not created: ' + assigned.msg + ' Use Create Team in Boat Progress.', 'warning');
     }
     renderOrders(getActiveFilter());
 }
@@ -434,11 +433,11 @@ async function approveSchedule(index) {
     );
     if (result?.error) { order.status = oldStatus; return; }
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
-    const assigned = await autoAssignWorkers(order.orderId);
+    const assigned = await createTeamForOrder(order.orderId);
     if (assigned.ok) {
-        showToast('Schedule approved. ' + assigned.count + ' worker(s) auto-assigned.', 'success');
+        showToast('Schedule approved. Build team created with ' + assigned.count + ' assignment(s).', 'success');
     } else {
-        showToast('Schedule approved! Assign workers in the Manage Progress page.', 'success');
+        showToast('Schedule approved! Use Create Team in the Boat Progress page.', 'success');
     }
     renderOrders(getActiveFilter());
 }

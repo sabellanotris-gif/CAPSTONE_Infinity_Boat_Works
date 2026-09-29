@@ -12,10 +12,10 @@ const newPasswordInput = document.getElementById("newPassword");
 const confirmPasswordInput = document.getElementById("confirmPassword");
 
 async function checkAuth() {
-  const { data } = await supabase.auth.getSession();
-  if (data.session) {
-    currentUser = data.session.user;
-    localStorage.setItem("userId", currentUser.id);
+  const session = await window.refreshValidSession();
+  if (session) {
+    currentUser = session.user;
+    sessionStorage.setItem("userId", currentUser.id);
     await loadProfile(currentUser.id);
   } else {
     window.location.href = "login.html";
@@ -23,13 +23,17 @@ async function checkAuth() {
 }
 
 supabase.auth.onAuthStateChange((event, session) => {
-  if (event === "INITIAL_SESSION") return;
-  if (session) {
-    currentUser = session.user;
-    localStorage.setItem("userId", currentUser.id);
-    loadProfile(currentUser.id);
-  } else {
+  // Only a real SIGNED_OUT ends the session. USER_UPDATED / TOKEN_REFRESHED /
+  // password rotation must never bounce the user to the login page.
+  if (event === "SIGNED_OUT") {
     window.location.href = "login.html";
+    return;
+  }
+  // A live session from any other event just syncs the current user; the page
+  // is guarded by checkAuth() on load, so no redirect here.
+  if (session?.user) {
+    currentUser = session.user;
+    sessionStorage.setItem("userId", currentUser.id);
   }
 });
 
@@ -60,9 +64,9 @@ async function loadProfile(userId) {
     currentImage = image;
     profilePic.src = image;
 
-    localStorage.setItem("customerName", fullname);
-    localStorage.setItem("customerImage", image);
-    localStorage.setItem("customerPhone", data?.phone || "");
+    sessionStorage.setItem("customerName", fullname);
+    sessionStorage.setItem("customerImage", image);
+    sessionStorage.setItem("customerPhone", data?.phone || "");
   } catch (error) {
     console.log(error);
     alert("Failed to load profile.");
@@ -166,9 +170,9 @@ async function updateUserProfile() {
       if (pwError) throw pwError;
     }
 
-    localStorage.setItem("customerName", fullname);
-    localStorage.setItem("customerImage", currentImage);
-    localStorage.setItem("customerPhone", phone);
+    sessionStorage.setItem("customerName", fullname);
+    sessionStorage.setItem("customerImage", currentImage);
+    sessionStorage.setItem("customerPhone", phone);
 
     displayName.innerText = fullname;
     profilePic.src = currentImage;

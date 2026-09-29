@@ -45,6 +45,7 @@ async function saveOrders() {
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
@@ -70,20 +71,20 @@ function getSpecialtyIcon(role) {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-    const customerEmail = localStorage.getItem("customerEmail");
+    const customerEmail = sessionStorage.getItem("customerEmail");
     if (!customerEmail) {
         window.location.href = "login.html";
         return;
     }
 
-    let customerName = localStorage.getItem("customerName");
+    let customerName = sessionStorage.getItem("customerName");
 
-    const { data: freshProfile } = await supabase.from("profiles").select("name, phone").eq("id", localStorage.getItem("userId")).single();
+    const { data: freshProfile } = await supabase.from("profiles").select("name, phone").eq("id", sessionStorage.getItem("userId")).single();
     if (freshProfile?.name) {
         customerName = freshProfile.name;
-        localStorage.setItem("customerName", freshProfile.name);
+        sessionStorage.setItem("customerName", freshProfile.name);
     }
-    if (freshProfile?.phone) localStorage.setItem("customerPhone", freshProfile.phone);
+    if (freshProfile?.phone) sessionStorage.setItem("customerPhone", freshProfile.phone);
 
     /* =============================================
        STATIC DATA (centralized in boatData.js)
@@ -316,7 +317,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     localStorage.setItem("lastLoginDate", now);
 
     const profilePic = document.getElementById("profilePic");
-    const savedImage = localStorage.getItem("customerImage");
+    const savedImage = sessionStorage.getItem("customerImage");
     if (savedImage && profilePic) profilePic.src = savedImage;
 
     const paymentSuccessMsg = localStorage.getItem("paymentSuccess");
@@ -1789,15 +1790,23 @@ window.addEventListener("DOMContentLoaded", async () => {
         const list = document.getElementById("workersFullList");
         list.innerHTML = "";
 
-        const isEngineer = w => (w.role || "").toLowerCase() === "engineer";
-        const engineers = workers.filter(isEngineer);
-        const others = workers.filter(w => !isEngineer(w));
+        const milestones = (getBoatMilestones(projectName) || []);
+        const phaseOrder = milestones.map(m => m.key).filter(Boolean);
+        const phaseGroup = {};
+        const other = [];
 
-        const sorted = [...engineers, ...others];
-        sorted.forEach(w => {
+        workers.forEach(w => {
+            const key = w.phase || "";
+            if (phaseOrder.includes(key)) {
+                (phaseGroup[key] = phaseGroup[key] || []).push(w);
+            } else {
+                other.push(w);
+            }
+        });
+
+        const renderWorkerItem = (w) => {
             const item = document.createElement("div");
             const sClass = getSpecialtyClass(w.role);
-            const phaseLabel = getPhaseLabel(w.phase);
             const isActive = w.status === "Active";
             item.className = `worker-item ${sClass}`;
             item.innerHTML = `
@@ -1805,14 +1814,41 @@ window.addEventListener("DOMContentLoaded", async () => {
                     <i class="fa-solid ${getSpecialtyIcon(w.role)}"></i>
                 </div>
                 <div class="worker-info">
-                    <h5>${esc(w.name)} ${isEngineer(w) ? '<span class="engineer-badge">ENGINEER</span>' : ""}</h5>
+                    <h5>${esc(w.name)}</h5>
                     <span class="worker-role-label">${esc(w.role)}</span>
-                    ${phaseLabel ? `<span class="worker-phase-label">${esc(phaseLabel)}</span>` : ""}
                     <span class="worker-phase-label ${isActive ? "status-on" : "status-off"}">${isActive ? "Working" : "Completed"}</span>
                 </div>
             `;
-            list.appendChild(item);
+            return item;
+        };
+
+        phaseOrder.forEach(key => {
+            const group = phaseGroup[key];
+            if (!group || group.length === 0) return;
+            const heading = document.createElement("div");
+            heading.className = "worker-phase-heading";
+            heading.innerHTML = `<i class="fa-solid fa-screwdriver-wrench"></i> ${esc(MILESTONE_KEY_LABELS[key] || getPhaseLabel(key))}`;
+            list.appendChild(heading);
+            const container = document.createElement("div");
+            container.className = "worker-phase-group";
+            group.forEach(w => container.appendChild(renderWorkerItem(w)));
+            list.appendChild(container);
         });
+
+        if (other.length > 0) {
+            const heading = document.createElement("div");
+            heading.className = "worker-phase-heading";
+            heading.innerHTML = `<i class="fa-solid fa-users"></i> Other`;
+            list.appendChild(heading);
+            const container = document.createElement("div");
+            container.className = "worker-phase-group";
+            other.forEach(w => container.appendChild(renderWorkerItem(w)));
+            list.appendChild(container);
+        }
+
+        if (workers.length === 0) {
+            list.innerHTML = '<div class="no-workers"><i class="fa-solid fa-users-slash"></i><p>No build team assigned to your project yet.</p></div>';
+        }
 
         modal.classList.add("show");
     }
@@ -1929,7 +1965,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             </div>
             ${workers && workers.length > 0 ? `
             <div style="margin-top:16px;">
-                <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:#1e293b;">Assigned Workers (${workers.length})</h4>
+                <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:#1e293b;">Build Team (${workers.length})</h4>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
                     ${workers.map(w => `
                     <span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:12px;">
@@ -2444,7 +2480,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
         if (!reason) { alert("Please provide a reason for cancellation."); return; }
         if (!signature) { alert("Please type your full name as signature."); return; }
-        const registeredName = localStorage.getItem("customerName");
+        const registeredName = sessionStorage.getItem("customerName");
         if (registeredName && signature !== registeredName) {
             alert('Signature must match your registered name: "' + registeredName + '".');
             return;

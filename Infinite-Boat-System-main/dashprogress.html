@@ -269,7 +269,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                 </div>
 
                 <div class="progress-card" id="workerManagerCard">
-                    <h3><i class="fa-solid fa-users-gear"></i> Manage Workers</h3>
+                    <h3><i class="fa-solid fa-users-gear"></i> Build Team</h3>
                     <div style="display:flex;gap:8px;margin-bottom:10px;">
                         <select id="workerNameInput" style="flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:white;cursor:pointer;">
                             <option value="">— Select a worker —</option>
@@ -285,7 +285,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                         <button id="addWorkerBtn" style="border:none;background:#295dff;color:white;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-plus"></i></button>
                     </div>
                     <div style="display:flex;gap:8px;margin-bottom:10px;">
-                        <button id="autoAssignBtn" style="flex:1;border:2px solid #295dff;background:transparent;color:#295dff;padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:600;font-family:'Poppins',sans-serif;font-size:12px;"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-assign available workers (current phase)</button>
+                        <button id="createTeamBtn" style="flex:1;border:2px solid #295dff;background:transparent;color:#295dff;padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:600;font-family:'Poppins',sans-serif;font-size:12px;"><i class="fa-solid fa-users-line"></i> Create build team (one worker per specialty)</button>
                     </div>
                     <div id="storedWorkersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
                     <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0 8px;">
@@ -456,7 +456,7 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                     </div>
                     <button class="update-progress-btn" id="updateProgressBtn" style="margin-top:10px;"><i class="fa-solid fa-arrow-up"></i> Update Progress</button>
                     <div id="progressLockMsg" style="display:none;padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;font-size:13px;color:#991b1b;text-align:center;margin-top:10px;">
-                        <i class="fa-solid fa-users-gear"></i> Assign workers first to unlock progress updates.
+                        <i class="fa-solid fa-users-gear"></i> Create your build team first to unlock progress updates.
                     </div>
                 </div>
 

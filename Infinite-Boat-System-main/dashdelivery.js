@@ -1,8 +1,9 @@
-import { supabase, handleDbError, sendEmailNotification, API_BASE } from './supabase.js';
+import { supabase, handleDbError, sendEmailNotification, API_BASE, ensureSession } from './supabase.js';
 
 window.handleLogout = async function () {
     await supabase.auth.signOut();
     localStorage.clear();
+    sessionStorage.clear();
     window.location.href = "index.html";
 };
 
@@ -28,20 +29,8 @@ window._updateActualDateMin = function () {
 };
 
 async function checkAuth() {
-    let { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-        window.location.href = "login.html";
-        return false;
-    }
-    // Auto-refresh if token is near expiry
-    try {
-        const payload = JSON.parse(atob(session.access_token.split('.')[1]));
-        const expiresIn = payload.exp * 1000 - Date.now();
-        if (expiresIn < 300000) {
-            await supabase.auth.refreshSession();
-        }
-    } catch (e) { /* ignore refresh errors */ }
-    return true;
+    const auth = await window.requireRole(["admin"]);
+    return !!auth;
 }
 
 function showToast(msg, type = 'success') {
@@ -460,31 +449,14 @@ window.saveDelivery = async function(orderId) {
     }
 
     try {
-        let { data: { session } } = await supabase.auth.getSession();
-
-        // Force refresh if token is about to expire or expired
-        if (session?.access_token) {
-            try {
-                const payload = JSON.parse(atob(session.access_token.split('.')[1]));
-                const expiresIn = payload.exp * 1000 - Date.now();
-                console.log('[DELIVERY] Token expires in:', Math.round(expiresIn / 1000), 'seconds');
-                if (expiresIn < 60000) {
-                    console.log('[DELIVERY] Token near expiry, refreshing...');
-                    const { data: refreshed } = await supabase.auth.refreshSession();
-                    session = refreshed?.session || session;
-                    console.log('[DELIVERY] Refresh result:', refreshed?.session ? 'OK' : 'FAILED');
-                }
-            } catch (e) {
-                console.warn('[DELIVERY] Token decode failed:', e);
-            }
-        }
-
-        const token = session?.access_token;
-        console.log('[DELIVERY] Token present:', !!token);
+        const token = await ensureSession();
 
         if (!token) {
-            showToast('Session expired. Please log in again.', 'error');
-            setTimeout(() => window.location.href = "login.html", 1500);
+            // A genuine sign-out or a refresh we could not recover from. Fail
+            // open with a message — do NOT hard-redirect the user away from a
+            // save they are mid-way through.
+            console.warn('[DELIVERY] No valid session token for save.');
+            showToast('Your session could not be refreshed. Check your connection and reload the page.', 'error');
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-save"></i> Save Delivery Details';
             return;

@@ -4,12 +4,17 @@ import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS,
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
+// Fails open: tells the user something went wrong but NEVER auto-redirects
+// away from a save they are mid-way through. An ambiguous refresh failure
+// must not sign them out. The page guards (requireRole on load) are the ones
+// that redirect, and only when the session is truly dead.
 function handleSessionExpired() {
-  showToast("Session expired. Please log in again.", "error");
-  setTimeout(() => { window.location.href = "login.html"; }, 1500);
+  console.warn("[AUTH] Session unavailable during a save operation.");
+  showToast("Your session could not be refreshed. Check your connection and reload the page.", "error");
 }
 
 const STORAGE_BUCKET = "boat-files";
@@ -46,7 +51,7 @@ function actorLabel() {
 window.overrideUnlocked = false;
 
 const MANAGER_ONLY_BTN_IDS = [
-  "addTaskBtn", "addWorkerBtn", "autoAssignBtn", "uploadDocBtn", "uploadProgressPhotoBtn",
+  "addTaskBtn", "addWorkerBtn", "createTeamBtn", "uploadDocBtn", "uploadProgressPhotoBtn",
   "addActivityBtn", "updateProgressBtn"
 ];
 
@@ -359,7 +364,7 @@ async function renderMilestones(order, readonly = false) {
   if (readonly || workers.length === 0) {
     container.innerHTML = `
       <div style="padding:12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;font-size:13px;color:#991b1b;text-align:center;">
-        <i class="fa-solid fa-users-gear"></i> Assign workers first to unlock milestone tracking.
+        <i class="fa-solid fa-users-gear"></i> Create your build team first to unlock milestone tracking.
       </div>
     `;
     return;
@@ -499,7 +504,7 @@ async function toggleMilestone(index) {
   if (!order || order.status !== "Approved") return;
   const ww = await getDBWorkers(order.orderId);
   if (ww.length === 0) {
-    showToast("Assign workers first before updating milestones.", "warning");
+    showToast("Create your build team first before updating milestones.", "warning");
     return;
   }
   const milestones = getOrderMilestones(order);
@@ -517,7 +522,7 @@ async function toggleMilestone(index) {
     order.progress = firstRemaining ? Math.max(0, firstRemaining.percentage - 1) : 0;
     order.status = "Approved";
     order.orderPhase = "Approved";
-    showToast("Milestone reopened. Workers for previous phases were already released — reassign manually if needed.", "warning");
+    showToast("Milestone reopened. Workers for previous phases were already released — use Create Team to fill any gaps if needed.", "warning");
   } else {
     const prevMilestones = milestones.filter(ms => ms.percentage < m.percentage);
     if (!prevMilestones.every(ms => ms.completed)) {
@@ -552,8 +557,8 @@ async function toggleMilestone(index) {
     }
     addAutoActivityLog(order, m);
 
-    // Phase-based worker scheduling: release this phase's workers, then
-    // auto-assign the required-specialty workers for the NEXT phase.
+    // Phase-based worker scheduling: release this phase's workers.
+    // The build team covers every phase (created once), so no per-phase auto-assign.
     releasedPhaseKey = m.key || "";
     if (releasedPhaseKey) {
       await releaseWorkersForPhase(order.orderId, releasedPhaseKey);
@@ -569,16 +574,9 @@ async function toggleMilestone(index) {
   );
   if (result?.error) return;
 
-  let autoMsg = null;
   if (m.completed && releasedPhaseKey && m.percentage < 100) {
-    const assign = await autoAssignForOrder(order.orderId);
-    if (assign.ok && assign.count > 0) {
-      autoMsg = "Released " + getMilestoneKeyLabel(releasedPhaseKey) + " workers. Auto-assigned " + assign.count + " worker(s) for " + (getMilestoneKeyLabel(assign.phase) || "the next phase") + ".";
-    } else {
-      autoMsg = "Released " + getMilestoneKeyLabel(releasedPhaseKey) + " workers. No available workers to auto-assign for the next phase — assign manually.";
-    }
+    showToast("Released " + getMilestoneKeyLabel(releasedPhaseKey) + " workers. The build team continues for the next phase.", "success");
   }
-  if (autoMsg) showToast(autoMsg, "success");
 
   await renderDetail(order);
   renderActivityLog(order);
@@ -991,11 +989,11 @@ document.getElementById("addWorkerBtn")?.addEventListener("click", async () => {
     await renderDetail(order);
 });
 
-async function autoAssignForOrder(orderId) {
+async function createTeamForOrder(orderId) {
   try {
     const token = await ensureSession();
-    if (!token) { handleSessionExpired(); return { ok: false, count: 0, phase: "", skipped: [] }; }
-    const res = await fetch(API_BASE + "/workers/auto-assign/" + orderId, {
+    if (!token) { handleSessionExpired(); return { ok: false, count: 0, skipped: [] }; }
+    const res = await fetch(API_BASE + "/workers/assign-team/" + orderId, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1004,27 +1002,28 @@ async function autoAssignForOrder(orderId) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.error("Auto-assign failed:", res.status, data?.error);
-      return { ok: false, count: 0, phase: "", skipped: [], error: data?.error || "Auto-assign failed" };
+      console.error("Create team failed:", res.status, data?.error);
+      return { ok: false, count: 0, skipped: [], error: data?.error || "Create team failed" };
     }
-    return { ok: true, count: data?.count || 0, phase: data?.phase || "", skipped: data?.skipped || [] };
+    return { ok: true, count: data?.count || 0, team: data?.team || [], skipped: data?.skipped || [] };
   } catch (e) {
-    console.error("Auto-assign failed:", e);
-    return { ok: false, count: 0, phase: "", skipped: [], error: e?.message || "Auto-assign failed" };
+    console.error("Create team failed:", e);
+    return { ok: false, count: 0, skipped: [], error: e?.message || "Create team failed" };
   }
 }
 
-document.getElementById("autoAssignBtn")?.addEventListener("click", async () => {
+document.getElementById("createTeamBtn")?.addEventListener("click", async () => {
     const order = getSelectedOrder();
     if (!order) return;
     const id = order.orderId;
     if (!id) return;
-    if (!confirm("Auto-assign available workers for the current phase?")) return;
-    const data = await autoAssignForOrder(id);
-    if (!data.ok) { alert(data?.error || "Auto-assign failed."); return; }
-    const skipped = (data.skipped || []).filter(s => s.reason === "busy").map(s => s.name);
-    const msg = (data.count || 0) + " worker(s) auto-assigned for phase '" + (getMilestoneKeyLabel(data.phase) || data.phase || "") + "'.";
-    showToast(skipped.length > 0 ? msg + " Skipped busy workers: " + skipped.join(", ") : msg, 'success');
+    if (!confirm("Create the full build team for this project (one worker per specialty)?")) return;
+    const data = await createTeamForOrder(id);
+    if (!data.ok) { alert(data?.error || "Create team failed."); return; }
+    const skipped = (data.skipped || []).filter(s => s.reason === "no available worker").map(s => s.specialty);
+    let msg = "Build team created with " + (data.count || 0) + " assignment(s).";
+    if (skipped.length > 0) msg += " Skipped (no available worker): " + skipped.join(", ");
+    showToast(msg, data.count > 0 ? 'success' : (skipped.length > 0 ? 'warning' : 'success'));
     await populateWorkerSelect();
     await renderWorkers(id);
     await renderMasterWorkers();
@@ -1278,7 +1277,7 @@ async function renderDetail(order) {
 
     const wContainer = document.getElementById("detailWorkers");
     if (workers.length === 0) {
-        wContainer.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned. Use "Manage Workers" below.</span>';
+        wContainer.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned. Use "Create Team" below.</span>';
     } else {
         wContainer.innerHTML = workers.map(w => {
             const isActive = w.status === "Active";
@@ -1403,7 +1402,7 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
 
     const ww = await getDBWorkers(order.orderId);
     if (ww.length === 0) {
-      showToast("Assign workers first before updating progress.", "warning");
+      showToast("Create your build team first before updating progress.", "warning");
       return;
     }
 
@@ -1465,12 +1464,7 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
 
     const afterPhaseKey = phaseKeyAtProgress(order, progress);
     if (afterPhaseKey && afterPhaseKey !== beforePhaseKey && progress < 100) {
-      const assign = await autoAssignForOrder(order.orderId);
-      if (assign.ok && assign.count > 0) {
-        showToast("Auto-assigned " + assign.count + " worker(s) for " + (getMilestoneKeyLabel(assign.phase) || afterPhaseKey) + ".", "success");
-      } else {
-        showToast("Phase changed to " + (getMilestoneKeyLabel(afterPhaseKey) || afterPhaseKey) + ". No available workers to auto-assign — assign manually.", "warning");
-      }
+      showToast("Phase changed to " + (getMilestoneKeyLabel(afterPhaseKey) || afterPhaseKey) + ". The build team continues.", "success");
     }
 
     await renderDetail(order);
@@ -2406,16 +2400,9 @@ window.closeCreateWorkerModal = function() { return; };
 window.submitCreateWorker = async function() { return; };
 
 (async function init() {
-    const token = await ensureSession();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { window.location.href = "login.html"; return; }
-    const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle();
-    if (!profile || !["admin", "manager"].includes(profile.role)) { window.location.href = "login.html"; return; }
-    window.currentRole = profile.role;
+    const auth = await window.requireRole(["admin", "manager"]);
+    if (!auth) return;
+    window.currentRole = auth.profile.role;
     applyRoleLock();
 
     await ensureWorkerRegistry();

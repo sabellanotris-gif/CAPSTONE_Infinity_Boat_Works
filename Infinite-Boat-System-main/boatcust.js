@@ -4,10 +4,10 @@ import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity } f
 (async () => {
   try {
     const identity = await getCustomerIdentity();
-    if (identity.name) localStorage.setItem("customerName", identity.name);
-    if (identity.email) localStorage.setItem("customerEmail", identity.email);
-    if (identity.phone) localStorage.setItem("customerPhone", identity.phone);
-    if (identity.photo) localStorage.setItem("customerImage", identity.photo);
+    if (identity.name) sessionStorage.setItem("customerName", identity.name);
+    if (identity.email) sessionStorage.setItem("customerEmail", identity.email);
+    if (identity.phone) sessionStorage.setItem("customerPhone", identity.phone);
+    if (identity.photo) sessionStorage.setItem("customerImage", identity.photo);
   } catch (e) { /* non-fatal */ }
 })();
 
@@ -1316,9 +1316,9 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     date: new Date().toISOString()
   };
 
-  const customerName = localStorage.getItem('customerName') || '';
-  const customerEmail = localStorage.getItem('customerEmail') || '';
-  const customerPhone = localStorage.getItem('customerPhone') || '';
+  const customerName = sessionStorage.getItem('customerName') || '';
+  const customerEmail = sessionStorage.getItem('customerEmail') || '';
+  const customerPhone = sessionStorage.getItem('customerPhone') || '';
   const priceNum = parseFloat(String(config.totalPrice).replace(/[^0-9.]/g, '')) || 0;
   const custPayMethod = document.querySelector('input[name="custPaymentMethod"]:checked')?.value || "Full Payment";
 

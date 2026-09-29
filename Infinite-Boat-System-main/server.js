@@ -1523,53 +1523,10 @@ app.post("/api/workers/backfill", authenticate, requireAdminOrManager, async (re
   }
 });
 
-// Resolve the current phase key of an order from its milestones (normalized by percentage)
-async function resolveCurrentPhaseKey(orderId, boatName) {
-  const { data: order } = await adminDb
-    .from("boat_orders")
-    .select("milestones, progress, boatName")
-    .eq("orderId", orderId)
-    .single();
-  const name = boatName || order?.boatName || "";
-  const milestones = order?.milestones || [];
-
-  if (Array.isArray(milestones) && milestones.length > 0) {
-    const firstIncomplete = milestones.find(m => !m.completed);
-    if (firstIncomplete) {
-      const key = firstIncomplete.key || await resolveMilestoneKeyByPercentage(name, firstIncomplete);
-      if (key) return key;
-    }
-  }
-
-  const { data: lastActive } = await adminDb
-    .from("project_workers")
-    .select("phase")
-    .eq("orderId", orderId)
-    .eq("status", "Active")
-    .limit(1);
-  if (lastActive && lastActive.length > 0 && lastActive[0].phase) return lastActive[0].phase;
-
-  const boatData = await import("./boatData.js");
-  const presets = boatData.getBoatMilestones?.(name) || [];
-  if (presets.length > 0) {
-    const progress = order?.progress || 0;
-    const current = [...presets].reverse().find(p => progress >= p.percentage);
-    return current ? current.key : presets[0].key;
-  }
-  return "design";
-}
-
-async function resolveMilestoneKeyByPercentage(boatName, milestone) {
-  if (milestone.key) return milestone.key;
-  if (milestone.percentage == null) return "";
-  const boatData = await import("./boatData.js");
-  const presets = boatData.getBoatMilestones?.(boatName) || [];
-  const match = presets.find(p => p.percentage === milestone.percentage);
-  return match ? match.key : "";
-}
-
-// Core: assign available workers whose specialty matches the phase (exclusive)
-async function assignWorkersForPhase(orderId, phase, opts = {}) {
+// Assign a stable, complete build team: one available worker per required
+// specialty, covering every phase of the boat build (start -> end).
+// Idempotent: workers already Active on this order are not re-assigned.
+async function assignFullTeam(orderId) {
   const { data: order } = await adminDb
     .from("boat_orders")
     .select("userId, customerEmail, boatName, createdAt")
@@ -1579,54 +1536,84 @@ async function assignWorkersForPhase(orderId, phase, opts = {}) {
 
   const boatData = await import("./boatData.js");
   const SPECIALTY_PHASES = boatData.SPECIALTY_PHASES || {};
-  const phaseDateRange = order.createdAt
-    ? boatData.getPhaseDateRange(order.boatName, phase, order.createdAt)
-    : null;
-  const phasesForSpecialty = (spec) => {
-    for (const [s, keys] of Object.entries(SPECIALTY_PHASES)) {
-      if (s.toLowerCase() === String(spec).toLowerCase()) return keys;
-    }
-    return SPECIALTY_PHASES[spec] || [];
-  };
+  const phaseDateRange = (phase) =>
+    order.createdAt
+      ? boatData.getPhaseDateRange(order.boatName, phase, order.createdAt)
+      : null;
 
+  // Phase keys in build order (start -> end).
+  const milestones = boatData.getBoatMilestones?.(order.boatName) || [];
+  const phases = [...new Set(milestones.map(m => m.key).filter(Boolean))];
+  if (phases.length === 0) return { error: "No build phases defined", status: 400 };
+
+  // Union of specialties required across all phases.
+  const specialties = [];
+  phases.forEach(phase => {
+    const needed = boatData.getPhaseSpecialties?.(phase) || [];
+    needed.forEach(s => { if (!specialties.includes(s)) specialties.push(s); });
+  });
+
+  // Existing Active worker rows for this order -> idempotency guard + continuity.
   const { data: existing } = await adminDb
     .from("project_workers")
-    .select("id, name, phase, status")
+    .select("name, phase, status")
     .eq("orderId", orderId);
-  const alreadyAssignedForPhase = new Set(
-    (existing || []).filter(w => w.status === "Active" && w.phase === phase).map(w => w.name)
+  const activeNames = new Set(
+    (existing || []).filter(w => w.status === "Active").map(w => w.name)
+  );
+  const activePhaseKeys = new Set(
+    (existing || []).filter(w => w.status === "Active" && w.phase).map(w => w.name + "||" + w.phase)
   );
 
-  const { data: allWorkers } = await adminDb.from("workers").select("*");
-  if (!allWorkers || allWorkers.length === 0) return { error: "No workers in registry", status: 400 };
-
-  // Exclusive check: workers with Active assignment on any other order
+  // Workers Active on OTHER orders are busy (single-project rule).
   const { data: activeOnOthers } = await adminDb
     .from("project_workers")
     .select("name")
     .eq("status", "Active")
     .neq("orderId", orderId);
-  const busyWorkers = new Set((activeOnOthers || []).map(w => w.name));
+  const busy = new Set((activeOnOthers || []).map(w => w.name));
 
-  const candidates = allWorkers.filter(w => phasesForSpecialty(w.specialty).includes(phase));
+  const { data: allWorkers } = await adminDb.from("workers").select("*");
+  if (!allWorkers || allWorkers.length === 0) return { error: "No workers in registry", status: 400 };
 
-  const assignments = [];
+  const teamMembers = [];
   const skipped = [];
-  candidates.forEach(w => {
-    if (alreadyAssignedForPhase.has(w.name)) return;
-    if (!opts.allowBusy && busyWorkers.has(w.name)) {
-      skipped.push({ name: w.name, specialty: w.specialty, reason: "busy" });
-      return;
+  specialties.forEach(spec => {
+    const candidates = allWorkers.filter(w =>
+      String(w.specialty || "").toLowerCase() === String(spec).toLowerCase()
+    );
+    // Prefer a worker already Active on this order (stays the whole build),
+    // otherwise the first available worker not busy elsewhere.
+    const pick = candidates.find(w => activeNames.has(w.name))
+      || candidates.find(w => !busy.has(w.name) && !activeNames.has(w.name));
+    if (pick) {
+      activeNames.add(pick.name);
+      teamMembers.push({ ...pick, specialty: spec });
+    } else {
+      skipped.push({ specialty: spec, reason: "no available worker" });
     }
-    assignments.push({
-      orderId,
-      name: w.name,
-      role: w.specialty,
-      specialty: w.specialty,
-      phase,
-      status: "Active",
-      startDate: phaseDateRange?.startDate || null,
-      endDate: phaseDateRange?.endDate || null
+  });
+
+  const phaseSet = new Set(phases);
+  const assignments = [];
+  teamMembers.forEach(m => {
+    const phaseKey = Object.keys(SPECIALTY_PHASES).find(
+      s => String(s).toLowerCase() === String(m.specialty).toLowerCase()
+    ) || m.specialty;
+    const memberPhases = (SPECIALTY_PHASES[phaseKey] || []).filter(p => phaseSet.has(p));
+    memberPhases.forEach(phase => {
+      if (activePhaseKeys.has(m.name + "||" + phase)) return;
+      const range = phaseDateRange(phase);
+      assignments.push({
+        orderId,
+        name: m.name,
+        role: m.specialty,
+        specialty: m.specialty,
+        phase,
+        status: "Active",
+        startDate: range?.startDate || null,
+        endDate: range?.endDate || null
+      });
     });
   });
 
@@ -1644,44 +1631,23 @@ async function assignWorkersForPhase(orderId, phase, opts = {}) {
         .maybeSingle();
 
       if (worker?.userId) {
-        const { data: order } = await adminDb
-          .from("boat_orders")
-          .select("boatName")
-          .eq("orderId", orderId)
-          .maybeSingle();
-
         await adminDb.from("notifications").insert({
           userId: worker.userId,
           title: "New Assignment",
-          message: `You have been assigned to project ${orderId}${order?.boatName ? " (" + order.boatName + ")" : ""} — Phase: ${phase}`,
+          message: `You have been assigned to project ${orderId}${order.boatName ? " (" + order.boatName + ")" : ""} — Phase: ${assignment.phase}`,
           type: "assignment",
           orderId,
         });
       }
     }
   }
-  return { assigned: true, count: inserted.length, phase, skipped };
+  return { assigned: true, count: inserted.length, team: teamMembers.map(m => m.name), phases, skipped };
 }
 
-app.post("/api/workers/auto-assign/:orderId", authenticate, async (req, res) => {
+app.post("/api/workers/assign-team/:orderId", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const orderId = req.params.orderId;
-    const { data: order } = await adminDb
-      .from("boat_orders")
-      .select("userId, customerEmail")
-      .eq("orderId", orderId)
-      .single();
-    if (!order) return res.status(404).json({ error: "Order not found" });
-    const role = req.profile?.role || req.user?.user_metadata?.role;
-    const isStaff = role === "admin" || role === "manager";
-    const isOwner = order.userId === req.user.id;
-    const isCustomer = order.customerEmail?.toLowerCase() === req.user.email?.toLowerCase();
-    if (!isStaff && !isOwner && !isCustomer) {
-      return res.status(403).json({ error: "Not your order" });
-    }
-
-    const phase = await resolveCurrentPhaseKey(orderId);
-    const result = await assignWorkersForPhase(orderId, phase);
+    const result = await assignFullTeam(orderId);
     if (result.status) return res.status(result.status).json({ error: result.error });
     res.status(201).json(result);
   } catch (err) {
@@ -1704,19 +1670,6 @@ app.post("/api/workers/release-phase/:orderId", authenticate, requireAdminOrMana
       .select();
     if (error) return res.status(500).json({ error: error.message });
     res.json({ released: true, count: data.length, phase });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/api/workers/assign-phase/:orderId", authenticate, requireAdminOrManager, async (req, res) => {
-  try {
-    const orderId = req.params.orderId;
-    const { phase } = req.body || {};
-    if (!phase) return res.status(400).json({ error: "phase is required" });
-    const result = await assignWorkersForPhase(orderId, phase);
-    if (result.status) return res.status(result.status).json({ error: result.error });
-    res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

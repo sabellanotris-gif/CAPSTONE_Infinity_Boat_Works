@@ -4,27 +4,123 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
    AUTH / SESSION HELPERS
    ============================================= */
 
-// Ensure a valid (non-expired) Supabase session and return its access token.
-// Refreshes the token if it is about to expire or already expired.
-export async function ensureSession() {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Where each role logically lands after sign-in / guard routing. Redirecting to
+// the role-appropriate landing (instead of always bouncing to login.html)
+// keeps the page consistent with the live session for that tab.
+export function landingForRole(role) {
+  if (role === "admin") return "dashboard.html";
+  if (role === "manager") return "manager.html";
+  if (role === "worker") return "worker.html";
+  return "home.html";
+}
+
+// Decode a JWT payload without throwing on base64url characters (- and _).
+// atob() rejects those, which used to silently disable the pre-expiry refresh.
+function decodeJwtPayload(token) {
+  const part = String(token || "").split(".")[1];
+  if (!part) return null;
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return null;
-    try {
-      const payload = JSON.parse(atob(session.access_token.split(".")[1]));
-      const expiresIn = payload.exp * 1000 - Date.now();
-      if (expiresIn < 60000) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        return refreshed?.session?.access_token || session.access_token;
-      }
-    } catch (e) {
-      // token decode failed — fall through and return the existing token
-    }
-    return session.access_token;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const json = decodeURIComponent(
+      atob(padded)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(json);
   } catch (e) {
-    console.error("[AUTH] ensureSession error:", e);
     return null;
   }
+}
+
+function msUntilExpiry(token) {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return Infinity; // unknown → treat as valid
+  return payload.exp * 1000 - Date.now();
+}
+
+// True only for errors that genuinely mean "this session is no longer valid".
+// Everything else (network, 5xx, RLS, timeouts) is transient and must NOT log
+// the user out.
+export function isSessionInvalidError(error) {
+  if (!error) return false;
+  const code = String(error.code || "").toUpperCase();
+  const status = Number(error.status || error.statusCode || 0);
+  const msg = String(error.message || "").toLowerCase();
+  if (code === "PGRST301" || code === "JWT_EXPIRED" || code === "INVALID_TOKEN") return true;
+  if (status === 401) return true;
+  return (
+    msg.includes("jwt") && msg.includes("expired") ||
+    msg.includes("invalid refresh token") ||
+    msg.includes("refresh token not found") ||
+    msg.includes("user not found") ||
+    msg.includes("session_not_found")
+  );
+}
+
+// Read the current session, retrying transient storage/network failures.
+// Returns null ONLY when there is genuinely no session.
+async function readSessionWithRetry(attempts = 3) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        if (isSessionInvalidError(error)) return null;
+        lastErr = error;
+      } else {
+        return data?.session || null;
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+    if (i < attempts - 1) await sleep(200 * (i + 1));
+  }
+  console.warn("[AUTH] getSession failed after retries:", lastErr);
+  return null;
+}
+
+// Attempt a refresh. Returns the new session, or null if the refresh token is
+// genuinely invalid. Never throws.
+async function tryRefresh() {
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) {
+      if (isSessionInvalidError(error)) return null;
+      console.warn("[AUTH] refreshSession error:", error.message);
+      return null;
+    }
+    return data?.session || null;
+  } catch (e) {
+    console.warn("[AUTH] refreshSession threw:", e);
+    return null;
+  }
+}
+
+// Ensure a valid (non-expired) Supabase session and return its access token.
+// Returns null ONLY when the user is genuinely signed out. A transient network
+// failure while a session exists returns that session's token rather than null,
+// so a save never signs the user out.
+export async function ensureSession() {
+  const session = await readSessionWithRetry();
+  if (!session?.access_token) return null;
+
+  if (msUntilExpiry(session.access_token) < 60000) {
+    const refreshed = await tryRefresh();
+    if (refreshed?.access_token) return refreshed.access_token;
+    // Refresh failed. If the token we already hold is still unexpired, keep
+    // using it — a failed refresh is not proof the session is dead.
+    if (msUntilExpiry(session.access_token) > 0) {
+      console.warn("[AUTH] refresh failed; continuing with still-valid token");
+      return session.access_token;
+    }
+    // Token is genuinely expired and we could not renew it.
+    return null;
+  }
+  return session.access_token;
 }
 
 // Ensure the current Supabase user is still signed in, returning the session or null.
@@ -41,12 +137,12 @@ export async function getSessionOrNull() {
 // Re-fetch the logged-in user's profile from the DB. Falls back to localStorage
 // values when there is no userId or the lookup fails.
 export async function getCustomerIdentity() {
-  const userId = localStorage.getItem("userId");
+  const userId = sessionStorage.getItem("userId");
   const fallback = {
-    name: localStorage.getItem("customerName") || "",
-    email: localStorage.getItem("customerEmail") || "",
-    phone: localStorage.getItem("customerPhone") || "",
-    photo: localStorage.getItem("customerImage") || "",
+    name: sessionStorage.getItem("customerName") || "",
+    email: sessionStorage.getItem("customerEmail") || "",
+    phone: sessionStorage.getItem("customerPhone") || "",
+    photo: sessionStorage.getItem("customerImage") || "",
   };
   if (!userId) return fallback;
   try {
@@ -70,7 +166,26 @@ export async function getCustomerIdentity() {
 const supabaseUrl = "https://brpblkvthpdfbjqckqbk.supabase.co";
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycGJsa3Z0aHBkZmJqcWNrcWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4ODU3MTEsImV4cCI6MjA5NzQ2MTcxMX0.lTaInjC-MbYS1w1PVbN-RVK6_1Cj2pPAei4CpWj8G9w";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Per-tab auth isolation (Option A):
+// - Supabase persists ONE session per browser origin. When admin and manager
+//   accounts are used in the same browser, the last login clobbers the shared
+//   session and the UI "switches users". Storing the session in sessionStorage
+//   keeps each tab on its own account without cross-tab interference.
+// - The BroadcastChannel cross-tab sync is disabled so events from another tab
+//   (SIGNED_IN/SIGNED_OUT) can never bleed into this tab's session or UI.
+if (globalThis?.BroadcastChannel) globalThis.BroadcastChannel = undefined;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // A URL fragment carrying access_token/refresh_token (e.g. a verification
+    // link) must not silently overwrite an active session.
+    detectSessionInUrl: false,
+    persistSession: true,
+    autoRefreshToken: true,
+    // Per-tab session: each tab (or window) keeps its own logged-in account.
+    storage: window.sessionStorage || undefined,
+  },
+});
 export { supabaseUrl };
 
 // API base URL — uses port 3000 for Express API, auto-detect if already on port 3000
@@ -98,29 +213,106 @@ export async function handleDbError(promise, context = '') {
    ============================================= */
 
 // Refresh the session if the current access token is missing or about to
-// expire. Returns the session (refreshed if needed) or null if there is none.
+// expire. Returns the session (refreshed if needed) or null ONLY if there is
+// genuinely none. Transient failures fall back to the existing session instead
+// of bouncing the user to the login page.
 export async function refreshValidSession() {
-  try {
-    const { data: { session: cur } } = await supabase.auth.getSession();
-    if (!cur?.access_token) {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      return refreshed?.session || null;
-    }
-    try {
-      const payload = JSON.parse(atob(cur.access_token.split(".")[1]));
-      const expiresIn = payload.exp * 1000 - Date.now();
-      if (expiresIn < 300000) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        return refreshed?.session || cur;
-      }
-    } catch (e) { /* not a JWT we can decode — keep current */ }
-    return cur;
-  } catch (e) {
-    return null;
+  const cur = await readSessionWithRetry();
+
+  if (!cur?.access_token) {
+    // No stored session — one refresh attempt in case a refresh token is still
+    // valid server-side (e.g. a fresh page load before storage settled).
+    return await tryRefresh();
   }
+
+  if (msUntilExpiry(cur.access_token) < 300000) {
+    const refreshed = await tryRefresh();
+    if (refreshed) return refreshed;
+    // Refresh failed. Keep the existing session if its token is still valid.
+    if (msUntilExpiry(cur.access_token) > 0) return cur;
+  }
+  return cur;
 }
 
 window.refreshValidSession = refreshValidSession;
+
+/* =============================================
+   SHARED PAGE GUARD
+   ============================================= */
+
+// Fetch the caller's profile, retrying transient failures.
+// Returns { profile, error }. error is non-null only when the read genuinely
+// failed — callers must never treat a transient error as "no profile".
+async function fetchOwnProfile(userId, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("role, name, email, phone, photo")
+        .eq("id", userId)
+        .maybeSingle();
+      if (!error) return { profile: data, error: null };
+      if (isSessionInvalidError(error)) return { profile: null, error };
+      console.warn(`[AUTH] profile read failed (attempt ${i + 1}/${attempts}):`, error.message);
+      if (i < attempts - 1) await sleep(300 * (i + 1));
+    } catch (e) {
+      console.warn(`[AUTH] profile read threw (attempt ${i + 1}/${attempts}):`, e);
+      if (i < attempts - 1) await sleep(300 * (i + 1));
+    }
+  }
+  return { profile: null, error: new Error("Could not read profile") };
+}
+
+/* Shared auth + role guard for every protected page.
+   - Redirects to login.html ONLY when there is genuinely no session, the
+     session is provably invalid, or the role is genuinely not permitted.
+   - A transient network/DB failure retries, then rethrows to fail closed on
+     the *page render* without destroying the user's session.
+   Returns the session and profile, or null when it has redirected. */
+export async function requireRole(allowedRoles) {
+  const session = await refreshValidSession();
+  if (!session) {
+    window.location.href = "login.html";
+    return null;
+  }
+
+  const { profile, error } = await fetchOwnProfile(session.user.id);
+  if (error && isSessionInvalidError(error)) {
+    window.location.href = "login.html";
+    return null;
+  }
+  if (!profile) {
+    if (error) {
+      // Could not read the role even after retries. Do NOT sign the user out —
+      // their session may be perfectly fine. Tell them and stop.
+      console.error("[AUTH] profile unreadable after retries:", error);
+      if (typeof showToast === "function") {
+        showToast("Could not verify your access. Check your connection and reload.", "error");
+      }
+      document.body?.setAttribute("data-auth-state", "unverified");
+      return null;
+    }
+    // No error and no row — the profile genuinely does not exist.
+    window.location.href = "login.html";
+    return null;
+  }
+
+  if (!allowedRoles.includes(profile.role)) {
+    // Session is valid but belongs to a different role/account in this tab —
+    // take that user to where their role actually lands instead of bouncing.
+    window.location.href = landingForRole(profile.role);
+    return null;
+  }
+  // Remember the verified role for non-module scripts (roleNav.js) and the
+  // topbar identity refresher, without leaking it into shared storage.
+  sessionStorage.setItem("role", profile.role);
+  if (typeof window !== "undefined") {
+    window.__activeProfile = profile;
+  }
+  return { session, profile };
+}
+
+window.requireRole = requireRole;
 
 export function parseContractSchedule(order) {
     if (!order || !order.contractSchedule) return null;

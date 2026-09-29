@@ -26,33 +26,11 @@ function getPhaseLabel(key) {
   return MILESTONE_KEY_LABELS[key] || key || "";
 }
 
-let userId = localStorage.getItem("userId");
-let role = localStorage.getItem("role");
+let userId = sessionStorage.getItem("userId");
 
-// Always refresh the auth session so a short-lived Supabase token does not
-// cause an unexpected logout. Fall back to browser storage only when the
-// session endpoint is unreachable.
-async function resolveSession() {
-  try {
-    const { data: s } = await supabase.auth.refreshSession();
-    if (s?.session) {
-      userId = s.session.user.id;
-      role = s.session.user.user_metadata?.role || localStorage.getItem("role");
-    }
-  } catch (e) {
-    try {
-      const { data: s } = await supabase.auth.getSession();
-      if (s?.session) {
-        userId = s.session.user.id;
-        role = s.session.user.user_metadata?.role || localStorage.getItem("role");
-      }
-    } catch (e2) { /* offline */ }
-  }
-}
-
-if (!userId || role !== "worker") {
-  window.location.href = "login.html";
-}
+// Guard runs inside init() so it can await the session/role check; a
+// synchronous redirect here would race the async refresh and log workers out
+// the moment their token rotated.
 
 let currentPage = new URLSearchParams(window.location.search).get("page") || "assignments";
 let currentFilter = "all";
@@ -62,19 +40,11 @@ let workerProfile = null;
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
-  await resolveSession();
-  if (!userId) { window.location.href = "login.html"; return; }
+  const auth = await window.requireRole(["worker"]);
+  if (!auth) return;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", userId)
-    .single();
-
-  if (!profile || profile.role !== "worker") {
-    window.location.href = "login.html";
-    return;
-  }
+  userId = auth.session.user.id;
+  const profile = auth.profile;
 
   workerProfile = profile;
   document.getElementById("workerName").textContent = profile.name || "Worker";
@@ -587,6 +557,7 @@ window.saveProfile = async function () {
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "login.html";
 };
 

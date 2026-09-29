@@ -14,17 +14,34 @@ window.login = async function () {
     return;
   }
 
-  localStorage.clear();
-
-  await supabase.auth.signOut();
-
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    if (error.message?.toLowerCase().includes("email not confirmed") || error.message?.toLowerCase().includes("email not verified")) {
+    const msg = (error.message || "").toLowerCase();
+    const isAuthFailure =
+      msg.includes("invalid login credentials") ||
+      msg.includes("invalid login") ||
+      msg.includes("email not confirmed") ||
+      msg.includes("email not verified") ||
+      msg.includes("password") ||
+      msg.includes("too many requests") ||
+      msg.includes("locked");
+
+    if (isAuthFailure) {
+// Only now — after a genuinely failed attempt — clear any stale session.
+  // Landing on this page by itself (e.g. a guard bounce) must NOT destroy
+  // an otherwise-valid session or the customer's local state.
+  localStorage.clear();
+  sessionStorage.clear();
+  await supabase.auth.signOut();
+    } else {
+      console.warn("[LOGIN] Transient failure — preserving existing session:", msg);
+    }
+
+    if (msg.includes("email not confirmed") || msg.includes("email not verified")) {
       document.getElementById("verifyMessage").style.display = "block";
       document.getElementById("resendLink").dataset.email = email;
     } else {
@@ -42,18 +59,18 @@ window.login = async function () {
     .eq("id", user.id)
     .single();
 
-  localStorage.setItem("customerName", profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email);
-  localStorage.setItem("customerEmail", user.email);
-  localStorage.setItem("userId", user.id);
-  localStorage.setItem("customerImage", profile?.photo || "./images/user.png");
-  localStorage.setItem("customerPhone", profile?.phone || "");
+  sessionStorage.setItem("customerName", profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email);
+  sessionStorage.setItem("customerEmail", user.email);
+  sessionStorage.setItem("userId", user.id);
+  sessionStorage.setItem("customerImage", profile?.photo || "./images/user.png");
+  sessionStorage.setItem("customerPhone", profile?.phone || "");
 
   const userRole = profile?.role || user?.user_metadata?.role || "user";
 
   if (userRole === "admin") {
     alert("Welcome Admin!");
-    localStorage.setItem("role", "admin");
-    localStorage.setItem("currentUser", JSON.stringify({
+    sessionStorage.setItem("role", "admin");
+    sessionStorage.setItem("currentUser", JSON.stringify({
       name: profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email,
       email: user.email,
       photo: profile?.photo || "./images/user.png",
@@ -61,8 +78,8 @@ window.login = async function () {
     window.location.href = "dashboard.html";
   } else if (userRole === "manager") {
     alert("Welcome Project Manager!");
-    localStorage.setItem("role", "manager");
-    localStorage.setItem("currentUser", JSON.stringify({
+    sessionStorage.setItem("role", "manager");
+    sessionStorage.setItem("currentUser", JSON.stringify({
       name: profile?.name || user.user_metadata?.name || user.email.split('@')[0] || user.email,
       email: user.email,
       photo: profile?.photo || "./images/user.png",
@@ -90,11 +107,11 @@ window.login = async function () {
     }
 
     alert("Welcome Worker!");
-    localStorage.setItem("role", "worker");
+    sessionStorage.setItem("role", "worker");
     window.location.href = "worker.html";
   } else {
     alert("Login Successful!");
-    localStorage.setItem("role", "user");
+    sessionStorage.setItem("role", "user");
     window.location.href = "home.html";
   }
 };

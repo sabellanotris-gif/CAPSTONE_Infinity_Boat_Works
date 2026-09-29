@@ -3,25 +3,16 @@ import { supabase, handleDbError } from "./supabase.js";
 window.handleLogout = async function () {
   await supabase.auth.signOut();
   localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "index.html";
 };
 
 (async function init() {
-  const session = await window.refreshValidSession();
-  if (!session) { window.location.href = "login.html"; return; }
+  const auth = await window.requireRole(["manager", "admin"]);
+  if (!auth) return;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("name, email, role")
-    .eq("id", session.user.id)
-    .maybeSingle();
-  if (!profile || !["manager", "admin"].includes(profile.role)) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  localStorage.setItem("role", profile.role);
-  document.getElementById("managerName").textContent = profile.name || "Project Manager";
+  sessionStorage.setItem("role", auth.profile.role);
+  document.getElementById("managerName").textContent = auth.profile.name || "Project Manager";
 
   const result = await handleDbError(
     supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
