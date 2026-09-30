@@ -24,6 +24,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+<link rel="stylesheet" href="sidebar.css">
+<link rel="stylesheet" href="admin-type.css">
 </head>
 
 <body>
@@ -40,85 +42,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 
         </h1>
 
-         <nav class="sidebar-menu">
-
-    <a href="dashboard.html" >
-
-
-
-        Dashboard
-
-    </a>
-
-    <a href="dashorder.html">
-   
-
-
-        Orders
-
-    </a>
-
-    <a href="dashcustomer.html">
-
-   
-
-        Customers
-
-    </a>
-
-     
-     <a href="dashsales.html">
-
-        
-
-      Sales
-
-    </a>
-
-    <a href="dashpayment.html">
-
-        
-
-        Payments
-
-    </a>
-
-    <a href="dashinventory.html" >
-
-
-
-        Inventory
-
-    </a>
-
-    <a href="dashanalytics.html" >
-
-    
-
-        Analytics
-
-    </a>
-
-    <a href="dashprogress.html">
-
-        Boat Progress
-
-    </a>
-
-    <a href="dashworkers.html">
-
-        Workers
-
-    </a>
-
-    <a href="dashapproval.html">
-
-        Approvals
-
-    </a>
-
-
-   </nav>
+        <nav class="sidebar-menu"></nav>
+        <script src="sidebarNav.js"></script>
 
 
     </div>
@@ -354,8 +279,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
 </div>
 
 <script type="module" src="dashanalytics.js?v=1"></script>
-<script src="roleNav.js"></script>
-<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
 
 </body>
 

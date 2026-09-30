@@ -303,7 +303,7 @@ export async function requireRole(allowedRoles) {
     window.location.href = landingForRole(profile.role);
     return null;
   }
-  // Remember the verified role for non-module scripts (roleNav.js) and the
+  // Remember the verified role for non-module scripts (sidebarNav.js) and the
   // topbar identity refresher, without leaking it into shared storage.
   sessionStorage.setItem("role", profile.role);
   if (typeof window !== "undefined") {

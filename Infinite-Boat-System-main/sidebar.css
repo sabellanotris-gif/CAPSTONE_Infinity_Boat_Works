@@ -1,0 +1,281 @@
+/* =========================================
+   CANONICAL SIDEBAR + GROUPED NAV
+   =========================================
+   Linked LAST on every admin/manager page so these
+   rules win over the page-level `.sidebar` drift that
+   used to live in 8 different stylesheets.
+
+   Also owns the off-canvas drawer used at <= 900px.
+   Nav markup + behaviour lives in sidebarNav.js.
+   ========================================= */
+
+.sidebar {
+  width: 260px;
+  background: linear-gradient(180deg, #071b47, #0c2b6d);
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.logo {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 40px;
+  letter-spacing: -0.5px;
+}
+
+.logo span {
+  color: #4f7cff;
+}
+
+.sidebar-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-menu a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #dbe6ff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: 0.25s;
+}
+
+.sidebar-menu a:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+}
+
+.sidebar-menu .active {
+  background: linear-gradient(135deg, #4f7cff, #295dff);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(79, 124, 255, 0.3);
+}
+
+/* =========================================
+   NAV GROUPS
+   ========================================= */
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-group-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  color: #dbe6ff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.nav-group-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+}
+
+.nav-group-btn::after {
+  content: "";
+  width: 0;
+  height: 0;
+  flex-shrink: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+  opacity: 0.55;
+  transition: transform 0.25s ease;
+}
+
+.nav-group-btn[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+/* A group whose child is the current page stays tinted so the
+   active section is obvious even while scanning a collapsed list. */
+.nav-group.is-current > .nav-group-btn {
+  color: #fff;
+}
+
+.nav-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 2px 16px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.nav-group.collapsed .nav-sub {
+  display: none;
+}
+
+.nav-sub a {
+  padding: 10px 14px;
+  font-size: 15px;
+  border-radius: 10px;
+  color: #b9c9ee;
+}
+
+.nav-sub a:hover {
+  transform: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* =========================================
+   LOGOUT
+   ========================================= */
+.logout-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f7cff, #295dff);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: 0.25s;
+}
+
+.logout-btn:hover {
+  transform: translateY(-2px);
+}
+
+/* =========================================
+   DRAWER TOGGLE + SCRIM
+   Desktop-only no-ops: hidden until the mobile
+   breakpoint flips them on.
+   ========================================= */
+.nav-toggle {
+  display: none;
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 110;
+}
+
+.nav-toggle span,
+.nav-toggle span::before,
+.nav-toggle span::after {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: #0f172a;
+  transition: transform 0.25s ease, opacity 0.2s ease, top 0.25s ease;
+}
+
+.nav-toggle span {
+  position: relative;
+}
+
+.nav-toggle span::before,
+.nav-toggle span::after {
+  position: absolute;
+  left: 0;
+}
+
+.nav-toggle span::before {
+  top: -6px;
+}
+
+.nav-toggle span::after {
+  top: 6px;
+}
+
+.nav-toggle[aria-expanded="true"] span {
+  background: transparent;
+}
+
+.nav-toggle[aria-expanded="true"] span::before {
+  top: 0;
+  transform: rotate(45deg);
+}
+
+.nav-toggle[aria-expanded="true"] span::after {
+  top: 0;
+  transform: rotate(-45deg);
+}
+
+.nav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 90;
+}
+
+.nav-scrim.show {
+  display: block;
+}
+
+/* =========================================
+   <= 900px : OFF-CANVAS DRAWER
+   The old 72px rail relied on icons to stay legible
+   once the labels were collapsed with font-size: 0.
+   Without icons that hid every link, so the sidebar
+   slides in at full width instead.
+   ========================================= */
+@media (max-width: 900px) {
+  .nav-toggle {
+    display: flex;
+  }
+
+  .sidebar {
+    width: 260px;
+    padding: 68px 20px 28px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.25);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+}

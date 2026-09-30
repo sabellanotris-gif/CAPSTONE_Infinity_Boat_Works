@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="dashworkers.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="sidebar.css">
+<link rel="stylesheet" href="admin-type.css">
 </head>
 
 <body>
@@ -17,18 +19,8 @@
 <aside class="sidebar">
     <div>
         <h1 class="logo">BoatShop</h1>
-        <nav class="sidebar-menu">
-            <a href="dashboard.html">Dashboard</a>
-            <a href="dashorder.html">Orders</a>
-            <a href="dashcustomer.html">Customers</a>
-            <a href="dashsales.html">Sales</a>
-            <a href="dashpayment.html">Payments</a>
-            <a href="dashinventory.html">Inventory</a>
-            <a href="dashanalytics.html">Analytics</a>
-            <a href="dashprogress.html">Boat Progress</a>
-            <a href="dashworkers.html" class="active">Workers</a>
-            <a href="dashapproval.html">Approvals</a>
-        </nav>
+        <nav class="sidebar-menu"></nav>
+        <script src="sidebarNav.js"></script>
     </div>
     <button class="logout-btn" onclick="handleLogout();">Logout</button>
 </aside>
@@ -191,8 +183,6 @@
 </div>
 
 <script type="module" src="dashworkers.js"></script>
-<script src="roleNav.js"></script>
-<script>document.querySelectorAll('.sidebar-menu a').forEach(a=>{if(a.href.includes(location.pathname.split('/').pop().split('?')[0]))a.classList.add('active')})</script>
 
 </body>
 </html>

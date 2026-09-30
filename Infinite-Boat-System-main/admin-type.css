@@ -1,0 +1,223 @@
+/* =========================================
+   ADMIN TYPE SCALE
+   =========================================
+   The only place admin/manager text sizing is tuned.
+
+   Page stylesheets are duplicated across 10 files and still
+   disagree with each other, so they are left as-is and this
+   file is linked last to nudge small text up by 1px
+   (10px gets +2). Headings are deliberately untouched, so
+   nothing shrinks -- the per-file heading drift (topbar h1 at
+   both 32px and 48px, stat-card h2 at 36px and 38px) stays
+   exactly as authored.
+
+   Rules living inside @media blocks are intentionally NOT
+   listed: overriding those at full width would cancel the
+   responsive down-scaling on small screens.
+
+   To tune globally, change STEP in the generator, or edit the
+   px values below directly.
+   ========================================= */
+
+/* 10px -> 12px (11 selectors) */
+.donut-label small,
+.due-chip,
+.gantt-dates,
+.gantt-label span,
+.gantt-pct,
+.mini-worker-chip,
+.notif-badge,
+.traffic-bar-label,
+.worker-phase-badge,
+.worker-status-badge,
+.ww-badge {
+  font-size: 12px;
+}
+
+/* 11px -> 12px (19 selectors) */
+#deliveryCard .delay-badge,
+#deliveryCard .detail-item h4,
+#deliveryCard .status-badge,
+.admin-notif-dropdown .notif-content span,
+.custom-badge,
+.detail-item h4,
+.filter-btn .badge,
+.gantt-bar-label,
+.modal-grid .mg-item .mg-label,
+.modal-history-item .dt,
+.modal-history-item .st,
+.modal-info-grid .field label,
+.payment-amounts .pa-item .label,
+.section-count,
+.traffic-bar-value,
+.type-badge,
+.worker-badge,
+.worker-tag,
+.ww-reg-date {
+  font-size: 12px;
+}
+
+/* 12px -> 13px (31 selectors) */
+#deliveryCard .delay-info-box h4,
+#deliveryModal .form-group label,
+#deliveryModal .modal-header-info p,
+#deliveryModal .penalty-info,
+#deliveryModal .penalty-preview h5,
+.approve-phase-btn,
+.bank-box span,
+.card-title p,
+.detail-box h4,
+.donut-legend,
+.gantt-label strong,
+.generated, .waiting,
+.modal-history-item,
+.order-details h4,
+.payment-info h4,
+.payment-item p,
+.progress-status,
+.project-info p,
+.schedule-info h4,
+.status-pill,
+.summary-card h4,
+.tl-item,
+.view-grid strong,
+.worker-card-assignment,
+.worker-card-email,
+.worker-chip,
+.worker-detail-row i,
+.ww-form-note,
+.ww-reg-card-actions button,
+.ww-reg-card-email,
+.ww-reg-stat {
+  font-size: 13px;
+}
+
+/* 13px -> 14px (51 selectors) */
+#deliveryCard .delay-details .dd-item,
+#deliveryModal .form-group select, #deliveryModal .form-group input[type="text"], #deliveryModal .form-group input[type="date"], #deliveryModal .form-group input[type="number"], #deliveryModal .form-group textarea,
+#deliveryModal .modal-section h4,
+.accordion-arrow,
+.accordion-header > div,
+.accordion-header strong,
+.admin-notif-dropdown .notif-content p,
+.admin-notif-dropdown .notif-empty,
+.alert-item, .activity-item,
+.analytics-card p,
+.approve-btn, .reject-btn, .view-btn, .revision-btn, .progress-btn,
+.available, .low-stock,
+.boat-info p,
+.boat-item p,
+.card-actions button,
+.card-header button,
+.config-grid,
+.config-panel h3,
+.customer-cell p,
+.customer-name,
+.detail-rows span,
+.donut-card h4,
+.feedback-panel,
+.feedback-panel h4,
+.filter-btn,
+.modal-header p,
+.modal-info-grid .field span,
+.modal-section-title,
+.paid-status, .pending-status, .construction-status,
+.progress-top,
+.project-progress span,
+.project-stage,
+.proof-footer span,
+.proof-link,
+.report-item p,
+.schedule-grid,
+.schedule-grid .sg-item,
+.schedule-panel h3,
+.search-box input,
+.status,
+.summary-card h3,
+.verified, .pending,
+.worker-detail-row,
+.workers-filter-bar input, .ww-reg-filter-bar input,
+.workers-filter-bar select, .ww-reg-filter-bar select,
+.workers-stat-card .stat-info p,
+.ww-btn-primary,
+.ww-btn-secondary,
+.ww-form-group input, .ww-form-group select,
+.ww-form-group label,
+.ww-tab {
+  font-size: 14px;
+}
+
+/* 14px -> 15px (33 selectors) */
+#deliveryCard .detail-item p,
+#deliveryModal .save-btn,
+#revisionFeedback,
+#submitRevisionBtn,
+.activity-item i,
+.add-btn,
+.alert-item i,
+.button-group button,
+.customer-select-wrap label,
+.customer-select-wrap select,
+.detail-item p,
+.detail-rows strong,
+.feedback-box,
+.info-btn,
+.modal-grid .mg-item .mg-value,
+.modal-section h3,
+.new-btn,
+.order-details p,
+.overview-card span,
+.payment-item h4,
+.payment-item span,
+.progress-header p,
+.quick-actions button,
+.report-item h4,
+.revision-actions .close-modal,
+.search-box i,
+.section-header p,
+.stat-card span,
+.toast,
+.transaction-info p,
+.update-progress-btn,
+.view-grid p,
+th {
+  font-size: 15px;
+}
+
+/* 15px -> 16px (11 selectors) */
+.admin-notif-dropdown .notif-header h4,
+.bank-box strong,
+.build-stage,
+.card-title h3,
+.circle-inner span,
+.export-btn,
+.project-info h3,
+.section-title,
+.stat-card h3,
+.topbar p,
+td {
+  font-size: 16px;
+}
+
+/* 16px -> 17px (8 selectors) */
+#deliveryModal .modal-header-info h3,
+.analytics-card h3,
+.modal-close,
+.overview-card h4,
+.payment-amounts .pa-item .value,
+.progress-card h3,
+.worker-card-name,
+.ww-reg-card-name {
+  font-size: 17px;
+}
+
+/* =========================================
+   PAGE-SPECIFIC EXCEPTIONS
+   =========================================
+   Placed last so it outranks the buckets above.
+   ========================================= */
+
+/* dashcustomer ships a larger subtitle by design. */
+.topbar p.lg-sub {
+  font-size: 24px;
+}
