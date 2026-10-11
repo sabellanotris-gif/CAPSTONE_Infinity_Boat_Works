@@ -1,7 +1,7 @@
 -- Hardening: prevent users from assigning themselves (or anyone) the admin role.
 -- RLS policies alone cannot reference NEW/OLD in Supabase's editor, so the
 -- protection lives in a BEFORE INSERT OR UPDATE trigger instead.
---   - INSERT: role is forced to 'user' unless the actor is an admin
+--   - INSERT: role is forced to 'customer' unless the actor is an admin
 --             (infinityboatsystem@gmail.com keeps the seeded admin role).
 --   - UPDATE: the role column can never change unless the actor is an admin.
 -- Run this once in the Supabase SQL Editor.
@@ -21,7 +21,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.role = 'admin' AND NOT public.is_admin() AND NEW.email <> 'infinityboatsystem@gmail.com' THEN
-      NEW.role := 'user';
+      NEW.role := 'customer';
     END IF;
     RETURN NEW;
   END IF;

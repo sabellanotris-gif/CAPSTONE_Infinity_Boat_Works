@@ -43,7 +43,10 @@ let selectedDateStr = null;
 let rescheduleOrderId = null;
 let isReschedule = false;
 
-function init() {
+async function init() {
+    const auth = await window.requireRole(["customer", "user"]);
+    if (!auth) return;
+
     const urlParams = new URLSearchParams(window.location.search);
     const isFinalize = urlParams.get("mode") === "finalize";
     const isResched = urlParams.get("mode") === "reschedule";

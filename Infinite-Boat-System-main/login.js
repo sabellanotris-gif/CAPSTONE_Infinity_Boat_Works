@@ -65,7 +65,7 @@ window.login = async function () {
   sessionStorage.setItem("customerImage", profile?.photo || "./images/user.png");
   sessionStorage.setItem("customerPhone", profile?.phone || "");
 
-  const userRole = profile?.role || user?.user_metadata?.role || "user";
+  const userRole = profile?.role || user?.user_metadata?.role || "customer";
 
   if (userRole === "admin") {
     alert("Welcome Admin!");
@@ -111,7 +111,7 @@ window.login = async function () {
     window.location.href = "worker.html";
   } else {
     alert("Login Successful!");
-    sessionStorage.setItem("role", "user");
+    sessionStorage.setItem("role", "customer");
     window.location.href = "home.html";
   }
 };

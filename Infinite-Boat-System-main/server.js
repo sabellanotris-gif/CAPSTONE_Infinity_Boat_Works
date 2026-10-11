@@ -130,6 +130,12 @@ async function requireAdminOrManager(req, res, next) {
   next();
 }
 
+// Non-throwing variant of requireAdminOrManager for use inside route handlers.
+function isAdminOrManager(req) {
+  const role = req.profile?.role || req.user?.user_metadata?.role;
+  return role === "admin" || role === "manager";
+}
+
 /* ============ AUTH ============ */
 
 app.post("/api/auth/me", authenticate, (req, res) => {
@@ -335,87 +341,8 @@ app.post("/api/auth/resend-verification", async (req, res) => {
 
 /* ============ WORKER REGISTRATION & APPROVAL ============ */
 
-app.post("/api/auth/register-worker", async (req, res) => {
-  try {
-    const { email, password, fullname, phone, specialty } = req.body;
-
-    if (!email || !password || !fullname || !specialty) {
-      return res.status(400).json({ error: "Missing required fields: email, password, fullname, specialty" });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({ error: "Password must be at least 8 characters" });
-    }
-
-    if (!supabaseServiceRole) {
-      return res.status(500).json({ error: "Server not configured for registration." });
-    }
-
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-
-    const { data: userData, error: userError } = await supabaseServiceRole.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name: fullname, role: "worker", specialty, verification_token: verificationToken },
-    });
-
-    if (userError) {
-      if (userError.message?.includes("already registered") || userError.message?.includes("already exists")) {
-        return res.status(409).json({ error: "Email already registered." });
-      }
-      return res.status(500).json({ error: userError.message });
-    }
-
-    const { error: profileError } = await supabaseServiceRole.from("profiles").upsert({
-      id: userData.user.id,
-      email,
-      name: fullname,
-      phone: phone || "",
-      role: "worker",
-    }, { onConflict: "id" });
-
-    if (profileError) {
-      console.error("[REGISTER WORKER] Profile upsert failed:", profileError);
-    }
-
-    const { error: regError } = await supabaseServiceRole.from("worker_registrations").insert({
-      userId: userData.user.id,
-      email,
-      name: fullname,
-      phone: phone || "",
-      specialty,
-      status: "pending",
-    });
-
-    if (regError) {
-      console.error("[REGISTER WORKER] Registration record failed:", regError);
-    }
-
-    sendEmail({
-      to: ADMIN_EMAIL,
-      subject: `New Worker Registration — ${fullname}`,
-      html: `
-        <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
-          <h2 style="color:#1e3a5f;">New Worker Registration 🛠️</h2>
-          <p>A new worker has registered and is awaiting your approval.</p>
-          <table style="width:100%;border-collapse:collapse;margin:16px 0">
-            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Name</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(fullname)}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Email</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(email)}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Phone</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(phone || "—")}</td></tr>
-            <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Specialty</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(specialty)}</td></tr>
-          </table>
-          <p>Please review this registration in the admin dashboard.</p>
-          <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
-        </div>`
-    }).catch(err => console.error("[REGISTER WORKER] Admin notification email failed:", err));
-
-    res.status(201).json({ success: true, message: "Registration successful! Your account is pending admin approval. You will receive an email once approved." });
-  } catch (err) {
-    console.error("[REGISTER WORKER] Error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+/* Workers can only be created by an admin via POST /api/admin/create-worker.
+   Public self-registration for workers is intentionally not available. */
 
 app.get("/api/worker-registrations", authenticate, requireAdmin, async (req, res) => {
   try {
@@ -1001,6 +928,29 @@ app.post("/api/worker/approve-phase", authenticate, requireAdminOrManager, async
 
 /* ============ ORDERS ============ */
 
+// Fields a customer is allowed to set on their own order through the API.
+// Everything else (status, progress, paymentStep, remainingBalance, milestones,
+// activityLog, paymentHistory, progressPhotos, budgetInfo, documents,
+// deliveryInfo, review*, cancel* , projectCompletedDate, materialsDeducted) is
+// server/admin-controlled and must never be mass-assigned by a client.
+const CUSTOMER_ORDER_FIELDS = [
+  "orderId", "boatName", "boatImage", "boatPrice", "buildTime", "downpayment",
+  "paymentMethod", "customerName", "customerEmail", "customerPhone",
+  "customerAddress", "validId", "notes", "buildType", "ackResponses",
+  "ackComments", "contractSchedule", "customConfig", "guidelineResponses",
+  "guidelineComments", "signature",
+  "cancelReason", "cancelSignature", "cancelMaterials", "previousStatus",
+  "cancelRequestedAt", "ratingInfo"
+];
+
+function pickCustomerOrderFields(body) {
+  const out = {};
+  for (const key of CUSTOMER_ORDER_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) out[key] = body[key];
+  }
+  return out;
+}
+
 app.get("/api/orders", authenticate, async (req, res) => {
   try {
     let query = supabase.from("boat_orders").select("*").order("createdAt", { ascending: false });
@@ -1019,10 +969,31 @@ app.get("/api/orders", authenticate, async (req, res) => {
 
 app.post("/api/orders", authenticate, async (req, res) => {
   try {
-    const body = { ...req.body, userId: req.user.id };
+    const trusted = isAdminOrManager(req);
+    // Admins/managers may submit a full order; customers are restricted to the
+    // safe field set and always get a server-owned userId + neutral defaults.
+    const body = trusted ? { ...req.body } : pickCustomerOrderFields(req.body);
+    body.userId = req.user.id;
 
     if (!body.orderId || !body.boatName) {
       return res.status(400).json({ error: "Missing required fields: orderId, boatName" });
+    }
+
+    if (!trusted) {
+      body.status = ["Pending", "Pending Signing", "Under Review"].includes(body.status)
+        ? body.status
+        : "Pending";
+      body.progress = [0, 5].includes(Number(body.progress)) ? Number(body.progress) : 0;
+      body.paymentStep = 0;
+      body.paymentHistory = [];
+      body.milestones = [];
+      body.activityLog = [];
+      body.progressPhotos = [];
+      body.budgetInfo = {};
+      body.documents = [];
+      body.deliveryInfo = {};
+      body.materialsDeducted = false;
+      body.projectCompletedDate = null;
     }
 
     const { data, error } = await supabase.from("boat_orders").insert(body).select();
@@ -1046,13 +1017,18 @@ app.put("/api/orders/:orderId", authenticate, async (req, res) => {
 
     if (!existing) return res.status(404).json({ error: "Order not found" });
 
-    if (req.profile?.role !== "admin" && req.user?.user_metadata?.role !== "admin" && req.profile?.role !== "manager" && req.user?.user_metadata?.role !== "manager" && existing.userId !== req.user.id) {
+    const trusted = isAdminOrManager(req);
+    if (!trusted && existing.userId !== req.user.id) {
       return res.status(403).json({ error: "Not authorized to update this order" });
     }
 
+    // Customers may only modify the safe field set; privileged columns are
+    // dropped before the update reaches the database.
+    const payload = trusted ? { ...updates } : pickCustomerOrderFields(updates);
+
     const { data, error } = await supabase
       .from("boat_orders")
-      .update({ ...updates, updatedAt: new Date().toISOString() })
+      .update({ ...payload, updatedAt: new Date().toISOString() })
       .eq("orderId", orderId)
       .select();
 
@@ -1090,7 +1066,7 @@ function calculateDelayPenalty(boatPrice, delayDays) {
   return { penalty, percent };
 }
 
-app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, async (req, res) => {
+app.put("/api/orders/:orderId/delivery", authenticate, requireAdmin, async (req, res) => {
   try {
     const { orderId } = req.params;
     const {
@@ -1204,7 +1180,22 @@ app.get("/api/payments", authenticate, async (req, res) => {
 
 app.post("/api/payments", authenticate, async (req, res) => {
   try {
-    const body = { ...req.body, userId: req.user.id };
+    // Customers may only supply payment evidence fields. Status and review
+    // metadata are server-owned: a submitted payment is always "Pending".
+    const trusted = isAdminOrManager(req);
+    const allowed = [
+      "orderId", "customerName", "customerEmail", "boatName", "amount", "phase",
+      "paymentStep", "bank", "reference", "proofImage", "remainingBalance"
+    ];
+    const body = trusted ? { ...req.body } : (() => {
+      const out = {};
+      for (const key of allowed) {
+        if (Object.prototype.hasOwnProperty.call(req.body, key)) out[key] = req.body[key];
+      }
+      return out;
+    })();
+    body.userId = req.user.id;
+    if (!trusted) body.status = "Pending";
 
     if (!body.orderId || !body.amount) {
       return res.status(400).json({ error: "Missing required fields: orderId, amount" });
@@ -1257,13 +1248,26 @@ app.get("/api/profiles", authenticate, requireAdmin, async (req, res) => {
 
 app.put("/api/profiles/:id", authenticate, async (req, res) => {
   try {
-    if (req.profile?.role !== "admin" && req.user?.user_metadata?.role !== "admin" && req.params.id !== req.user.id) {
+    const isAdmin = req.profile?.role === "admin" || req.user?.user_metadata?.role === "admin";
+    if (!isAdmin && req.params.id !== req.user.id) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
+    // Non-admins may only edit their own display fields. Role (and any other
+    // privileged column) is never accepted from a self-service update.
+    const payload = isAdmin
+      ? { ...req.body }
+      : (() => {
+          const out = {};
+          for (const key of ["name", "phone", "photo"]) {
+            if (Object.prototype.hasOwnProperty.call(req.body, key)) out[key] = req.body[key];
+          }
+          return out;
+        })();
+
     const { data, error } = await supabase
       .from("profiles")
-      .update({ ...req.body, updated_at: new Date().toISOString() })
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq("id", req.params.id)
       .select();
 
@@ -1817,9 +1821,19 @@ app.delete("/api/tasks/:id", authenticate, requireAdminOrManager, async (req, re
 
 /* ============ DOCUMENT UPLOAD ============ */
 
-app.post("/api/upload", authenticate, upload.single("file"), async (req, res) => {
+const ALLOWED_UPLOAD_MIME = new Set([
+  "image/png", "image/jpeg", "image/webp", "image/gif",
+  "application/pdf", "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+]);
+
+app.post("/api/upload", authenticate, requireAdminOrManager, upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!ALLOWED_UPLOAD_MIME.has(req.file.mimetype)) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(415).json({ error: "Unsupported file type" });
+    }
     const fileUrl = "/uploads/" + req.file.filename;
     res.json({ url: fileUrl, filename: req.file.originalname, size: req.file.size });
   } catch (err) {

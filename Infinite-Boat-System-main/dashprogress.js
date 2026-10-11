@@ -77,7 +77,7 @@ function applyRoleLock() {
       banner.style.display = "none";
     } else {
       banner.style.display = "block";
-      banner.innerHTML = '<i class="fa-solid fa-eye"></i> <strong>Read-only view.</strong> You are monitoring this build. Only the Project Manager can change milestones, workers, tasks, documents, or delivery.';
+      banner.innerHTML = '<i class="fa-solid fa-eye"></i> <strong>Read-only view.</strong> You are monitoring this build. Only the Project Manager can change milestones, workers, tasks, and documents. Delivery details are managed by an Admin.';
     }
   }
 
@@ -2158,7 +2158,7 @@ function renderDeliveryCard(order) {
                 <span class="status-badge ${badgeClass}">${status}</span>
                 ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
             </div>
-            ${canEdit() ? '<button class="manage-btn" onclick="openDeliveryModal()" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:#356cff;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-edit"></i> Manage</button>' : ''}
+            ${isAdmin() ? '<button class="manage-btn" onclick="openDeliveryModal()" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:#356cff;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-edit"></i> Manage</button>' : ''}
         </div>
         <div class="card-details" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
             <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
@@ -2206,6 +2206,7 @@ function dateToISO(dateStr) {
 }
 
 window.openDeliveryModal = function() {
+    if (!isAdmin()) return;
     const order = getSelectedOrder();
     if (!order) return;
     const di = order.deliveryInfo || {};
@@ -2326,7 +2327,7 @@ window.previewPenalty = function() {
 };
 
 window.saveDelivery = async function() {
-    if (!canEdit()) return;
+    if (!isAdmin()) return;
     const order = getSelectedOrder();
     if (!order) return;
     const btn = document.getElementById('saveDeliveryBtn');

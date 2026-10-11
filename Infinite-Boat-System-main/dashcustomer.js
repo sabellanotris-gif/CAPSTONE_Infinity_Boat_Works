@@ -52,7 +52,7 @@ async function loadCustomers() {
 
         if (profiles.length > 0) {
             tbody.innerHTML = '';
-            profiles.filter(p => p.role !== 'admin' && p.role !== 'worker').forEach((profile) => {
+            profiles.filter(p => p.role === 'customer' || p.role === 'user').forEach((profile) => {
                 const email = (profile.email || '').toLowerCase();
                 const count = boatCounts[email] || 0;
                 const boatDisplay = count > 0 ? count + ' boat' + (count > 1 ? 's' : '') : 'None';

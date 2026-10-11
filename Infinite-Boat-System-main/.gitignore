@@ -4,3 +4,4 @@ uploads/
 server.log
 srv_out.log
 srv_err.log
+orders_backup_*.json

@@ -638,10 +638,11 @@ Capabilities:
 - Manage payments; review and approve/reject payment proofs (dashpayment.html).
 - Manage inventory, including 3D customization part stock and Bill of Materials deduction (dashinventory.html).
 - Manage customers and user accounts (dashcustomer.html).
-- Approve worker registrations and manage worker accounts (dashapproval.html, dashworkers.html, /api/admin/create-worker).
+- Review order contract-signing schedules and approve/reject payments (dashapproval.html).
+- Approve worker registrations and manage worker accounts (dashworkers.html Registrations tab, /api/admin/create-worker).
 - Manage the master worker registry: add/remove/edit workers and their specialties.
 - Sales and analytics: revenue, reports, analytics dashboards (dashsales.html, dashanalytics.html, /api/reports/summary).
-- Manage delivery tracking: committed dates, sea trial results, delay penalty calculation (dashdelivery.html).
+- Manage delivery tracking: committed dates, sea trial results, delay penalty calculation (admin-only, managed from dashprogress.html).
 - System settings and high-level administration: delete users/orders, broadcast notifications, AI video generation (aivideo.html).
 - Retains full visibility and can override project information when necessary (can still access dashprogress and all project records).
 Limits: none of consequence; admin is the top role. The admin role itself is protected so users cannot self-promote (migration_lock_admin_role.sql).
@@ -677,7 +678,7 @@ Sales and analytics (read-only) | Yes | Yes
 Approve/reject orders | No | Yes
 Approve payments, manage inventory, customers, worker approvals | No | Yes
 Delete users/orders | No | Yes
-Delivery management (dashdelivery) | No | Yes
+Delivery management (admin-only, on dashprogress.html) | No | Yes
 Company-wide admin / system settings / override project work | No | Yes
 Login destination | manager.html (restricted nav) | dashboard.html (full nav)
 
@@ -703,13 +704,13 @@ PROJECT MANAGER ROLE - IMPLEMENTATION PLAN
 3) Frontend
 - login.js: add a 'manager' branch that sets localStorage.role = 'manager' and redirects to manager.html.
 - New manager.html / manager.js: Project Manager home with restricted navigation (Dashboard, Orders, Sales, Analytics, Boat Progress, Workers) and summary cards. dashboard.html remains the admin home (strict admin guard).
-- New roleNav.js: shared sidebar filter — for managers it repoints Dashboard to manager.html and removes the admin-only links (Customers, Payments, Inventory, Approvals, Delivery).
+- New roleNav.js: shared sidebar filter — for managers it repoints Dashboard to manager.html and removes the admin-only links (Customers, Payments, Inventory, Approvals, AI Video).
 - Loosen the role guard pattern from "profile.role !== 'admin'" to "!['admin','manager'].includes(profile.role)" and set window.currentRole in: dashorder.js, dashworkers.js, dashsales.js, dashanalytics.js, and dashprogress.js.
 - Hide admin-only UI for managers:
   - dashorder.html/js: read-only mode — approve/reject/status/cancel buttons and "+ New Order" are hidden (View remains).
   - dashworkers.html/js: the Registrations tab is hidden (approvals + register controls remain admin-only); the worker list/registry view remains.
   - dashprogress.html/js: worker registry seeding is skipped for managers (registry is populated by admin); phase approval, worker assignment, tasks, photos/docs, budget, and Gantt remain available.
-- Admin-only pages (dashpayment, dashinventory, dashcustomer, dashapproval, dashdelivery, dashboard) keep strict admin guards and are not linked for the manager.
+- Admin-only pages (dashpayment, dashinventory, dashcustomer, dashapproval, dashboard, aivideo) keep strict admin guards and are not linked for the manager. Delivery details are managed by an admin from within dashprogress.html (no separate dashdelivery.html page).
 
 4) Seeding
 - Add setup-manager.mjs (mirrors setup-admin.mjs) that creates manager@gmail.com with role 'manager', run with the Supabase service-role key: node setup-manager.mjs <service_role_key>

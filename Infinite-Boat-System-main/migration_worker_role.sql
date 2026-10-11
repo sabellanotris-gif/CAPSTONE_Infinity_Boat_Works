@@ -110,7 +110,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.role = 'admin' AND NOT public.is_admin() AND NEW.email <> 'infinityboatsystem@gmail.com' THEN
-      NEW.role := 'user';
+      NEW.role := 'customer';
     END IF;
     RETURN NEW;
   END IF;
@@ -141,7 +141,7 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
     COALESCE(NEW.raw_user_meta_data->>'photo', './images/user.png'),
     COALESCE(NEW.raw_user_meta_data->>'role',
-      CASE WHEN NEW.email = 'infinityboatsystem@gmail.com' THEN 'admin' ELSE 'user' END
+      CASE WHEN NEW.email = 'infinityboatsystem@gmail.com' THEN 'admin' ELSE 'customer' END
     )
   );
   RETURN NEW;

@@ -20,7 +20,7 @@ const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
     'Accept': 'application/json'
   },
   body: JSON.stringify({
-    query: "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';"
+    query: "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'customer';"
   })
 });
 

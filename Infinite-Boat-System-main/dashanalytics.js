@@ -358,3 +358,33 @@ document.querySelector('.report-btn')?.addEventListener('click', async () => {
 
   doc.save('analytics_report_' + new Date().toISOString().slice(0, 10) + '.pdf');
 });
+
+document.getElementById('csvExportBtn')?.addEventListener('click', async () => {
+  const result = await handleDbError(
+    supabase.from("boat_orders").select("*"),
+    "Export CSV"
+  );
+  const orders = (result && !result.error ? result.data : []) || [];
+
+  const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [
+    ['Customer', 'Boat Model', 'Price (PHP)', 'Status', 'Date'].map(esc).join(',')
+  ];
+  orders.forEach(o => {
+    lines.push([
+      o.customerName || 'Unknown',
+      o.boatName || 'Boat',
+      parsePrice(o.boatPrice),
+      o.status || 'Pending',
+      o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PH') : 'N/A'
+    ].map(esc).join(','));
+  });
+
+  const blob = new Blob(["\ufeff" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'analytics_report_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+});

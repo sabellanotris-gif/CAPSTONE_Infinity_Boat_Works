@@ -13,7 +13,7 @@ CREATE TABLE public.profiles (
   email TEXT,
   name TEXT,
   photo TEXT DEFAULT './images/user.png',
-  role TEXT DEFAULT 'user',
+  role TEXT DEFAULT 'customer',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -31,7 +31,7 @@ BEGIN
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'name', NEW.email),
     COALESCE(NEW.raw_user_meta_data->>'photo', './images/user.png'),
-    COALESCE(NEW.raw_user_meta_data->>'role', CASE WHEN NEW.email = 'infinityboatsystem@gmail.com' THEN 'admin' ELSE 'user' END)
+    COALESCE(NEW.raw_user_meta_data->>'role', CASE WHEN NEW.email = 'infinityboatsystem@gmail.com' THEN 'admin' ELSE 'customer' END)
   );
   RETURN NEW;
 END;

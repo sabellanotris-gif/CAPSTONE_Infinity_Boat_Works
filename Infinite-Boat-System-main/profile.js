@@ -12,14 +12,11 @@ const newPasswordInput = document.getElementById("newPassword");
 const confirmPasswordInput = document.getElementById("confirmPassword");
 
 async function checkAuth() {
-  const session = await window.refreshValidSession();
-  if (session) {
-    currentUser = session.user;
-    sessionStorage.setItem("userId", currentUser.id);
-    await loadProfile(currentUser.id);
-  } else {
-    window.location.href = "login.html";
-  }
+  const auth = await window.requireRole(["customer", "user"]);
+  if (!auth) return;
+  currentUser = auth.session.user;
+  sessionStorage.setItem("userId", currentUser.id);
+  await loadProfile(currentUser.id);
 }
 
 supabase.auth.onAuthStateChange((event, session) => {

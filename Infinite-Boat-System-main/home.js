@@ -71,6 +71,9 @@ function getSpecialtyIcon(role) {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+    const auth = await window.requireRole(["customer", "user"]);
+    if (!auth) return;
+
     const customerEmail = sessionStorage.getItem("customerEmail");
     if (!customerEmail) {
         window.location.href = "login.html";

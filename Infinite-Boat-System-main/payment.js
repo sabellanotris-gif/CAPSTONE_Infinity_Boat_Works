@@ -56,6 +56,9 @@ JSON.parse(
 ===================================================== */
 
 (async () => {
+  const auth = await window.requireRole(["customer", "user"]);
+  if (!auth) return;
+
   if (!savedOrder || !savedOrder.orderId) {
     alert("No order selected. Redirecting to home page.");
     window.location.href = "home.html";

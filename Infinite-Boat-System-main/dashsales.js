@@ -217,9 +217,8 @@ function renderSalesTable(orders, payments) {
 loadSalesData();
 
 const exportBtn = document.getElementById('exportBtn');
-exportBtn?.addEventListener('click', () => {
-  const orders = JSON.parse(localStorage.getItem('boatOrders') || '[]');
-  const payments = JSON.parse(localStorage.getItem('dashboardPayments') || '[]');
+exportBtn?.addEventListener('click', async () => {
+  const { orders } = await fetchLiveData();
 
   if (typeof XLSX === 'undefined') {
     const escCsv = v => '"' + String(v).replace(/"/g, '""') + '"';

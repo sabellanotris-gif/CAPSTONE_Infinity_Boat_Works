@@ -1,4 +1,17 @@
-import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity } from "./supabase.js";
+import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole } from "./supabase.js";
+
+// Staff must not browse the customer boat composer. Customers and unauthenticated
+// previews are allowed (preview mode is intentional for unplaced boats).
+(async () => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
+    if (profile && ["admin", "manager", "worker"].includes(profile.role)) {
+      window.location.href = landingForRole(profile.role);
+    }
+  } catch (e) { /* non-fatal */ }
+})();
 
 // Ensure the logged-in customer's identity (never a stale admin/worker name)
 (async () => {
