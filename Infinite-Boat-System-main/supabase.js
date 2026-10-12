@@ -188,9 +188,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 export { supabaseUrl };
 
-// API base URL — uses port 3000 for Express API, auto-detect if already on port 3000
-const port = window.location.port;
-export const API_BASE = (port === "3000" ? window.location.origin : "http://localhost:3000") + "/api";
+// API base URL — the Express server serves both the API and this static site,
+// so the API always lives on the same origin (works on localhost and in production).
+export const API_BASE = window.location.origin + "/api";
 
 export async function handleDbError(promise, context = '') {
   try {

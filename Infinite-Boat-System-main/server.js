@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");

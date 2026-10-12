@@ -1988,7 +1988,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     async function getWorkersForOrder(order) {
         if (!order.orderId) return [];
         try {
-            const apiBase = window.location.port === "3000" ? window.location.origin : "http://localhost:3000";
+            const apiBase = window.location.origin;
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
             const res = await fetch(apiBase + "/api/workers/" + order.orderId, {
