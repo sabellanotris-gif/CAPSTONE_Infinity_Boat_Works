@@ -1,4 +1,4 @@
-import { supabase, handleDbError, sendEmailNotification } from "./supabase.js";
+import { supabase, handleDbError, sendEmailNotification, API_BASE } from "./supabase.js";
 import {
   BOAT_SPECS,
   BOAT_MATERIALS,
@@ -1988,10 +1988,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     async function getWorkersForOrder(order) {
         if (!order.orderId) return [];
         try {
-            const apiBase = window.location.origin;
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
-            const res = await fetch(apiBase + "/api/workers/" + order.orderId, {
+            const res = await fetch(API_BASE + "/workers/" + order.orderId, {
                 headers: token ? { Authorization: "Bearer " + token } : {}
             });
             if (!res.ok) return [];

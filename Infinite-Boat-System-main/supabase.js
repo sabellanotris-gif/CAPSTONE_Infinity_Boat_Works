@@ -188,9 +188,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 export { supabaseUrl };
 
-// API base URL — the Express server serves both the API and this static site,
-// so the API always lives on the same origin (works on localhost and in production).
-export const API_BASE = window.location.origin + "/api";
+// API base URL — resolve the Express API origin.
+// Same-origin when the page is served by Express itself (port 3000, or a
+// production host/proxy with no port). Otherwise (e.g. Live Server on :5500)
+// fall back to the local API server. Override with window.API_ORIGIN or ?api=.
+const API_ORIGIN =
+  new URLSearchParams(window.location.search).get("api") ||
+  window.API_ORIGIN ||
+  (window.location.port === "3000" || window.location.port === ""
+    ? window.location.origin
+    : "http://localhost:3000");
+export const API_BASE = API_ORIGIN.replace(/\/+$/, "") + "/api";
 
 export async function handleDbError(promise, context = '') {
   try {

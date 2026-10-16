@@ -2132,14 +2132,14 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
   }
 }));
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
  app.use((req, res) => {
    console.error("[DEBUG 404] " + req.method + " " + req.originalUrl);
    res.status(404).json({ error: "Not found" });
  });
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
 
 app.listen(PORT, () => {
   console.log("SERVER RUNNING");
