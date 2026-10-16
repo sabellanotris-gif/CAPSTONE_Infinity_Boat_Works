@@ -385,6 +385,19 @@ function matchBoatKey(boatName, dict) {
   return match ? dict[match] : null;
 }
 
+// ---- Required build team per boat ----
+// Number of workers needed per specialty for each boat. Scales with boat size.
+// Every specialty listed here must also have an entry in SPECIALTY_PHASES so its
+// workers can be scheduled into the boat's phases.
+const BOAT_CREW = {
+  "Speed Boat":            { "Builder": 2, "Fiberglass Specialist": 1, "Welder": 1, "Electrician": 1, "Mechanic": 1, "Engineer": 1, "Painter": 1, "Quality Inspector": 1 },
+  "Parasail Boat":         { "Builder": 3, "Fiberglass Specialist": 2, "Welder": 2, "Electrician": 1, "Mechanic": 1, "Engineer": 1, "Painter": 1, "Quality Inspector": 1 },
+  "Patrol Boat":           { "Builder": 3, "Fiberglass Specialist": 3, "Welder": 2, "Electrician": 2, "Mechanic": 1, "Engineer": 1, "Painter": 1, "Quality Inspector": 1 },
+  "1950 Passenger Boat":   { "Builder": 4, "Fiberglass Specialist": 3, "Welder": 2, "Electrician": 2, "Mechanic": 1, "Engineer": 1, "Painter": 1, "Quality Inspector": 1 },
+  "2680 Passenger Boat":   { "Builder": 6, "Fiberglass Specialist": 5, "Welder": 3, "Electrician": 2, "Mechanic": 2, "Engineer": 1, "Painter": 1, "Quality Inspector": 1 },
+  "Passenger Boat":        { "Builder": 3, "Fiberglass Specialist": 2, "Welder": 2, "Electrician": 1, "Mechanic": 1, "Engineer": 1, "Painter": 1, "Quality Inspector": 1 }
+};
+
 // ---- Specialty to phase mapping (phase-based worker scheduling) ----
 // Maps a worker specialty to the boat milestone keys (phases) they participate in.
 const SPECIALTY_PHASES = {
@@ -392,7 +405,9 @@ const SPECIALTY_PHASES = {
   "Builder": ["construction", "outfitting"],
   "Welder": ["construction", "winch"],
   "Fiberglass Specialist": ["construction", "winch"],
-  "Electrician": ["engines", "systems", "outfitting"],
+  "Electrician": ["engines", "systems", "winch", "outfitting"],
+  "Mechanic": ["engines", "systems", "winch", "outfitting"],
+  "Quality Inspector": ["construction", "outfitting", "systems", "seatrial", "delivery"],
   "Painter": ["outfitting", "delivery"]
 };
 
@@ -587,7 +602,7 @@ export function sumPendingExpenses(expenses) {
 }
 
 // Public API
-export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, BOAT_BOM };
+export { BOAT_SPECS, BOAT_MATERIALS, BOAT_SIMPLE_MATERIALS, BOAT_MILESTONES, BOAT_ACTIVITIES, BOAT_TIMELINE, BOAT_DELIVERY_INFO, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, BOAT_BOM, BOAT_CREW };
 
 export function getBoatSpecs(boatName) {
   return matchBoatKey(boatName, BOAT_SPECS) || BOAT_SPECS["Passenger Boat"];
@@ -603,6 +618,22 @@ export function getBoatSimpleMaterials(boatName) {
 
 export function getBoatMilestones(boatName) {
   return matchBoatKey(boatName, BOAT_MILESTONES) || BOAT_MILESTONES["Passenger Boat"];
+}
+
+// Required worker count per specialty for a boat. Falls back to the generic
+// "Passenger Boat" crew, then guarantees every known specialty has at least 1.
+export function getBoatCrew(boatName) {
+  const crew = matchBoatKey(boatName, BOAT_CREW) || BOAT_CREW["Passenger Boat"];
+  const result = { ...crew };
+  Object.keys(SPECIALTY_PHASES).forEach(spec => {
+    if (!(spec in result)) result[spec] = 1;
+  });
+  return result;
+}
+
+export function getBoatCrewTotal(boatName) {
+  const crew = getBoatCrew(boatName);
+  return Object.values(crew).reduce((sum, n) => sum + (Number(n) || 0), 0);
 }
 
 export function getBoatActivities(boatName) {

@@ -1580,21 +1580,29 @@ async function assignFullTeam(orderId) {
   const { data: allWorkers } = await adminDb.from("workers").select("*");
   if (!allWorkers || allWorkers.length === 0) return { error: "No workers in registry", status: 400 };
 
+  // Required workers per specialty for this boat (scales with boat size).
+  const crew = boatData.getBoatCrew?.(order.boatName) || {};
+
   const teamMembers = [];
   const skipped = [];
+  let requiredCount = 0;
   specialties.forEach(spec => {
+    const neededCount = Math.max(1, Number(crew[spec]) || 1);
+    requiredCount += neededCount;
     const candidates = allWorkers.filter(w =>
       String(w.specialty || "").toLowerCase() === String(spec).toLowerCase()
     );
-    // Prefer a worker already Active on this order (stays the whole build),
-    // otherwise the first available worker not busy elsewhere.
-    const pick = candidates.find(w => activeNames.has(w.name))
-      || candidates.find(w => !busy.has(w.name) && !activeNames.has(w.name));
-    if (pick) {
-      activeNames.add(pick.name);
-      teamMembers.push({ ...pick, specialty: spec });
-    } else {
-      skipped.push({ specialty: spec, reason: "no available worker" });
+    // Prefer workers already Active on this order (they stay the whole build),
+    // then fill up to the required count with available workers not busy elsewhere.
+    const continuing = candidates.filter(w => activeNames.has(w.name));
+    const fresh = candidates.filter(w => !busy.has(w.name) && !activeNames.has(w.name));
+    const picked = [...continuing, ...fresh].slice(0, neededCount);
+    picked.forEach(w => {
+      activeNames.add(w.name);
+      teamMembers.push({ ...w, specialty: spec });
+    });
+    if (picked.length < neededCount) {
+      skipped.push({ specialty: spec, reason: `only ${picked.length} of ${neededCount} available` });
     }
   });
 
@@ -1645,7 +1653,7 @@ async function assignFullTeam(orderId) {
       }
     }
   }
-  return { assigned: true, count: inserted.length, team: teamMembers.map(m => m.name), phases, skipped };
+  return { assigned: true, count: inserted.length, workers: teamMembers.length, required: requiredCount, team: teamMembers.map(m => m.name), phases, skipped };
 }
 
 app.post("/api/workers/assign-team/:orderId", authenticate, requireAdminOrManager, async (req, res) => {

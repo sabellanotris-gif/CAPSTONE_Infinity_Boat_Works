@@ -294,7 +294,7 @@ async function createTeamForOrder(orderId) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, msg: data?.error || "Create team failed" };
-    return { ok: true, count: data?.count || 0, skipped: data?.skipped || [] };
+    return { ok: true, count: data?.count || 0, workers: data?.workers || 0, required: data?.required || 0, skipped: data?.skipped || [] };
   } catch (e) {
     console.error("Create team failed:", e);
     return { ok: false, msg: e?.message || "Create team failed" };
@@ -326,12 +326,13 @@ async function approveOrder(index) {
     const assigned = await createTeamForOrder(order.orderId);
     if (assigned.ok) {
         const skipped = assigned.skipped || [];
+        const teamMsg = (assigned.workers || 0) + ' of ' + (assigned.required || 0) + ' required workers';
         if (assigned.count === 0 && skipped.length) {
             showToast('Order Approved. No build team created — ' + skipped.length + ' specialty(ies) had no available worker. Use Create Team in Boat Progress.', 'warning');
         } else if (skipped.length) {
-            showToast('Order Approved. Build team created with ' + assigned.count + ' assignment(s), ' + skipped.length + ' specialty(ies) skipped (no available worker).', 'success');
+            showToast('Order Approved. Build team created (' + teamMsg + '), ' + skipped.length + ' specialty(ies) short (not enough available workers).', 'success');
         } else {
-            showToast('Order Approved. Build team created with ' + assigned.count + ' assignment(s).', 'success');
+            showToast('Order Approved. Build team created (' + teamMsg + ').', 'success');
         }
     } else {
         showToast('Order Approved, but the build team was not created: ' + assigned.msg + ' Use Create Team in Boat Progress.', 'warning');
@@ -435,7 +436,7 @@ async function approveSchedule(index) {
     sendEmailNotification({ type: "status_changed", recipient: order.customerEmail, data: order });
     const assigned = await createTeamForOrder(order.orderId);
     if (assigned.ok) {
-        showToast('Schedule approved. Build team created with ' + assigned.count + ' assignment(s).', 'success');
+        showToast('Schedule approved. Build team created (' + (assigned.workers || 0) + ' of ' + (assigned.required || 0) + ' required workers).', 'success');
     } else {
         showToast('Schedule approved! Use Create Team in the Boat Progress page.', 'success');
     }

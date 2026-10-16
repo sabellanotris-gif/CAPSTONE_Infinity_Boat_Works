@@ -795,3 +795,144 @@
 }
 #deliveryModal .save-btn:hover { transform:translateY(-2px);box-shadow:0 4px 12px rgba(41,93,255,.4); }
 #deliveryModal .save-btn:disabled { opacity:.6;cursor:not-allowed;transform:none; }
+
+/* =====================
+   GROUPED CREW (Build Team / Workers / Availability)
+   ===================== */
+
+/* Keep long chips from overflowing the 320px side column. */
+.worker-chip
+{
+    max-width:100%;
+    flex-wrap:wrap;
+    white-space:normal;
+    line-height:1.4;
+}
+
+.crew-group
+{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    width:100%;
+}
+
+.crew-group-header
+{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12px;
+    font-weight:700;
+    color:#334155;
+}
+
+.crew-group-header i
+{
+    color:#64748b;
+    font-size:11px;
+}
+
+.crew-count
+{
+    background:#e0e7ff;
+    color:#3730a3;
+    font-size:11px;
+    font-weight:700;
+    padding:1px 8px;
+    border-radius:20px;
+    white-space:nowrap;
+}
+
+.crew-group-chips
+{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+}
+
+.phase-count-tag
+{
+    background:#eef2ff;
+    color:#4338ca;
+    font-size:10px;
+    font-weight:600;
+    padding:2px 8px;
+    border-radius:20px;
+    white-space:nowrap;
+}
+
+/* Scroll instead of stretching the card. */
+.workers-list
+{
+    flex-direction:column;
+    max-height:360px;
+    overflow-y:auto;
+}
+
+#storedWorkersList
+{
+    max-height:360px;
+    overflow-y:auto;
+}
+
+#masterWorkersList
+{
+    overflow-y:auto;
+}
+
+/* =====================
+   MILESTONE WORKER SUMMARY (collapsible)
+   ===================== */
+
+.ms-workers
+{
+    margin-top:6px;
+}
+
+.ms-workers-toggle
+{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    width:100%;
+    background:#eef2ff;
+    border:1px solid #e0e7ff;
+    color:#3730a3;
+    font-size:11px;
+    font-weight:600;
+    padding:5px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    font-family:'Poppins',sans-serif;
+    text-align:left;
+    line-height:1.4;
+}
+
+.ms-workers-toggle:hover
+{
+    background:#e0e7ff;
+}
+
+.ms-caret
+{
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.3px;
+    flex-shrink:0;
+}
+
+.ms-workers-detail
+{
+    flex-wrap:wrap;
+    gap:4px;
+    margin-top:6px;
+}
+
+.ms-needs
+{
+    line-height:1.5;
+}
+

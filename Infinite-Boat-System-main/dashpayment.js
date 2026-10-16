@@ -16,16 +16,27 @@ window.handleLogout = async function () {
 const WORKER_REGISTRY = [
   { name: "Juan dela Cruz", specialty: "Builder" },
   { name: "Carlos Dimagiba", specialty: "Builder" },
+  { name: "Rogelio Santos", specialty: "Builder" },
+  { name: "Efren Del Rosario", specialty: "Builder" },
+  { name: "Nestor Aquino", specialty: "Builder" },
+  { name: "Danilo Ramos", specialty: "Builder" },
   { name: "Ramon Salazar", specialty: "Welder" },
   { name: "Francisco Lopez", specialty: "Welder" },
+  { name: "Rodel Garcia", specialty: "Welder" },
   { name: "Engr. Maria Santos", specialty: "Engineer" },
   { name: "Engr. Robert Lim", specialty: "Engineer" },
   { name: "Pedro Reyes", specialty: "Electrician" },
   { name: "Jose Mercado", specialty: "Electrician" },
   { name: "Antonio Bautista", specialty: "Painter" },
+  { name: "Jorge Villanueva", specialty: "Painter" },
   { name: "Miguel Torres", specialty: "Fiberglass Specialist" },
   { name: "Ricardo Navarro", specialty: "Fiberglass Specialist" },
-  { name: "Jorge Villanueva", specialty: "Painter" },
+  { name: "Alfredo Mendoza", specialty: "Fiberglass Specialist" },
+  { name: "Ernesto Castillo", specialty: "Fiberglass Specialist" },
+  { name: "Benjamin Ocampo", specialty: "Fiberglass Specialist" },
+  { name: "Leonardo Cruz", specialty: "Mechanic" },
+  { name: "Mario Fernandez", specialty: "Mechanic" },
+  { name: "Engr. Sofia Ramirez", specialty: "Quality Inspector" },
 ];
 
 async function ensureWorkerRegistry() {
@@ -199,7 +210,7 @@ async function assignTeamForOrder(orderId) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { ok: false, msg: data?.error || "Team assignment failed" };
-        return { ok: true, count: data?.count || 0, skipped: data?.skipped || [] };
+        return { ok: true, count: data?.count || 0, workers: data?.workers || 0, required: data?.required || 0, skipped: data?.skipped || [] };
     } catch (e) {
         console.error("Assign team failed:", e);
         return { ok: false, msg: e?.message || "Team assignment failed" };
@@ -277,7 +288,7 @@ async function approvePayment(index) {
             if (teamRes.count === 0 && skippedBusy) {
                 showToast('Payment approved. No assignments created — ' + skippedBusy + ' specialty(ies) had no available worker. Use Create Team in Boat Progress.', 'warning');
             } else {
-                showToast('Payment approved. Build team created with ' + teamRes.count + ' assignment(s).' + (skippedBusy ? ' ' + skippedBusy + ' specialty(ies) skipped (no available worker).' : ''), 'success');
+                showToast('Payment approved. Build team created (' + (teamRes.workers || 0) + ' of ' + (teamRes.required || 0) + ' required workers).' + (skippedBusy ? ' ' + skippedBusy + ' specialty(ies) short (not enough available workers).' : ''), 'success');
             }
         } else {
             showToast('Payment approved, but team was not created: ' + teamRes.msg + ' Use Create Team in Boat Progress.', 'warning');

@@ -199,15 +199,17 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                             <option value="engineer">Engineer</option>
                             <option value="welder">Welder</option>
                             <option value="electrician">Electrician</option>
+                            <option value="mechanic">Mechanic</option>
+                            <option value="quality-inspector">Quality Inspector</option>
                             <option value="painter">Painter</option>
                             <option value="fiberglass">Fiberglass Specialist</option>
                         </select>
                         <button id="addWorkerBtn" style="border:none;background:#295dff;color:white;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:600;"><i class="fa-solid fa-plus"></i></button>
                     </div>
                     <div style="display:flex;gap:8px;margin-bottom:10px;">
-                        <button id="createTeamBtn" style="flex:1;border:2px solid #295dff;background:transparent;color:#295dff;padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:600;font-family:'Poppins',sans-serif;font-size:12px;"><i class="fa-solid fa-users-line"></i> Create build team (one worker per specialty)</button>
+                        <button id="createTeamBtn" style="flex:1;border:2px solid #295dff;background:transparent;color:#295dff;padding:9px 12px;border-radius:10px;cursor:pointer;font-weight:600;font-family:'Poppins',sans-serif;font-size:12px;"><i class="fa-solid fa-users-line"></i> Create build team (required workers per specialty)</button>
                     </div>
-                    <div id="storedWorkersList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                    <div id="storedWorkersList" style="display:flex;flex-direction:column;gap:10px;"></div>
                     <hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0 8px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap;">
                         <h4 style="margin:0;font-size:13px;color:#475569;font-family:'Poppins',sans-serif;"><i class="fa-solid fa-users-gear"></i> All Workers — Availability</h4>
@@ -217,6 +219,8 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
                             <option value="Engineer">Engineer</option>
                             <option value="Welder">Welder</option>
                             <option value="Electrician">Electrician</option>
+                            <option value="Mechanic">Mechanic</option>
+                            <option value="Quality Inspector">Quality Inspector</option>
                             <option value="Painter">Painter</option>
                             <option value="Fiberglass Specialist">Fiberglass Specialist</option>
                         </select>

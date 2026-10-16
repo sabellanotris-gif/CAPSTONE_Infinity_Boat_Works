@@ -437,7 +437,7 @@ window.assignTeamForOrder = async function(orderId) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { ok: false, msg: data?.error || "Team assignment failed" };
-        return { ok: true, count: data?.count || 0, skipped: data?.skipped || [] };
+        return { ok: true, count: data?.count || 0, workers: data?.workers || 0, required: data?.required || 0, skipped: data?.skipped || [] };
     } catch (e) {
         console.error("Assign team failed:", e);
         return { ok: false, msg: e?.message || "Team assignment failed" };
@@ -512,7 +512,7 @@ window.approvePaymentApproval = async function(idx) {
             if (teamRes.count === 0 && skippedBusy) {
                 showToast('Payment approved. No assignments created — ' + skippedBusy + ' specialty(ies) had no available worker. Use Create Team in Boat Progress.', 'warning');
             } else {
-                showToast('Payment approved. Build team created with ' + teamRes.count + ' assignment(s).' + (skippedBusy ? ' ' + skippedBusy + ' specialty(ies) skipped (no available worker).' : ''), 'success');
+                showToast('Payment approved. Build team created (' + (teamRes.workers || 0) + ' of ' + (teamRes.required || 0) + ' required workers).' + (skippedBusy ? ' ' + skippedBusy + ' specialty(ies) short (not enough available workers).' : ''), 'success');
             }
         } else {
             showToast('Payment approved, but team was not created: ' + teamRes.msg + ' Use Create Team in Boat Progress.', 'warning');

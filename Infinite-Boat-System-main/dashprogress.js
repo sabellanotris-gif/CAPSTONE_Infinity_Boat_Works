@@ -132,16 +132,27 @@ window.toggleOverride = toggleOverride;
 const WORKER_REGISTRY = [
   { name: "Juan dela Cruz", specialty: "Builder" },
   { name: "Carlos Dimagiba", specialty: "Builder" },
+  { name: "Rogelio Santos", specialty: "Builder" },
+  { name: "Efren Del Rosario", specialty: "Builder" },
+  { name: "Nestor Aquino", specialty: "Builder" },
+  { name: "Danilo Ramos", specialty: "Builder" },
   { name: "Ramon Salazar", specialty: "Welder" },
   { name: "Francisco Lopez", specialty: "Welder" },
+  { name: "Rodel Garcia", specialty: "Welder" },
   { name: "Engr. Maria Santos", specialty: "Engineer" },
   { name: "Engr. Robert Lim", specialty: "Engineer" },
   { name: "Pedro Reyes", specialty: "Electrician" },
   { name: "Jose Mercado", specialty: "Electrician" },
   { name: "Antonio Bautista", specialty: "Painter" },
+  { name: "Jorge Villanueva", specialty: "Painter" },
   { name: "Miguel Torres", specialty: "Fiberglass Specialist" },
   { name: "Ricardo Navarro", specialty: "Fiberglass Specialist" },
-  { name: "Jorge Villanueva", specialty: "Painter" },
+  { name: "Alfredo Mendoza", specialty: "Fiberglass Specialist" },
+  { name: "Ernesto Castillo", specialty: "Fiberglass Specialist" },
+  { name: "Benjamin Ocampo", specialty: "Fiberglass Specialist" },
+  { name: "Leonardo Cruz", specialty: "Mechanic" },
+  { name: "Mario Fernandez", specialty: "Mechanic" },
+  { name: "Engr. Sofia Ramirez", specialty: "Quality Inspector" },
 ];
 
 async function ensureWorkerRegistry() {
@@ -304,6 +315,53 @@ function getMilestoneKeyLabel(key) {
     return MILESTONE_KEY_LABELS[key] || key || "";
 }
 
+const SPECIALTY_ORDER = [
+  "Builder", "Fiberglass Specialist", "Welder", "Electrician",
+  "Mechanic", "Engineer", "Painter", "Quality Inspector"
+];
+
+const expandedMsWorkers = new Set();
+
+function specialtyRank(spec) {
+  const i = SPECIALTY_ORDER.indexOf(spec);
+  return i === -1 ? SPECIALTY_ORDER.length : i;
+}
+
+// Group project_workers rows by specialty, deduped by worker name.
+// Returns ordered groups: [{ specialty, count, workers: [{ name, specialty, role,
+//   status, phases: [labels], rowIds: [id] }] }]
+function groupWorkersBySpecialty(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const groups = new Map();
+  list.forEach(w => {
+    const spec = w.specialty || w.role || "Builder";
+    if (!groups.has(spec)) groups.set(spec, new Map());
+    const byName = groups.get(spec);
+    const key = w.name;
+    if (!byName.has(key)) {
+      byName.set(key, {
+        name: w.name,
+        specialty: spec,
+        role: w.role || spec,
+        status: w.status === "Active" ? "Active" : "Completed",
+        phases: [],
+        rowIds: []
+      });
+    }
+    const entry = byName.get(key);
+    if (w.status === "Active") entry.status = "Active";
+    const label = getMilestoneKeyLabel(w.phase);
+    if (label && !entry.phases.includes(label)) entry.phases.push(label);
+    if (w.id) entry.rowIds.push(w.id);
+  });
+  return [...groups.entries()]
+    .sort((a, b) => specialtyRank(a[0]) - specialtyRank(b[0]) || a[0].localeCompare(b[0]))
+    .map(([specialty, byName]) => {
+      const workers = [...byName.values()];
+      return { specialty, count: workers.length, workers };
+    });
+}
+
 function getOrderMilestones(order) {
   if (order.milestones && order.milestones.length > 0) {
     const presets = getBoatMilestones(order.boatName);
@@ -379,18 +437,37 @@ async function renderMilestones(order, readonly = false) {
     const phaseWorkers = workersByPhase[m.key || ""] || [];
     const needs = getPhaseSpecialties(m.key || "");
     const needsHtml = needs.length > 0
-      ? '<div style="font-size:11px;color:#64748b;margin-top:4px;"><i class="fa-solid fa-wrench"></i> Needs: ' + needs.join(" · ") + '</div>'
+      ? '<div class="ms-needs" style="font-size:11px;color:#64748b;margin-top:4px;"><i class="fa-solid fa-wrench"></i> Needs: ' + needs.map(escapeAttr).join(" · ") + '</div>'
       : '';
-    const workerLine = phaseWorkers.length > 0
-      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
-          ${phaseWorkers.map(w => {
-            const st = w.status === "Completed"
-              ? '<span class="worker-status-badge done">Done</span>'
-              : '<span class="worker-status-badge active">Working</span>' + workerDueChip(w);
-            return '<span class="mini-worker-chip"><i class="fa-solid fa-user"></i>' + w.name + ' ' + st + '</span>';
-          }).join('')}
-         </div>`
-      : '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">No workers assigned for this phase.</div>';
+    let workerLine;
+    if (phaseWorkers.length > 0) {
+      const counts = new Map();
+      phaseWorkers.forEach(w => {
+        const s = w.specialty || w.role || "Builder";
+        counts.set(s, (counts.get(s) || 0) + 1);
+      });
+      const breakdown = [...counts.entries()]
+        .sort((a, b) => specialtyRank(a[0]) - specialtyRank(b[0]))
+        .map(([s, c]) => escapeAttr(s) + " ×" + c)
+        .join(" · ");
+      const msKey = m.key || String(i);
+      const isOpen = expandedMsWorkers.has(msKey);
+      const chips = phaseWorkers.map(w => {
+        const st = w.status === "Completed"
+          ? '<span class="worker-status-badge done">Done</span>'
+          : '<span class="worker-status-badge active">Working</span>';
+        return '<span class="mini-worker-chip"><i class="fa-solid fa-user"></i>' + escapeAttr(w.name) + ' ' + st + '</span>';
+      }).join("");
+      workerLine = '<div class="ms-workers" data-key="' + escapeAttr(msKey) + '">' +
+        '<button type="button" class="ms-workers-toggle" onclick="event.stopPropagation(); toggleMsWorkers(this)">' +
+        '<span><i class="fa-solid fa-users"></i> ' + phaseWorkers.length + ' worker' + (phaseWorkers.length === 1 ? '' : 's') + (breakdown ? ' — ' + breakdown : '') + '</span>' +
+        '<span class="ms-caret">' + (isOpen ? 'Hide' : 'Show') + '</span>' +
+        '</button>' +
+        '<div class="ms-workers-detail" style="display:' + (isOpen ? 'flex' : 'none') + ';">' + chips + '</div>' +
+        '</div>';
+    } else {
+      workerLine = '<div style="font-size:11px;color:#94a3b8;margin-top:4px;">No workers assigned for this phase.</div>';
+    }
     return `
     <div style="padding:8px 12px;border-radius:10px;background:${completed ? '#f0fdf4' : '#f8fafc'};border:1px solid ${completed ? '#bbf7d0' : '#e2e8f0'};">
       <div style="display:flex;align-items:center;gap:10px;${canEdit() ? 'cursor:pointer;' : ''}" ${canEdit() ? `onclick="toggleMilestone(${i})"` : ''}>
@@ -407,6 +484,18 @@ async function renderMilestones(order, readonly = false) {
       ${workerLine}
     </div>`;
   }).join("");
+}
+
+function toggleMsWorkers(btn) {
+  const wrap = btn.closest(".ms-workers");
+  if (!wrap) return;
+  const detail = wrap.querySelector(".ms-workers-detail");
+  const caret = btn.querySelector(".ms-caret");
+  const key = wrap.dataset.key;
+  const isOpen = detail && detail.style.display !== "none";
+  if (detail) detail.style.display = isOpen ? "none" : "flex";
+  if (caret) caret.textContent = isOpen ? "Show" : "Hide";
+  if (key) { if (isOpen) expandedMsWorkers.delete(key); else expandedMsWorkers.add(key); }
 }
 
 function getPaymentGate(paymentStep) {
@@ -836,6 +925,49 @@ function populateSelect() {
     }
 }
 
+function escapeAttr(str) {
+    return String(str == null ? "" : str)
+        .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeJs(str) {
+    return String(str == null ? "" : str)
+        .replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+function crewChipHTML(w, removable) {
+    const isActive = w.status === "Active";
+    const roleClass = String(w.role || w.specialty || "").toLowerCase().replace(/\s+/g, "-");
+    let phaseTag = "";
+    if (w.phases.length === 1) {
+        phaseTag = ' <span class="phase-count-tag" title="' + escapeAttr(w.phases[0]) + '">' + escapeAttr(w.phases[0]) + '</span>';
+    } else if (w.phases.length > 1) {
+        phaseTag = ' <span class="phase-count-tag" title="' + escapeAttr(w.phases.join(", ")) + '">' + w.phases.length + ' phases</span>';
+    }
+    const removeBtn = removable
+        ? ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" title="Remove from team" onclick="removeWorkerByName(\'' + escapeJs(w.name) + '\',\'' + escapeJs(w.specialty) + '\')"></i>'
+        : '';
+    return '<span class="worker-chip role-' + roleClass + '">' +
+        '<i class="fa-solid fa-user"></i>' + escapeAttr(w.name) +
+        ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
+        phaseTag + removeBtn +
+        '</span>';
+}
+
+function crewGroupsHTML(rows, removable) {
+    const groups = groupWorkersBySpecialty(rows);
+    if (groups.length === 0) return "";
+    return groups.map(g => {
+        const chips = g.workers.map(w => crewChipHTML(w, removable)).join("");
+        return '<div class="crew-group">' +
+            '<div class="crew-group-header"><i class="fa-solid fa-helmet-safety"></i> ' + escapeAttr(g.specialty) +
+            ' <span class="crew-count">' + g.count + '</span></div>' +
+            '<div class="crew-group-chips">' + chips + '</div>' +
+            '</div>';
+    }).join("");
+}
+
 async function renderWorkers(orderId) {
     const container = document.getElementById("storedWorkersList");
     if (!container) return;
@@ -844,28 +976,21 @@ async function renderWorkers(orderId) {
         container.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned.</span>';
         return;
     }
-    container.innerHTML = workers.map(w => {
-        const isActive = w.status === "Active";
-        const phaseLabel = getMilestoneKeyLabel(w.phase);
-        return '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '" style="flex-wrap:wrap;">' +
-            '<i class="fa-solid fa-user"></i>' +
-            w.name + ' — <strong>' + (w.specialty || w.role) + '</strong>' +
-            (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
-            ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
-            (isActive ? workerDueChip(w) : '') +
-            (isActive && canEdit() ? ' <i class="fa-solid fa-xmark" style="cursor:pointer;color:#ef4444;margin-left:4px;" onclick="removeWorker(\'' + w.id + '\')"></i>' : '') +
-            '</span>';
-    }).join('');
+    container.innerHTML = crewGroupsHTML(workers, canEdit());
 }
 
-async function removeWorker(workerId) {
+async function removeWorkerByName(name, specialty) {
   if (!canEdit()) return;
-    await removeDBWorker(workerId);
     const order = getSelectedOrder();
-    if (order) {
-        await renderWorkers(order.orderId);
-        await renderDetail(order);
+    const orderId = order?.orderId;
+    if (!orderId) return;
+    const rows = await getDBWorkers(orderId);
+    const targets = rows.filter(w => w.id && w.name === name && (w.specialty || w.role || "") === specialty);
+    for (const w of targets) {
+        await removeDBWorker(w.id);
     }
+    await renderWorkers(orderId);
+    await renderDetail(order);
 }
 
 function getBoatRef(orderId) {
@@ -892,20 +1017,37 @@ async function renderMasterWorkers() {
             container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">No workers found.</span>';
             return;
         }
-        container.innerHTML = workers.map(w => {
-            const available = w.available !== false;
-            const ref = getBoatRef(w.currentOrderId);
-            const phaseLabel = getMilestoneKeyLabel(w.currentPhase);
-            const statusHtml = available
-                ? '<span class="worker-status-badge active">Available</span>'
-                : '<span class="worker-status-badge busy">Busy</span>';
-            const assignHtml = (!available && ref)
-                ? ' <span style="font-size:11px;color:#2563eb;">→ ' + (ref.boatName || 'Boat') + (ref.customerName ? ' (' + ref.customerName + ')' : '') + (phaseLabel ? ' · ' + phaseLabel : '') + '</span>'
-                : '';
-            return '<span class="worker-chip" style="flex-wrap:wrap;width:100%;justify-content:space-between;">' +
-                '<span><i class="fa-solid fa-user"></i> ' + w.name + ' — <strong>' + (w.specialty || 'Builder') + '</strong></span>' +
-                '<span style="display:inline-flex;align-items:center;gap:6px;">' + assignHtml + statusHtml + '</span>' +
-                '</span>';
+        const bySpec = new Map();
+        workers.forEach(w => {
+            const s = w.specialty || "Builder";
+            if (!bySpec.has(s)) bySpec.set(s, []);
+            bySpec.get(s).push(w);
+        });
+        const ordered = [...bySpec.entries()]
+            .sort((a, b) => specialtyRank(a[0]) - specialtyRank(b[0]) || a[0].localeCompare(b[0]));
+        container.innerHTML = ordered.map(([spec, list]) => {
+            const availCount = list.filter(w => w.available !== false).length;
+            const rows = list.map(w => {
+                const available = w.available !== false;
+                const ref = getBoatRef(w.currentOrderId);
+                const phaseLabel = getMilestoneKeyLabel(w.currentPhase);
+                const statusHtml = available
+                    ? '<span class="worker-status-badge active">Available</span>'
+                    : '<span class="worker-status-badge busy">Busy</span>';
+                const assignHtml = (!available && ref)
+                    ? ' <span style="font-size:11px;color:#2563eb;">→ ' + escapeAttr(ref.boatName || 'Boat') + (ref.customerName ? ' (' + escapeAttr(ref.customerName) + ')' : '') + (phaseLabel ? ' · ' + escapeAttr(phaseLabel) : '') + '</span>'
+                    : '';
+                const accountBadge = w.userId ? '' : ' <span class="worker-status-badge done">No account</span>';
+                return '<span class="worker-chip" style="flex-wrap:wrap;width:100%;justify-content:space-between;">' +
+                    '<span><i class="fa-solid fa-user"></i> ' + escapeAttr(w.name) + accountBadge + '</span>' +
+                    '<span style="display:inline-flex;align-items:center;gap:6px;">' + assignHtml + statusHtml + '</span>' +
+                    '</span>';
+            }).join("");
+            return '<div class="crew-group">' +
+                '<div class="crew-group-header"><i class="fa-solid fa-helmet-safety"></i> ' + escapeAttr(spec) +
+                ' <span class="crew-count" title="' + availCount + ' available of ' + list.length + '">' + availCount + '/' + list.length + '</span></div>' +
+                '<div class="crew-group-chips">' + rows + '</div>' +
+                '</div>';
         }).join("");
     } catch (e) {
         container.innerHTML = '<span style="color:#94a3b8;font-size:11px;">Failed to load workers.</span>';
@@ -1005,7 +1147,7 @@ async function createTeamForOrder(orderId) {
       console.error("Create team failed:", res.status, data?.error);
       return { ok: false, count: 0, skipped: [], error: data?.error || "Create team failed" };
     }
-    return { ok: true, count: data?.count || 0, team: data?.team || [], skipped: data?.skipped || [] };
+    return { ok: true, count: data?.count || 0, workers: data?.workers || 0, required: data?.required || 0, team: data?.team || [], skipped: data?.skipped || [] };
   } catch (e) {
     console.error("Create team failed:", e);
     return { ok: false, count: 0, skipped: [], error: e?.message || "Create team failed" };
@@ -1017,12 +1159,12 @@ document.getElementById("createTeamBtn")?.addEventListener("click", async () => 
     if (!order) return;
     const id = order.orderId;
     if (!id) return;
-    if (!confirm("Create the full build team for this project (one worker per specialty)?")) return;
+    if (!confirm("Create the full build team for this project (the required number of workers per specialty)?")) return;
     const data = await createTeamForOrder(id);
     if (!data.ok) { alert(data?.error || "Create team failed."); return; }
-    const skipped = (data.skipped || []).filter(s => s.reason === "no available worker").map(s => s.specialty);
-    let msg = "Build team created with " + (data.count || 0) + " assignment(s).";
-    if (skipped.length > 0) msg += " Skipped (no available worker): " + skipped.join(", ");
+    const skipped = (data.skipped || []).map(s => s.specialty + (s.reason ? " (" + s.reason + ")" : ""));
+    let msg = "Build team: " + (data.workers || 0) + " of " + (data.required || 0) + " required workers assigned (" + (data.count || 0) + " phase assignments).";
+    if (skipped.length > 0) msg += " Shortfall: " + skipped.join(", ");
     showToast(msg, data.count > 0 ? 'success' : (skipped.length > 0 ? 'warning' : 'success'));
     await populateWorkerSelect();
     await renderWorkers(id);
@@ -1279,15 +1421,7 @@ async function renderDetail(order) {
     if (workers.length === 0) {
         wContainer.innerHTML = '<span style="color:#94a3b8;font-size:13px;">No workers assigned. Use "Create Team" below.</span>';
     } else {
-        wContainer.innerHTML = workers.map(w => {
-            const isActive = w.status === "Active";
-            const phaseLabel = getMilestoneKeyLabel(w.phase);
-            return '<span class="worker-chip' + (w.role ? ' role-' + w.role.toLowerCase().replace(/\s+/g, '-') : '') + '"><i class="fa-solid fa-user"></i>' + w.name +
-                ' <span style="font-size:10px;color:#64748b;">— ' + (w.specialty || w.role) + '</span>' +
-                (phaseLabel ? ' <span class="worker-phase-badge">' + phaseLabel + '</span>' : '') +
-                ' <span class="worker-status-badge ' + (isActive ? 'active' : 'done') + '">' + (isActive ? 'Working' : 'Completed') + '</span>' +
-                (isActive ? workerDueChip(w) : '') + '</span>';
-        }).join("");
+        wContainer.innerHTML = crewGroupsHTML(workers, false);
     }
 
     renderWorkers(orderId);
@@ -2088,7 +2222,8 @@ document.getElementById("setBudgetBtn")?.addEventListener("click", setBudget);
 document.getElementById("addExpenseBtn")?.addEventListener("click", addExpense);
 
 window.toggleMilestone = toggleMilestone;
-window.removeWorker = removeWorker;
+window.removeWorkerByName = removeWorkerByName;
+window.toggleMsWorkers = toggleMsWorkers;
 window.updateTaskStatus = updateTaskStatus;
 window.deleteTask = deleteTask;
 

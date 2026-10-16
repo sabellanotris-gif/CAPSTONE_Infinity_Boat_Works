@@ -1,4 +1,5 @@
 import { supabase, sendEmailNotification, getCustomerIdentity } from "./supabase.js";
+import { getBoatCrew, getBoatCrewTotal } from "./boatData.js";
 
 // Ensure the logged-in customer's identity (never a stale admin/worker name)
 (async () => {
@@ -646,6 +647,11 @@ function saveCustomBuildDraft() {
 }
 
 function getStandardInfoHTML() {
+    const crew = getBoatCrew(boatData.name);
+    const crewTotal = getBoatCrewTotal(boatData.name);
+    const crewRows = Object.entries(crew)
+        .map(([spec, n]) => `<div class="info-item"><span>${spec}</span><strong>${n}</strong></div>`)
+        .join("");
     return `
     <div class="info-page">
         <h3>Boat Information</h3>
@@ -660,6 +666,12 @@ function getStandardInfoHTML() {
                 <div class="info-item"><span>Passenger Capacity</span><strong>12 Persons</strong></div>
                 <div class="info-item"><span>Hull Material</span><strong>Fiberglass Reinforced</strong></div>
             </div>
+        </div>
+
+        <div class="info-section">
+            <h4><i class="fa-solid fa-people-group"></i> Required Build Team</h4>
+            <p>A total of <strong>${crewTotal} workers</strong> will be assigned to build this ${boatData.name}.</p>
+            <div class="info-grid">${crewRows}</div>
         </div>
 
         <div class="info-section">
