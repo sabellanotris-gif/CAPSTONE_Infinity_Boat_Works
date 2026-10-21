@@ -34,10 +34,10 @@ const DEFAULT_ITEMS = [
   { name: 'Mercury 150 HP', category: 'Engine', stock: 5, price: 850000, metadata: { brand: 'Mercury', hp: 150, optionType: 'engine' } },
   { name: 'Mercury 250 HP', category: 'Engine', stock: 5, price: 1400000, metadata: { brand: 'Mercury', hp: 250, optionType: 'engine' } },
   { name: 'Mercury 300 HP', category: 'Engine', stock: 5, price: 1700000, metadata: { brand: 'Mercury', hp: 300, optionType: 'engine' } },
-  { name: 'Twin Suzuki DF350A', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Suzuki', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true, default: true } },
-  { name: '6× Mercury Verado 600', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Mercury', hp: 3600, unitHp: 600, count: 6, label: '1800 HP x2 (6× 600)', optionType: 'engine', forPassenger: true, default: true } },
-  { name: 'Twin Mercury Verado 350', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Mercury', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true } },
-  { name: '12× Suzuki DF300AP', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Suzuki', hp: 3600, unitHp: 300, count: 12, label: '1800 HP x2 (12× 300)', optionType: 'engine', forPassenger: true } },
+  { name: 'Twin Suzuki DF350A', category: 'Engine', stock: 5, price: 2516202, metadata: { brand: 'Suzuki', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true, default: true } },
+  { name: '6× Mercury Verado 600', category: 'Engine', stock: 5, price: 29676000, metadata: { brand: 'Mercury', hp: 3600, unitHp: 600, count: 6, label: '1800 HP x2 (6× 600)', optionType: 'engine', forPassenger: true, default: true } },
+  { name: 'Twin Mercury Verado 350', category: 'Engine', stock: 5, price: 3568500, metadata: { brand: 'Mercury', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true } },
+  { name: '12× Suzuki DF300AP', category: 'Engine', stock: 5, price: 14040000, metadata: { brand: 'Suzuki', hp: 3600, unitHp: 300, count: 12, label: '1800 HP x2 (12× 300)', optionType: 'engine', forPassenger: true } },
   { name: '8 Seats', category: 'Seats', stock: 99, price: 52000, metadata: { capacity: 8, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '12 Seats', category: 'Seats', stock: 99, price: 78000, metadata: { capacity: 12, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '15 Seats', category: 'Seats', stock: 99, price: 97500, metadata: { capacity: 15, optionType: 'seats', perSeatPrice: 6500 } },
@@ -62,13 +62,32 @@ async function getInventory() {
     .order("id", { ascending: true });
 
   const result = await handleDbError(query(), "Load inventory");
-  if (result && !result.error && result.data && result.data.length > 0) return result.data;
-  // Seed defaults
-  for (const item of DEFAULT_ITEMS) {
-    await supabase.from("inventory").insert(item);
+  let items = result && !result.error && result.data ? result.data : [];
+  
+  if (items.length === 0) {
+    // Seed defaults
+    for (const item of DEFAULT_ITEMS) {
+      await supabase.from("inventory").insert(item);
+    }
+    const { data: seeded } = await query();
+    items = seeded || [];
+  } else {
+    // Update passenger engine prices if they're out of date
+    const passengerEngines = [
+      { name: 'Twin Suzuki DF350A', price: 2516202 },
+      { name: '6× Mercury Verado 600', price: 29676000 },
+      { name: 'Twin Mercury Verado 350', price: 3568500 },
+      { name: '12× Suzuki DF300AP', price: 14040000 },
+    ];
+    for (const pe of passengerEngines) {
+      const existing = items.find(i => i.name === pe.name);
+      if (existing && existing.price !== pe.price) {
+        await supabase.from("inventory").update({ price: pe.price }).eq("id", existing.id);
+        existing.price = pe.price;
+      }
+    }
   }
-  const { data: seeded } = await query();
-  return seeded || [];
+  return items;
 }
 
 function findItemById(items, id) {
