@@ -1,4 +1,5 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole } from "./supabase.js";
+import { getBoatSpecs } from "./boatData.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
 // previews are allowed (preview mode is intentional for unplaced boats).
@@ -53,6 +54,99 @@ function getHullColorPricing() {
   return match ? HULL_COLOR_PRICING[match] : 0;
 }
 
+function getDraftBoatName() {
+  try { return JSON.parse(localStorage.getItem('customBuildDraft'))?.boatData?.name || ''; } catch (e) { return ''; }
+}
+
+function parseSpecMeters(str) {
+  const n = parseFloat(str);
+  return isNaN(n) ? null : n;
+}
+
+function parseSpecPax(str) {
+  const m = String(str || '').match(/(\d+)\s*passengers?/i);
+  return m ? parseInt(m[1]) : null;
+}
+
+function getOriginalPrice() {
+  let draft;
+  try { draft = JSON.parse(localStorage.getItem('customBuildDraft')); } catch (e) { draft = null; }
+  const fromDraft = draft?.boatData?.price
+    ? parseFloat(String(draft.boatData.price).replace(/[^0-9.]/g, ''))
+    : 0;
+  if (fromDraft > 0) return fromDraft;
+  const specs = getBoatSpecs(getDraftBoatName());
+  const fromSpecs = specs?.basePrice ? parseFloat(String(specs.basePrice).replace(/[^0-9.]/g, '')) : 0;
+  return fromSpecs > 0 ? fromSpecs : 1400000;
+}
+
+function isPassengerBoatName(name) {
+  return /passenger/i.test(name || '');
+}
+
+function applyBoatSpecDefaults() {
+  if (revisionOrderId) return;
+  const name = getDraftBoatName();
+  const specs = getBoatSpecs(name);
+  if (!specs) return;
+  const stdLength = parseSpecMeters(specs.length);
+  const stdWidth = parseSpecMeters(specs.breadth);
+  if (stdLength) {
+    lengthRange.min = Math.round(stdLength * 0.8 * 10) / 10;
+    lengthRange.max = Math.round(stdLength * 1.2 * 10) / 10;
+    lengthRange.step = 0.1;
+    lengthRange.value = stdLength;
+    lengthValue.textContent = stdLength + 'm';
+  }
+  if (stdWidth) {
+    widthRange.min = Math.round(stdWidth * 0.8 * 10) / 10;
+    widthRange.max = Math.round(stdWidth * 1.2 * 10) / 10;
+    widthRange.step = 0.05;
+    widthRange.value = stdWidth;
+    widthValue.textContent = stdWidth + 'm';
+  }
+}
+
+function getFitCapacity(len, wid) {
+  const specs = getBoatSpecs(getDraftBoatName());
+  const stdLength = parseSpecMeters(specs?.length);
+  const stdBeam = parseSpecMeters(specs?.breadth);
+  if (specs?.seatRows && specs?.seatsPerRow && stdLength && stdBeam) {
+    const rows = Math.max(1, Math.floor((len / stdLength) * specs.seatRows + 1e-9));
+    const perRow = Math.max(1, Math.floor((wid / stdBeam) * specs.seatsPerRow + 1e-9));
+    return rows * perRow;
+  }
+  const stdPax = parseSpecPax(specs?.passengerCapacity);
+  if (stdPax && stdLength && stdBeam) {
+    return Math.max(1, Math.round(stdPax * (len * wid) / (stdLength * stdBeam)));
+  }
+  return Math.floor(8 + (len - 8) * 0.7);
+}
+
+function hasSeatLayout() {
+  const specs = getBoatSpecs(getDraftBoatName());
+  return !!(specs?.seatRows && specs?.seatsPerRow);
+}
+
+function refreshSeatAvailability(maxCap) {
+  if (!hasSeatLayout()) return;
+  const options = Array.from(seatSelect.options);
+  options.forEach(opt => {
+    const cap = parseInt(opt.dataset.capacity || 0);
+    const overCapacity = cap > maxCap;
+    opt.disabled = overCapacity;
+    if (overCapacity) opt.title = 'Does not fit current dimensions (max ' + maxCap + ')';
+    else opt.removeAttribute('title');
+  });
+  const selected = seatSelect.selectedOptions[0];
+  const selectedCap = parseInt(selected?.dataset?.capacity || 0);
+  if (selectedCap <= maxCap) return;
+  const fitting = options.filter(o => !o.disabled)
+    .map(o => ({ opt: o, cap: parseInt(o.dataset.capacity || 0) }))
+    .sort((a, b) => b.cap - a.cap);
+  seatSelect.value = (fitting[0]?.opt || options[0]).value;
+}
+
 const lengthRange = document.getElementById('lengthRange');
 const widthRange = document.getElementById('widthRange');
 const lengthValue = document.getElementById('lengthValue');
@@ -60,15 +154,87 @@ const widthValue = document.getElementById('widthValue');
 const engineBrand = document.getElementById('engineBrand');
 const engineHP = document.getElementById('engineHP');
 
-function populateEngineHP(brand) {
-  const filtered = brand ? inventoryItems.engines.filter(e => e.metadata?.brand === brand) : [];
-  engineHP.innerHTML = '<option value="0" data-id="" data-name="None">None</option>' +
-    filtered.map(e =>
-      `<option value="${e.price}" data-id="${e.id}" data-name="${e.name}" data-hp="${e.metadata?.hp || ''}">${e.metadata?.hp || ''} HP</option>`
-    ).join('');
-  if (filtered.length > 0) {
-    engineHP.value = filtered[0].price;
+function parseSpecTotalHp(specs) {
+  const str = String(specs?.enginePower || '');
+  const match = str.match(/([\d,]+)\s*HP/i);
+  if (!match) return null;
+  const hp = parseInt(match[1].replace(/,/g, ''), 10);
+  if (!hp) return null;
+  return /x\s*2|×\s*2/i.test(str) ? hp * 2 : hp;
+}
+
+function getVisibleEngines() {
+  const name = getDraftBoatName();
+  if (!isPassengerBoatName(name)) {
+    return inventoryItems.engines.filter(e => !e.metadata?.forPassenger);
   }
+  const packages = inventoryItems.engines.filter(e => e.metadata?.forPassenger === true);
+  const totalHp = parseSpecTotalHp(getBoatSpecs(name));
+  if (!totalHp) return packages;
+  const exact = packages.filter(e => e.metadata?.hp === totalHp);
+  return exact.length > 0 ? exact : packages;
+}
+
+function populateEngineHP(brand) {
+  const visible = getVisibleEngines();
+  const filtered = brand ? visible.filter(e => e.metadata?.brand === brand) : [];
+  engineHP.innerHTML = '<option value="0" data-id="" data-name="None">None</option>' +
+    filtered.map(e => {
+      const hp = e.metadata?.hp || '';
+      const count = e.metadata?.count || 1;
+      const unitHp = e.metadata?.unitHp || hp;
+      const label = e.metadata?.label || (count > 1 ? `${hp} HP (${count}× ${unitHp})` : `${hp} HP`);
+      return `<option value="${e.price}" data-id="${e.id}" data-name="${e.name}" data-hp="${hp}" title="${e.name}">${label}</option>`;
+    }).join('');
+  const first = filtered.length > 0 ? engineHP.querySelector(`option[data-id="${filtered[0].id}"]`) : null;
+  if (first) first.selected = true;
+}
+
+function applyDefaultEngineSelection() {
+  if (revisionOrderId) return;
+  const visible = getVisibleEngines();
+  if (visible.length === 0) return;
+  const name = getDraftBoatName();
+  let target = null;
+  if (isPassengerBoatName(name)) {
+    const totalHp = parseSpecTotalHp(getBoatSpecs(name));
+    target = visible.find(e => e.metadata?.default === true);
+    if (!target && totalHp) {
+      target = visible.find(e => e.metadata?.hp === totalHp)
+        || visible.reduce((best, e) => {
+          if (!best) return e;
+          const diff = Math.abs((e.metadata?.hp || 0) - totalHp);
+          const bestDiff = Math.abs((best.metadata?.hp || 0) - totalHp);
+          return diff < bestDiff ? e : best;
+        }, null);
+    }
+  }
+  if (!target) target = visible[0];
+  if (!target) return;
+  engineBrand.value = target.metadata?.brand || '';
+  populateEngineHP(engineBrand.value);
+  const opt = engineHP.querySelector(`option[data-id="${target.id}"]`);
+  if (opt) opt.selected = true;
+}
+
+function applyDefaultSeatSelection() {
+  if (revisionOrderId) return;
+  const name = getDraftBoatName();
+  const specs = getBoatSpecs(name);
+  const stdPax = parseSpecPax(specs?.passengerCapacity);
+  let target = null;
+  if (stdPax) {
+    target = inventoryItems.seats.find(s => s.metadata?.capacity === stdPax)
+      || inventoryItems.seats.reduce((best, s) => {
+        const cap = s.metadata?.capacity || 0;
+        const bestCap = best?.metadata?.capacity || 0;
+        return cap <= stdPax && cap > bestCap ? s : best;
+      }, null);
+  }
+  if (!target && inventoryItems.seats.length > 0) target = inventoryItems.seats[0];
+  if (!target) return;
+  const opt = seatSelect.querySelector(`option[data-id="${target.id}"]`);
+  if (opt) seatSelect.value = opt.value;
 }
 
 const BOAT_PRICING = {
@@ -101,12 +267,18 @@ const CUSTOMIZATION_SEED = [
   { name: 'Mercury 150 HP', category: 'Engine', stock: 5, price: 850000, metadata: { brand: 'Mercury', hp: 150, optionType: 'engine' } },
   { name: 'Mercury 250 HP', category: 'Engine', stock: 5, price: 1400000, metadata: { brand: 'Mercury', hp: 250, optionType: 'engine' } },
   { name: 'Mercury 300 HP', category: 'Engine', stock: 5, price: 1700000, metadata: { brand: 'Mercury', hp: 300, optionType: 'engine' } },
+  { name: 'Twin Suzuki DF350A', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Suzuki', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true, default: true } },
+  { name: '6× Mercury Verado 600', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Mercury', hp: 3600, unitHp: 600, count: 6, label: '1800 HP x2 (6× 600)', optionType: 'engine', forPassenger: true, default: true } },
+  { name: 'Twin Mercury Verado 350', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Mercury', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true } },
+  { name: '12× Suzuki DF300AP', category: 'Engine', stock: 5, price: 0, metadata: { brand: 'Suzuki', hp: 3600, unitHp: 300, count: 12, label: '1800 HP x2 (12× 300)', optionType: 'engine', forPassenger: true } },
   { name: '5 Seats', category: 'Seats', stock: 99, price: 32500, metadata: { capacity: 5, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '8 Seats', category: 'Seats', stock: 99, price: 52000, metadata: { capacity: 8, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '10 Seats', category: 'Seats', stock: 99, price: 65000, metadata: { capacity: 10, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '12 Seats', category: 'Seats', stock: 99, price: 78000, metadata: { capacity: 12, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '15 Seats', category: 'Seats', stock: 99, price: 97500, metadata: { capacity: 15, optionType: 'seats', perSeatPrice: 6500 } },
   { name: '20 Seats', category: 'Seats', stock: 99, price: 130000, metadata: { capacity: 20, optionType: 'seats', perSeatPrice: 6500 } },
+  { name: '65 Seats', category: 'Seats', stock: 99, price: 422500, metadata: { capacity: 65, optionType: 'seats', perSeatPrice: 6500 } },
+  { name: '180 Seats', category: 'Seats', stock: 99, price: 1170000, metadata: { capacity: 180, optionType: 'seats', perSeatPrice: 6500 } },
   { name: 'Blue LED', category: 'LED', stock: 20, price: 15000, metadata: { ledType: 'blue', optionType: 'led' } },
   { name: 'RGB LED', category: 'LED', stock: 15, price: 25000, metadata: { ledType: 'rgb', optionType: 'led' } },
   { name: 'Default', category: 'Color', stock: 99, price: 0, metadata: { hex: '#111827', colorType: 'hull', optionType: 'color', isDefault: true } },
@@ -220,14 +392,16 @@ async function loadOptions() {
   inventoryItems.deckColors = data.filter(i => i.category === 'DeckColor');
   inventoryItems.railColors = data.filter(i => i.category === 'RailColor');
 
-  const brands = [...new Set(inventoryItems.engines.map(e => e.metadata?.brand).filter(Boolean))].sort();
+  const visibleEngines = getVisibleEngines();
+  const brands = [...new Set(visibleEngines.map(e => e.metadata?.brand).filter(Boolean))].sort();
   engineBrand.innerHTML = '<option value="" data-name="None">None</option>' +
     brands.map(b => `<option value="${b}">${b}</option>`).join('');
 
-  populateEngineHP(engineBrand.value);
-  if (!engineBrand.value && brands.length > 0) {
-    engineBrand.value = brands[0];
-    populateEngineHP(brands[0]);
+  if (revisionOrderId) {
+    engineBrand.value = brands[0] || '';
+    populateEngineHP(engineBrand.value);
+  } else {
+    applyDefaultEngineSelection();
   }
   engineBrand.addEventListener('change', () => {
     populateEngineHP(engineBrand.value);
@@ -238,6 +412,8 @@ async function loadOptions() {
     inventoryItems.seats.map(s =>
       `<option value="${s.price}" data-capacity="${s.metadata?.capacity || 8}" data-id="${s.id}" data-name="${s.name}">${s.name}</option>`
     ).join('');
+
+  applyDefaultSeatSelection();
 
   ledSelect.innerHTML = '<option value="0" data-id="" data-name="None">None</option>' +
     inventoryItems.leds.map(l =>
@@ -336,6 +512,8 @@ function drawBoat() {
 
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
+  const maxCap = getFitCapacity(len, wid);
+  refreshSeatAvailability(maxCap);
   const engineVal = parseInt(engineHP.value);
   const seatOpt = seatSelect.selectedOptions[0];
   const seats = parseInt(seatOpt?.dataset?.capacity || 8);
@@ -361,7 +539,7 @@ function drawBoat() {
 
   ctx.restore();
 
-  updateSummary(len, wid, engineVal, seats, ledVal);
+  updateSummary(len, wid, engineVal, seats, ledVal, maxCap);
 }
 
 function drawWater(boatLen, boatWid) {
@@ -823,11 +1001,8 @@ function drawPerspectiveView(boatLen, boatWid) {
   ctx.fillText('3D PERSPECTIVE', 0, boatWid * 0.85);
 }
 
-function updateSummary(len, wid, engineVal, seats, ledVal) {
-  const draft = JSON.parse(localStorage.getItem('customBuildDraft'));
-  const originalPrice = draft?.boatData?.price
-    ? parseFloat(String(draft.boatData.price).replace(/[^0-9.]/g, ''))
-    : 1400000;
+function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
+  const originalPrice = getOriginalPrice();
   const pricing = getBoatPricing();
   const stdArea = pricing.stdLength * pricing.stdWidth;
   const customArea = len * wid;
@@ -859,7 +1034,7 @@ function updateSummary(len, wid, engineVal, seats, ledVal) {
     dimensExtensionRow.style.display = 'none';
   }
   const enginePriceDisplay = document.getElementById('enginePriceDisplay');
-  if (enginePriceDisplay) enginePriceDisplay.textContent = '₱' + enginePrice.toLocaleString();
+  if (enginePriceDisplay) enginePriceDisplay.textContent = enginePrice > 0 ? '₱' + enginePrice.toLocaleString() : 'Included';
   const seatPriceDisplay = document.getElementById('seatPriceDisplay');
   if (seatPriceDisplay) seatPriceDisplay.textContent = seatTotal > 0 ? '₱' + seatTotal.toLocaleString() + ' (' + seatCapacity + ' × ₱' + perSeatPrice.toLocaleString() + ')' : 'None';
   const ledPriceDisplay = document.getElementById('ledPriceDisplay');
@@ -884,7 +1059,6 @@ function updateSummary(len, wid, engineVal, seats, ledVal) {
     railColorPriceDisplay.textContent = railOption ? railOption.name + (railOption.price > 0 ? ' ₱' + railOption.price.toLocaleString() : '') : 'Default Rail';
   }
 
-  const maxCap = Math.floor(8 + (len - 8) * 0.7);
   recommendedSeats.textContent = maxCap + ' Seats';
   currentSeats.textContent = seats + ' Seats';
 
@@ -950,9 +1124,9 @@ engineHP.addEventListener('change', drawBoat);
 seatSelect.addEventListener('change', drawBoat);
 ledSelect.addEventListener('change', drawBoat);
 
-document.querySelectorAll('.color').forEach(el => {
+document.querySelectorAll('.colors.hull-colors .color').forEach(el => {
   el.addEventListener('click', () => {
-    document.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.colors.hull-colors .color').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     hullColor = el.dataset.color;
     colorPrice = el.dataset.default === 'true' ? 0 : getHullColorPricing();
@@ -997,17 +1171,10 @@ document.querySelectorAll('.view-buttons button').forEach(btn => {
 });
 
 document.querySelector('.reset-btn').addEventListener('click', () => {
-  lengthRange.value = 10;
-  widthRange.value = 2.8;
-  const brands = [...new Set(inventoryItems.engines.map(e => e.metadata?.brand).filter(Boolean))].sort();
-  if (brands.length > 0) {
-    engineBrand.value = brands[0];
-    populateEngineHP(brands[0]);
-  }
-  if (inventoryItems.seats.length > 0) seatSelect.value = inventoryItems.seats[0].price;
-  if (inventoryItems.leds.length > 0) ledSelect.value = inventoryItems.leds[0].price;
-  lengthValue.textContent = '10.0m';
-  widthValue.textContent = '2.8m';
+  applyBoatSpecDefaults();
+  applyDefaultEngineSelection();
+  applyDefaultSeatSelection();
+  ledSelect.value = '0';
   rotationAngle = 0;
   zoomLevel = 1;
   hullColor = '#111827';
@@ -1032,10 +1199,7 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
   const seatTotal = parseInt(seatSelect.value) || 0;
   const enginePrice = parseInt(engineHP.value);
   const ledPrice = parseInt(ledSelect.value);
-  const draft = JSON.parse(localStorage.getItem('customBuildDraft'));
-  const originalPrice = draft?.boatData?.price
-    ? parseFloat(String(draft.boatData.price).replace(/[^0-9.]/g, ''))
-    : 1400000;
+  const originalPrice = getOriginalPrice();
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
   const pricing = getBoatPricing();
@@ -1197,13 +1361,18 @@ async function loadRevisionOrder(orderId) {
   localStorage.setItem("customBuildDraft", JSON.stringify(draft));
   localStorage.setItem("boatConfig", JSON.stringify(cfg));
 
+  await waitForOptionsReady();
+
   if (cfg.length) { lengthRange.value = cfg.length; updateLengthDisplay(); }
   if (cfg.width) { widthRange.value = cfg.width; updateWidthDisplay(); }
-  if (cfg.engineBrand) engineBrand.value = cfg.engineBrand;
+  if (cfg.engineBrand) {
+    engineBrand.value = cfg.engineBrand;
+    populateEngineHP(cfg.engineBrand);
+  }
   if (cfg.engineItem) {
     await delay(500);
     const opt = engineHP.querySelector(`option[data-id="${cfg.engineItem}"]`);
-    if (opt) engineHP.value = opt.value;
+    if (opt) opt.selected = true;
   }
   if (cfg.seatsItem) {
     const sOpt = seatSelect.querySelector(`option[data-id="${cfg.seatsItem}"]`);
@@ -1223,6 +1392,14 @@ async function loadRevisionOrder(orderId) {
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+async function waitForOptionsReady(maxMs = 3000) {
+  const step = 100;
+  for (let waited = 0; waited < maxMs; waited += step) {
+    if (inventoryItems.engines.length || inventoryItems.seats.length) return;
+    await delay(step);
+  }
+}
+
 document.getElementById('submitReviewBtn').addEventListener('click', async () => {
   const draft = JSON.parse(localStorage.getItem('customBuildDraft'));
   const isRevision = !!revisionOrderId;
@@ -1234,9 +1411,7 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     }
   }
 
-  const originalPrice = draft?.boatData?.price
-    ? parseFloat(String(draft.boatData.price).replace(/[^0-9.]/g, ''))
-    : 1400000;
+  const originalPrice = getOriginalPrice();
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
   const pricing = getBoatPricing();
@@ -1432,6 +1607,7 @@ ctx.__proto__.roundRect = function (x, y, w, h, r) {
   return this;
 };
 
+applyBoatSpecDefaults();
 loadOptions().then(() => resizeCanvas()).catch(err => {
   console.error('loadOptions failed:', err);
   resizeCanvas();

@@ -1,4 +1,4 @@
-import { getAllBoatNames, getBoatTimeline } from './boatData.js';
+import { getAllBoatNames, getBoatTimeline, getBoatSpecs } from './boatData.js';
 import { supabase, landingForRole } from './supabase.js';
 
 // Staff must not browse the customer boat catalog; customers and anonymous
@@ -56,7 +56,7 @@ document.addEventListener('keydown', (e) => {
 document.querySelectorAll('.choose').forEach((btn, index) => {
   btn.addEventListener('click', () => {
     const name = boatNames[index] || 'Patrol Boat';
-    const price = 0; // price resolved on order page from boatData
+    const price = getBoatSpecs(name)?.basePrice || 0;
     const selectedBoat = {
       name: name,
       price: price,

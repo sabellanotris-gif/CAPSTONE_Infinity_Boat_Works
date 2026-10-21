@@ -18,6 +18,7 @@ const BOAT_SPECS = {
     depth: "1.6 meters", height: "1.6 meters",
     passengerCapacity: "65 passengers + 2 crew",
     enginePower: "700 HP", maxSpeed: "18 knots",
+    seatRows: 13, seatsPerRow: 5,
     basePrice: "₱50,000,000"
   },
   "2680 Passenger Boat": {
@@ -25,6 +26,7 @@ const BOAT_SPECS = {
     depth: "2.3 meters", height: "2.3 meters",
     passengerCapacity: "180 passengers + 4 crew",
     enginePower: "1800 HP x2", maxSpeed: "25 knots",
+    seatRows: 20, seatsPerRow: 9,
     basePrice: "₱115,000,000"
   },
   "Patrol Boat": {
@@ -60,16 +62,16 @@ const BOAT_MATERIALS = {
     resinType: "Polyester / Vinylester (isophthalic for gelcoat)",
     exteriorFinish: "Awlgrip / Alexseal marine polyurethane paint",
     antiFouling: "Self-polishing copolymer anti-fouling paint (below waterline)",
-    engineType: "Inboard Diesel",
-    engineMake: "Yanmar / Cummins",
-    enginePower: "700 HP",
-    propeller: "Stainless steel Nibral 4-blade propeller",
-    shaftMaterial: "Aqualoy 22 stainless steel shafting",
+    engineType: "Twin Outboard (Gasoline)",
+    engineMake: "2 × Suzuki DF350A or 2 × Mercury Verado 350",
+    enginePower: "700 HP total (2 × 350 HP)",
+    propeller: "Stainless steel 3-blade propellers (x2)",
+    shaftMaterial: "Not applicable — outboard configuration",
     electricalSystem: "Marine-grade tinned copper wiring, waterproof connectors",
     batteries: "Deep-cycle marine batteries (2 x 100Ah)",
     panelType: "Waterproof switch panel with VSR",
-    fuelTank: "Stainless steel 316L fuel tank",
-    fuelLines: "USCG-approved A1-45 fuel hose with anti-siphon valve",
+    fuelTank: "Marine-grade aluminum gasoline tank",
+    fuelLines: "USCG-approved A1-15 gasoline hose with primer bulb",
     waterSystem: "Fresh water tank + marine pressure pump + 12V faucet",
     holdingTank: "Polyethylene holding tank with deck pump-out",
     windows: "Marine-grade tempered glass in rubber gasket frame",
@@ -77,7 +79,7 @@ const BOAT_MATERIALS = {
     cleatsAndHardware: "316L stainless steel marine-grade hardware",
     lifeRafts: "SOLAS-approved 25-person life raft (valise type)",
     lifeJackets: "Adult 150N foam life jackets with whistle + light",
-    fireSystem: "Fixed fire suppression in engine room + portable ABC extinguishers"
+    fireSystem: "Portable ABC extinguishers + engine fuel shut-off"
   },
   "2680 Passenger Boat": {
     hullMaterial: "Fiberglass — ISO/NPG Gelcoat + 450gsm CSM + 800gsm Woven Roving (12 layers, heavy-duty)",
@@ -88,16 +90,16 @@ const BOAT_MATERIALS = {
     resinType: "Vinylester (hull) / Polyester (superstructure)",
     exteriorFinish: "Awlgrip / Alexseal marine polyurethane paint",
     antiFouling: "Self-polishing copolymer anti-fouling paint (below waterline)",
-    engineType: "Twin Inboard Diesel",
-    engineMake: "Cummins / MAN",
-    enginePower: "1800 HP x2",
-    propeller: "Stainless steel Nibral 5-blade propellers (x2)",
-    shaftMaterial: "Aqualoy 22 stainless steel shafting (x2)",
+    engineType: "Outboard (Gasoline) — 6 or 12 units",
+    engineMake: "6 × Mercury Verado 600 or 12 × Suzuki DF300AP",
+    enginePower: "3600 HP total (1800 HP per side)",
+    propeller: "Stainless steel 4-blade propellers (one per outboard)",
+    shaftMaterial: "Not applicable — outboard configuration",
     electricalSystem: "Heavy-duty marine-grade tinned copper wiring, dual alternators",
     batteries: "Deep-cycle AGM battery bank (4 x 200Ah)",
     panelType: "Waterproof switch panel with VSR and monitoring system",
-    fuelTank: "Dual stainless steel 316L fuel tanks with cross-feed",
-    fuelLines: "USCG-approved A1-45 fuel hose with anti-siphon valve",
+    fuelTank: "Dual marine-grade aluminum gasoline tanks with cross-feed",
+    fuelLines: "USCG-approved A1-15 gasoline hose with primer bulb",
     waterSystem: "Fresh water tank + marine pressure pump + 12V faucet",
     holdingTank: "Polyethylene holding tank with deck pump-out",
     windows: "Marine-grade tempered glass in rubber gasket frame",
@@ -105,7 +107,7 @@ const BOAT_MATERIALS = {
     cleatsAndHardware: "316L stainless steel, through-bolted with backing plates",
     lifeRafts: "SOLAS-approved 50-person life raft (valise type)",
     lifeJackets: "Adult 150N foam life jackets with whistle + light",
-    fireSystem: "Automatic fire suppression in engine room + portable ABC extinguishers"
+    fireSystem: "Portable ABC extinguishers + engine fuel shut-off"
   },
   "Passenger Boat": {
     hullMaterial: "Fiberglass — ISO/NPG Gelcoat + 450gsm CSM + 600gsm Woven Roving (8 layers)",
@@ -116,16 +118,16 @@ const BOAT_MATERIALS = {
     resinType: "Polyester / Vinylester (isophthalic for gelcoat)",
     exteriorFinish: "Awlgrip / Alexseal marine polyurethane paint",
     antiFouling: "Self-polishing copolymer anti-fouling paint (below waterline)",
-    engineType: "Inboard Diesel or Twin Outboards",
-    engineMake: "Yanmar / Cummins (inboard) or Yamaha / Suzuki (outboard)",
+    engineType: "Outboard (twin or multi-engine)",
+    engineMake: "Suzuki / Mercury",
     enginePower: "600 HP",
-    propeller: "Stainless steel Nibral 4-blade propeller",
-    shaftMaterial: "Aqualoy 22 stainless steel shafting",
+    propeller: "Stainless steel 3-blade propellers",
+    shaftMaterial: "Not applicable — outboard configuration",
     electricalSystem: "Marine-grade tinned copper wiring, waterproof connectors",
     batteries: "Deep-cycle marine batteries (2 x 100Ah)",
     panelType: "Waterproof switch panel with VSR",
-    fuelTank: "Stainless steel 316L fuel tank",
-    fuelLines: "USCG-approved A1-45 fuel hose with anti-siphon valve",
+    fuelTank: "Marine-grade aluminum gasoline tank",
+    fuelLines: "USCG-approved A1-15 gasoline hose with primer bulb",
     waterSystem: "Fresh water tank + marine pressure pump + 12V faucet",
     holdingTank: "Polyethylene holding tank with deck pump-out",
     windows: "Marine-grade tempered glass in rubber gasket frame",
@@ -230,9 +232,9 @@ const BOAT_MATERIALS = {
 };
 
 const BOAT_SIMPLE_MATERIALS = {
-  "1950 Passenger Boat": { materials: ["Fiberglass Hull", "Fiberglass Roof", "Marine Grade Passenger Seating", "Tempered Glass Windows"], engine: "Yanmar / Cummins Inboard Diesel — 700 HP" },
-  "2680 Passenger Boat": { materials: ["Heavy-Duty Fiberglass Hull", "Reinforced Superstructure", "Passenger Cabin with AC", "Marine Grade Passenger Seating (180 pax)", "Tempered Glass Windows"], engine: "Twin Cummins / MAN Inboard Diesel — 1800 HP x2" },
-  "Passenger Boat": { materials: ["Fiberglass Hull", "Fiberglass Roof", "Marine Grade Passenger Seating", "Tempered Glass Windows"], engine: "Mercury or Suzuki — Inboard or Outboard Configuration" },
+  "1950 Passenger Boat": { materials: ["Fiberglass Hull", "Fiberglass Roof", "Marine Grade Passenger Seating", "Tempered Glass Windows"], engine: "2 × Suzuki DF350A / 2 × Mercury Verado 350 Outboard — 700 HP total" },
+  "2680 Passenger Boat": { materials: ["Heavy-Duty Fiberglass Hull", "Reinforced Superstructure", "Passenger Cabin with AC", "Marine Grade Passenger Seating (180 pax)", "Tempered Glass Windows"], engine: "6 × Mercury Verado 600 / 12 × Suzuki DF300AP Outboard — 3600 HP total (1800 HP per side)" },
+  "Passenger Boat": { materials: ["Fiberglass Hull", "Fiberglass Roof", "Marine Grade Passenger Seating", "Tempered Glass Windows"], engine: "Mercury / Suzuki — Outboard Configuration" },
   "Speed Boat": { materials: ["Lightweight Fiberglass Hull", "Composite Reinforcement Materials", "High-Speed Performance Engine", "Marine Electrical Systems"], engine: "Mercury Performance Series / Suzuki High Output Series" },
   "Parasail Boat": { materials: ["Reinforced Fiberglass Hull", "Heavy-Duty Tow Structure", "Hydraulic Winch System", "Marine Communication Equipment"], engine: "Minimum 300 HP — Commercial Grade Tow Engine" },
   "Patrol Boat": { materials: ["Marine Grade Aluminum or Steel Hull", "Reinforced Bulkheads", "Radar Systems", "Communication Equipment", "Navigation Systems"], engine: "High-Endurance Patrol Engine / Heavy-Duty Propulsion System" }
@@ -253,7 +255,7 @@ const BOAT_MILESTONES = {
     { label: "Engineering Review Completed", percentage: 20, key: "engineering" },
     { label: "MARINA Requirements Submitted", percentage: 35, key: "marina" },
     { label: "Hull Construction", percentage: 50, key: "construction" },
-    { label: "Twin Engine Installation", percentage: 65, key: "engines" },
+    { label: "Outboard Engine Installation", percentage: 65, key: "engines" },
     { label: "Cabin & Interior Fit-Out", percentage: 80, key: "outfitting" },
     { label: "Sea Trial Completed", percentage: 92, key: "seatrial" },
     { label: "Ready for Delivery", percentage: 100, key: "delivery" }
@@ -302,7 +304,7 @@ const BOAT_ACTIVITIES = {
     { title: "Passenger Layout Approved", description: "65-pax seating and cabin layout approved by engineering.", department: "Design", status: "completed" },
     { title: "MARINA Requirements Submitted", description: "MARINA compliance documents submitted for regulatory review.", department: "Regulatory", status: "in-progress" },
     { title: "Hull Construction Completed", description: "Main hull structure fabricated and inspected.", department: "Construction", status: "pending" },
-    { title: "Engine Installation Completed", description: "700 HP main engine mounted and aligned.", department: "Mechanical", status: "pending" },
+    { title: "Engine Installation Completed", description: "2 × Suzuki DF350A outboards mounted and rigged.", department: "Mechanical", status: "pending" },
     { title: "Interior Seating Installed", description: "Marine grade passenger seating (65 pax) installed and secured.", department: "Interior", status: "pending" },
     { title: "Sea Trial Completed", description: "Sea trial conducted and performance verified.", department: "QC", status: "pending" },
     { title: "Delivery Preparation Completed", description: "Final inspection and delivery preparation completed.", department: "Logistics", status: "pending" }
@@ -312,7 +314,7 @@ const BOAT_ACTIVITIES = {
     { title: "Passenger Layout Approved", description: "180-pax seating and cabin layout approved by engineering.", department: "Design", status: "completed" },
     { title: "MARINA Requirements Submitted", description: "MARINA compliance documents submitted for regulatory review.", department: "Regulatory", status: "in-progress" },
     { title: "Hull Construction Completed", description: "Heavy-duty hull structure fabricated and inspected.", department: "Construction", status: "pending" },
-    { title: "Twin Engine Installation Completed", description: "Twin 1800 HP engines mounted and aligned.", department: "Mechanical", status: "pending" },
+    { title: "Outboard Engine Installation Completed", description: "Six Mercury Verado 600 or twelve Suzuki DF300AP outboards mounted and rigged.", department: "Mechanical", status: "pending" },
     { title: "Cabin & Interior Fit-Out", description: "Passenger cabin, seating (180 pax), and amenities installed.", department: "Interior", status: "pending" },
     { title: "Electrical Systems Integrated", description: "Dual alternator electrical system fully integrated.", department: "Electrical", status: "pending" },
     { title: "Sea Trial Completed", description: "Sea trial conducted and performance verified.", department: "QC", status: "pending" },
@@ -361,7 +363,7 @@ const BOAT_ACTIVITIES = {
 
 const BOAT_TIMELINE = {
   "1950 Passenger Boat": { totalDuration: "8 Months", phases: ["Design Phase - 2 Weeks", "Material Procurement - 3 Weeks", "Hull Construction - 8 Weeks", "Cabin & Interior - 6 Weeks", "Engine & Systems - 4 Weeks", "Sea Trial & Delivery - 2 Weeks"] },
-  "2680 Passenger Boat": { totalDuration: "14 Months", phases: ["Design Phase - 4 Weeks", "Material Procurement - 6 Weeks", "Hull Construction - 14 Weeks", "Twin Engine Installation - 8 Weeks", "Cabin & Interior - 10 Weeks", "Systems Integration - 6 Weeks", "Sea Trial & Delivery - 4 Weeks"] },
+  "2680 Passenger Boat": { totalDuration: "14 Months", phases: ["Design Phase - 4 Weeks", "Material Procurement - 6 Weeks", "Hull Construction - 14 Weeks", "Outboard Engine Installation - 8 Weeks", "Cabin & Interior - 10 Weeks", "Systems Integration - 6 Weeks", "Sea Trial & Delivery - 4 Weeks"] },
   "Passenger Boat": { totalDuration: "8 Months", phases: ["Design Phase - 2 Weeks", "Material Procurement - 3 Weeks", "Hull Construction - 8 Weeks", "Cabin & Interior - 6 Weeks", "Engine & Systems - 4 Weeks", "Sea Trial & Delivery - 2 Weeks"] },
   "Patrol Boat": { totalDuration: "8 Months", phases: ["Design Phase - 2 Weeks", "Material Procurement - 3 Weeks", "Hull Construction - 8 Weeks", "Systems Integration - 6 Weeks", "Weapons & Comms - 4 Weeks", "Sea Trial & Delivery - 2 Weeks"] },
   "Speed Boat": { totalDuration: "6 Months", phases: ["Design Phase - 1 Week", "Material Procurement - 2 Weeks", "Hull Construction - 6 Weeks", "Engine & Systems - 4 Weeks", "Testing - 2 Weeks", "Delivery - 1 Week"] },
@@ -569,15 +571,15 @@ const BOAT_BOM = {
     "Porthole Windows": 4, "Deck Hatches": 2
   },
   "1950 Passenger Boat": {
-    "Marine Engine": 1, "Propeller": 1, "Fiberglass Sheet": 6, "Fiberglass Resin": 4,
+    "Marine Engine": 2, "Propeller": 2, "Fiberglass Sheet": 6, "Fiberglass Resin": 4,
     "Marine Paint": 8, "Boat Seats": 65, "Life Jackets": 70, "Navigation Lights": 2,
-    "Engine Parts": 1, "Anchor Chain": 1, "Stainless Steel Rails": 4, "Electrical Wiring": 3,
+    "Engine Parts": 2, "Anchor Chain": 1, "Stainless Steel Rails": 4, "Electrical Wiring": 3,
     "Porthole Windows": 6, "Deck Hatches": 3
   },
   "2680 Passenger Boat": {
-    "Marine Engine": 2, "Propeller": 2, "Fiberglass Sheet": 10, "Fiberglass Resin": 6,
+    "Marine Engine": 6, "Propeller": 6, "Fiberglass Sheet": 10, "Fiberglass Resin": 6,
     "Marine Paint": 12, "Boat Seats": 180, "Life Jackets": 190, "Navigation Lights": 3,
-    "Engine Parts": 2, "Anchor Chain": 2, "Stainless Steel Rails": 6, "Electrical Wiring": 5,
+    "Engine Parts": 6, "Anchor Chain": 2, "Stainless Steel Rails": 6, "Electrical Wiring": 5,
     "Porthole Windows": 10, "Deck Hatches": 5
   }
 };
