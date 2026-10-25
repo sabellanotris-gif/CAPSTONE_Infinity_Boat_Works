@@ -49,7 +49,7 @@
       ]
     },
     { label: "Approvals", href: "dashapproval.html", adminOnly: true },
-    { label: "AI Video", href: "aivideo.html", adminOnly: true }
+
   ];
 
   var nav = document.querySelector(".sidebar-menu");
