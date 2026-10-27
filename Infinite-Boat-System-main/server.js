@@ -34,6 +34,13 @@ const supabaseUrl = process.env.SUPABASE_URL || "https://brpblkvthpdfbjqckqbk.su
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+let supabaseHost = "";
+try {
+  supabaseHost = new URL(supabaseUrl).host;
+} catch (e) {
+  console.warn("[SERVER] SUPABASE_URL is not a valid URL:", supabaseUrl);
+}
+
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const hasValidServiceRole = SERVICE_ROLE_KEY.length > 20 && !SERVICE_ROLE_KEY.includes("PASTE_YOUR");
 const supabaseServiceRole = hasValidServiceRole
@@ -44,7 +51,55 @@ if (!hasValidServiceRole) {
   console.warn("[SERVER] No valid SUPABASE_SERVICE_ROLE_KEY set. Admin DB ops may fail for RLS-protected tables.");
 }
 
+// Catch the most common production misconfiguration early: SUPABASE_URL pointing
+// at the app itself (or another non-Supabase host) makes auth calls return a bare
+// {"error":"Not found"}, which surfaces as a confusing 500 on registration.
+if (hasValidServiceRole) {
+  if (!/\.supabase\.co$/i.test(supabaseHost)) {
+    console.warn(
+      `[SERVER] SUPABASE_URL host "${supabaseHost}" is not a *.supabase.co project URL. ` +
+      "Auth calls will fail with 'Not found'. Set SUPABASE_URL to https://<project-ref>.supabase.co."
+    );
+  }
+  try {
+    const payloadPart = SERVICE_ROLE_KEY.split(".")[1];
+    const payload = payloadPart
+      ? JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"))
+      : null;
+    if (payload?.role && payload.role !== "service_role") {
+      console.warn(
+        `[SERVER] SUPABASE_SERVICE_ROLE_KEY has role "${payload.role}", expected "service_role". ` +
+        "Registration requires the service_role key."
+      );
+    }
+    if (payload?.ref && supabaseHost && supabaseHost !== `${payload.ref}.supabase.co`) {
+      console.warn(
+        `[SERVER] SUPABASE_URL host "${supabaseHost}" does not match project ref "${payload.ref}" ` +
+        "in SUPABASE_SERVICE_ROLE_KEY. Make sure both come from the same Supabase project."
+      );
+    }
+  } catch (e) {
+    console.warn("[SERVER] Could not inspect SUPABASE_SERVICE_ROLE_KEY:", e.message);
+  }
+}
+
 const adminDb = supabaseServiceRole || supabase;
+
+// Supabase reports an existing account with message
+// "A user with this email address has already been registered" (and varies
+// across API versions), so match defensively instead of only "already registered".
+function isEmailExistsError(error) {
+  if (!error) return false;
+  const code = String(error.code || "").toLowerCase();
+  if (code === "email_exists" || code === "user_already_exists") return true;
+  const message = String(error.message || "").toLowerCase();
+  return (
+    message.includes("already been registered") ||
+    message.includes("already registered") ||
+    message.includes("already exists") ||
+    message.includes("email address is already")
+  );
+}
 
 const emailTransporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || "smtp.gmail.com",
@@ -168,8 +223,19 @@ app.post("/api/auth/register", async (req, res) => {
     });
 
     if (userError) {
-      if (userError.message?.includes("already registered") || userError.message?.includes("already exists")) {
+      console.error("[REGISTER] Supabase createUser failed:", {
+        message: userError.message,
+        status: userError.status,
+        code: userError.code,
+        supabaseHost,
+      });
+      if (isEmailExistsError(userError)) {
         return res.status(409).json({ error: "Email already registered." });
+      }
+      if (String(userError.message || "").toLowerCase() === "not found") {
+        return res.status(500).json({
+          error: "Registration service is misconfigured (SUPABASE_URL does not point to the Supabase project). Please contact the administrator.",
+        });
       }
       return res.status(500).json({ error: userError.message });
     }
@@ -488,7 +554,7 @@ app.post("/api/admin/create-worker", authenticate, requireAdmin, async (req, res
     });
 
     if (userError) {
-      if (userError.message?.includes("already registered") || userError.message?.includes("already exists")) {
+      if (isEmailExistsError(userError)) {
         return res.status(409).json({ error: "Email already registered." });
       }
       return res.status(500).json({ error: userError.message });

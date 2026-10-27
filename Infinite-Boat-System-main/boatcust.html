@@ -16,6 +16,15 @@ href="boatcust.css">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
 rel="stylesheet">
 
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
 </head>
 
 <body>
@@ -136,14 +145,16 @@ rel="stylesheet">
             </select>
 
         </div>
-
         <div class="control-group">
 
             <label>
+
                 LED LIGHTS
+
             </label>
 
             <select id="ledSelect">
+
             </select>
 
         </div>
@@ -151,7 +162,7 @@ rel="stylesheet">
         <div class="color-picker">
 
             <label>
-                HULL COLOR
+                BODY COLOR
             </label>
 
             <div class="colors hull-colors">
@@ -162,7 +173,7 @@ rel="stylesheet">
         <div class="color-picker">
 
             <label>
-                DECK COLOR
+                ROOF COLOR
             </label>
 
             <div class="colors deck-colors">
@@ -180,6 +191,8 @@ rel="stylesheet">
             </div>
 
         </div>
+
+
 
 
         <button class="reset-btn">
@@ -211,9 +224,10 @@ rel="stylesheet">
         </div>
 
 
-        <div class="viewer-wrapper">
+        <div class="viewer-wrapper" style="position:relative;">
 
             <canvas id="boatCanvas"></canvas>
+            <div id="threeViewer" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;"></div>
 
         </div>
 
@@ -450,6 +464,7 @@ rel="stylesheet">
 
 <script type="module"
 src="boatcust.js"></script>
+<script type="module" src="boat3d.js"></script>
 
 </body>
 </html>

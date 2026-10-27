@@ -1,5 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
+import { showThreeView, setHullColor, setDeckColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree } from "./boat3d.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
 // previews are allowed (preview mode is intentional for unplaced boats).
@@ -14,16 +15,26 @@ import { getBoatSpecs } from "./boatData.js";
   } catch (e) { /* non-fatal */ }
 })();
 
-// Ensure the logged-in customer's identity (never a stale admin/worker name)
-(async () => {
+  // Ensure the logged-in customer's identity (never a stale admin/worker name)
+  (async () => {
+    try {
+      const identity = await getCustomerIdentity();
+      if (identity.name) sessionStorage.setItem("customerName", identity.name);
+      if (identity.email) sessionStorage.setItem("customerEmail", identity.email);
+      if (identity.phone) sessionStorage.setItem("customerPhone", identity.phone);
+      if (identity.photo) sessionStorage.setItem("customerImage", identity.photo);
+    } catch (e) { /* non-fatal */ }
+  })();
+
+  // Ensure 3D view state
   try {
-    const identity = await getCustomerIdentity();
-    if (identity.name) sessionStorage.setItem("customerName", identity.name);
-    if (identity.email) sessionStorage.setItem("customerEmail", identity.email);
-    if (identity.phone) sessionStorage.setItem("customerPhone", identity.phone);
-    if (identity.photo) sessionStorage.setItem("customerImage", identity.photo);
-  } catch (e) { /* non-fatal */ }
-})();
+    const { showThreeView } = await import('./boat3d.js?' + Date.now());
+    if (is1950Boat()) {
+      // Don't auto-show, let user click
+    } else {
+      showThreeView(false);
+    }
+  } catch (e) {}
 
 const canvas = document.getElementById('boatCanvas');
 const ctx = canvas.getContext('2d');
@@ -282,6 +293,7 @@ const CUSTOMIZATION_SEED = [
   { name: 'Blue LED', category: 'LED', stock: 20, price: 15000, metadata: { ledType: 'blue', optionType: 'led' } },
   { name: 'RGB LED', category: 'LED', stock: 15, price: 25000, metadata: { ledType: 'rgb', optionType: 'led' } },
   { name: 'Default', category: 'Color', stock: 99, price: 0, metadata: { hex: '#111827', colorType: 'hull', optionType: 'color', isDefault: true } },
+  { name: 'Body', category: 'Color', stock: 99, price: 0, metadata: { hex: '#F2F1E9', colorType: 'hull', optionType: 'color' } },
   { name: 'White', category: 'Color', stock: 99, price: 0, metadata: { hex: '#ffffff', colorType: 'hull', optionType: 'color' } },
   { name: 'Pearl White', category: 'Color', stock: 99, price: 5000, metadata: { hex: '#F5F5F0', colorType: 'hull', optionType: 'color' } },
   { name: 'Navy Blue', category: 'Color', stock: 99, price: 8000, metadata: { hex: '#1e3a5f', colorType: 'hull', optionType: 'color' } },
@@ -304,6 +316,7 @@ const CUSTOMIZATION_SEED = [
   { name: 'Midnight Blue', category: 'Color', stock: 99, price: 10000, metadata: { hex: '#191970', colorType: 'hull', optionType: 'color' } },
   { name: 'Purple', category: 'Color', stock: 99, price: 12000, metadata: { hex: '#6B21A8', colorType: 'hull', optionType: 'color' } },
   { name: 'Default Deck', category: 'DeckColor', stock: 99, price: 0, metadata: { hex: '#8B7355', colorType: 'deck', optionType: 'deckColor', isDefault: true } },
+  { name: 'Roof', category: 'DeckColor', stock: 99, price: 0, metadata: { hex: '#D9DDE0', colorType: 'deck', optionType: 'deckColor' } },
   { name: 'Teak Wood', category: 'DeckColor', stock: 99, price: 0, metadata: { hex: '#8B7355', colorType: 'deck', optionType: 'deckColor' } },
   { name: 'Dark Teak', category: 'DeckColor', stock: 99, price: 5000, metadata: { hex: '#5C4033', colorType: 'deck', optionType: 'deckColor' } },
   { name: 'Light Oak', category: 'DeckColor', stock: 99, price: 5000, metadata: { hex: '#C4A35A', colorType: 'deck', optionType: 'deckColor' } },
@@ -314,6 +327,7 @@ const CUSTOMIZATION_SEED = [
   { name: 'Blue Composite', category: 'DeckColor', stock: 99, price: 10000, metadata: { hex: '#4A6FA5', colorType: 'deck', optionType: 'deckColor' } },
   { name: 'Red EVA', category: 'DeckColor', stock: 99, price: 10000, metadata: { hex: '#8B2500', colorType: 'deck', optionType: 'deckColor' } },
   { name: 'Default Rail', category: 'RailColor', stock: 99, price: 0, metadata: { hex: '#C0C0C0', colorType: 'rail', optionType: 'railColor', isDefault: true } },
+  { name: 'Door', category: 'Color', stock: 99, price: 0, metadata: { hex: '#4D4127', colorType: 'hull', optionType: 'color' } },
   { name: 'Chrome Rail', category: 'RailColor', stock: 99, price: 0, metadata: { hex: '#C0C0C0', colorType: 'rail', optionType: 'railColor' } },
   { name: 'Brushed Steel', category: 'RailColor', stock: 99, price: 5000, metadata: { hex: '#A8A8A8', colorType: 'rail', optionType: 'railColor' } },
   { name: 'Black Rail', category: 'RailColor', stock: 99, price: 8000, metadata: { hex: '#1a1a1a', colorType: 'rail', optionType: 'railColor' } },
@@ -440,6 +454,10 @@ async function loadOptions() {
         el.classList.add('active');
         hullColor = el.dataset.color;
         colorPrice = el.dataset.default === 'true' ? 0 : getHullColorPricing();
+        const cname = el.title || '';
+        if (/body/i.test(cname)) { if (typeof setBodyColor === 'function') setBodyColor(hullColor); else setHullColor(hullColor); }
+        else if (/door/i.test(cname)) { if (typeof setDoorColor === 'function') setDoorColor(hullColor); }
+        else { setHullColor(hullColor); }
         drawBoat();
       });
     });
@@ -463,6 +481,10 @@ async function loadOptions() {
         deckColorContainer.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
         el.classList.add('active');
         deckColor = el.dataset.color;
+        const dname = el.title || '';
+        if (/roof/i.test(dname)) { if (typeof setRoofColor === 'function') setRoofColor(deckColor); }
+        else if (/deck/i.test(dname) || /floor/i.test(dname) || /teak/i.test(dname)) { setDeckColor(deckColor); }
+        else { setDeckColor(deckColor); }
         drawBoat();
       });
     });
@@ -486,6 +508,7 @@ async function loadOptions() {
         railColorContainer.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
         el.classList.add('active');
         railColor = el.dataset.color;
+        setRailColor(railColor);
         drawBoat();
       });
     });
@@ -1122,34 +1145,54 @@ widthRange.addEventListener('input', () => {
 
 engineHP.addEventListener('change', drawBoat);
 seatSelect.addEventListener('change', drawBoat);
-ledSelect.addEventListener('change', drawBoat);
+  ledSelect.addEventListener('change', drawBoat);
+  
+  
 
-document.querySelectorAll('.colors.hull-colors .color').forEach(el => {
-  el.addEventListener('click', () => {
-    document.querySelectorAll('.colors.hull-colors .color').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    hullColor = el.dataset.color;
-    colorPrice = el.dataset.default === 'true' ? 0 : getHullColorPricing();
-    drawBoat();
-  });
-});
+
+function is1950Boat() {
+  try {
+    const draft = JSON.parse(localStorage.getItem('customBuildDraft'));
+    const name = draft?.boatData?.name || '';
+    if (/1950/i.test(name)) return true;
+  } catch (e) { }
+  const boatNameEl = document.getElementById('boatModelName');
+  if (boatNameEl && /1950/i.test(boatNameEl.textContent)) return true;
+  return false;
+}
 
 document.getElementById('rotateBtn')?.addEventListener('click', () => {
+  if (is1950Boat() && currentView === 'perspective') {
+    rotateThree();
+    return;
+  }
   rotationAngle += Math.PI / 8;
   drawBoat();
 });
 
 document.getElementById('zoomInBtn')?.addEventListener('click', () => {
+  if (is1950Boat() && currentView === 'perspective') {
+    zoomThree(1);
+    return;
+  }
   zoomLevel = Math.min(2, zoomLevel + 0.1);
   drawBoat();
 });
 
 document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
+  if (is1950Boat() && currentView === 'perspective') {
+    zoomThree(-1);
+    return;
+  }
   zoomLevel = Math.max(0.3, zoomLevel - 0.1);
   drawBoat();
 });
 
 document.getElementById('resetBtn')?.addEventListener('click', () => {
+  if (is1950Boat() && currentView === 'perspective') {
+    resetThree();
+    return;
+  }
   rotationAngle = 0;
   zoomLevel = 1;
   drawBoat();
@@ -1165,8 +1208,22 @@ document.querySelectorAll('.view-buttons button').forEach(btn => {
     else if (text === 'top view') currentView = 'top';
     else if (text === 'rear view') currentView = 'rear';
     else if (text === 'front view') currentView = 'front';
-    else if (text === '3d view') currentView = 'perspective';
-    drawBoat();
+    else if (text === '3d view' || text === 'perspective') currentView = 'perspective';
+    if (is1950Boat()) {
+      if (currentView === 'perspective') {
+        showThreeView(true);
+        const threeDiv = document.getElementById('threeViewer');
+        const canvas = document.getElementById('boatCanvas');
+        if (threeDiv) threeDiv.style.display = 'block';
+        if (canvas) canvas.style.display = 'none';
+      } else {
+        showThreeView(false);
+        drawBoat();
+      }
+    } else {
+      showThreeView(false);
+  drawBoat();
+}
   });
 });
 
