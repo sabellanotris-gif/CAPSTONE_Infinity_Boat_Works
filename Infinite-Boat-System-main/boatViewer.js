@@ -140,7 +140,8 @@ export function createBoatViewer(container, options = {}) {
   controls.enablePan = false;
   controls.rotateSpeed = 0.5;
   controls.minPolarAngle = 0;
-  controls.maxPolarAngle = Math.PI * 0.49;
+  // Allow a full vertical orbit so the underside of the hull can be inspected.
+  controls.maxPolarAngle = Math.PI;
   controls.autoRotateSpeed = opts.autoRotateSpeed;
   controls.enabled = opts.interactive;
 
@@ -244,7 +245,11 @@ export function createBoatViewer(container, options = {}) {
 
         model.traverse((child) => {
           if (child.isMesh && child.material) {
-            materialsOf(child).forEach((mat) => { mat.needsUpdate = true; });
+            materialsOf(child).forEach((mat) => {
+              // Render both sides so the hull is visible when orbiting below it.
+              mat.side = THREE.DoubleSide;
+              mat.needsUpdate = true;
+            });
           }
         });
 
@@ -331,6 +336,21 @@ export function createBoatViewer(container, options = {}) {
       controls.update();
       camera.updateProjectionMatrix();
       model.rotation.set(0, 0, 0);
+    },
+    viewFromBelow() {
+      if (!model) return;
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const modelSize = Math.max(size.x, size.y, size.z) || 12;
+      camera.position.set(
+        center.x + modelSize * 0.35,
+        center.y - modelSize * 1.7,
+        center.z + modelSize * 1.1
+      );
+      controls.target.copy(center);
+      controls.update();
+      camera.updateProjectionMatrix();
     },
     resize,
     isReady() {

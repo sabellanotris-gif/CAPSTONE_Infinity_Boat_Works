@@ -104,6 +104,15 @@ export function resetThree() {
 }
 
 /**
+ * Jump the camera under the hull so the underside can be inspected.
+ */
+export function viewThreeFromBelow() {
+  if (!viewer) return;
+  if (viewer.isAutoRotating()) viewer.setAutoRotate(false);
+  viewer.viewFromBelow();
+}
+
+/**
  * Capture the 3D boat as a JPEG data URL for the admin dashboard.
  * Falls back to an off-screen render when the viewer was never opened.
  */

@@ -119,9 +119,11 @@ window.showApprovalPhoto = function (idx) {
     const img = document.getElementById(`approvalPreview-${idx}`);
     const mount = document.getElementById(`approvalThree-${idx}`);
     const play = document.getElementById(`approvalPlay-${idx}`);
+    const bottom = document.getElementById(`approvalBottom-${idx}`);
     if (mount) { mount.style.display = 'none'; mount.innerHTML = ''; }
     if (img) img.style.display = '';
     if (play) play.style.display = 'none';
+    if (bottom) bottom.style.display = 'none';
 };
 
 window.showApprovalThree = async function (idx) {
@@ -132,6 +134,7 @@ window.showApprovalThree = async function (idx) {
     const mount = document.getElementById(`approvalThree-${idx}`);
     const img = document.getElementById(`approvalPreview-${idx}`);
     const play = document.getElementById(`approvalPlay-${idx}`);
+    const bottom = document.getElementById(`approvalBottom-${idx}`);
     if (!mount) return;
 
     destroyApprovalViewer();
@@ -139,6 +142,7 @@ window.showApprovalThree = async function (idx) {
     mount.style.display = 'block';
     mount.innerHTML = '';
     if (play) { play.style.display = 'block'; play.textContent = '▶ Rotate 360°'; }
+    if (bottom) bottom.style.display = 'block';
 
     try {
         if (!mount.isConnected) return;
@@ -158,6 +162,13 @@ window.showApprovalThree = async function (idx) {
 window.toggleApprovalRotation = function (idx) {
     if (!approvalViewer) return;
     updateApprovalPlayBtn(idx, approvalViewer.toggleAutoRotate());
+};
+
+window.viewApprovalFromBelow = function (idx) {
+    if (!approvalViewer) return;
+    approvalViewer.setAutoRotate(false);
+    approvalViewer.viewFromBelow();
+    updateApprovalPlayBtn(idx, false);
 };
 
 function renderScheduleCard(a, idx) {
@@ -276,6 +287,10 @@ function renderScheduleCard(a, idx) {
                     <button id="approvalPlay-${idx}" type="button" onclick="toggleApprovalRotation(${idx})"
                         style="display:none;position:absolute;right:10px;bottom:10px;z-index:3;padding:7px 12px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 11px Poppins,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);">
                         ▶ Rotate 360°
+                    </button>
+                    <button id="approvalBottom-${idx}" type="button" onclick="viewApprovalFromBelow(${idx})"
+                        style="display:none;position:absolute;left:10px;bottom:10px;z-index:3;padding:7px 12px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 11px Poppins,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);">
+                        ⬇ Ilalim
                     </button>
                 </div>
             </div>` : ''}
