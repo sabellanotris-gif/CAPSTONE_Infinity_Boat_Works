@@ -46,12 +46,17 @@ Sa folder na `Infinite-Boat-System-main`, gumawa ng file na may pangalang **`.en
 SUPABASE_URL=https://brpblkvthpdfbjqckqbk.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+# Brevo (recommended — needed kapag naka-deploy sa Render)
+BREVO_API_KEY=xkeysib-your-key-here
+EMAIL_FROM_ADDRESS=infintyboatsystem@gmail.com
+EMAIL_FROM_NAME=Infinity Boat Works
+# Gmail SMTP (local fallback lang kung walang BREVO_API_KEY)
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
-EMAIL_USER=infinityboatsystem@gmail.com
+EMAIL_USER=infintyboatsystem@gmail.com
 EMAIL_PASS=your-app-password
 EMAIL_SECURE=false
-ADMIN_EMAIL=infinityboatsystem@gmail.com
+ADMIN_EMAIL=infintyboatsystem@gmail.com
 PORT=3000
 SERVER_URL=http://localhost:3000
 ```
@@ -90,11 +95,30 @@ Buksan sa browser: **http://localhost:3000**
 
 ## Email setup (para gumana ang registration/verification)
 
-Ang registration ay nagpapadala ng verification email gamit ang Gmail:
+May dalawang option. **Brevo ang recommended**, lalo na kapag naka-deploy sa Render — kasi **blocked ang SMTP ports (25/465/587) sa Render**, kaya hindi gumagana ang Gmail SMTP doon. Ang Brevo ay HTTPS API (port 443) kaya dumadaan.
+
+### Option A — Brevo (recommended, works on Render)
+
+1. Gumawa ng account sa https://brevo.com.
+2. **Senders, Domains & IPs → Senders** → i-add at i-verify ang `infintyboatsystem@gmail.com` (i-click ang confirmation email).
+3. **SMTP & API → API Keys** → gumawa ng v3 key.
+4. Ilagay sa `.env` (at sa Render → Environment):
+   ```
+   BREVO_API_KEY=xkeysib-...
+   EMAIL_FROM_ADDRESS=infintyboatsystem@gmail.com
+   EMAIL_FROM_NAME=Infinity Boat Works
+   ```
+5. Free tier: 300 emails/day — sapat na para sa capstone.
+
+### Option B — Gmail SMTP (local testing lang)
+
+Ginagamit lang ito kapag **walang** `BREVO_API_KEY`. Hindi ito gumagana sa Render.
 1. Gumawa ng Gmail account (o gamitin ang existing).
 2. Google Account → **Security → 2-Step Verification → ON**
 3. **App passwords → Create** → pumili ng "Mail" → i-copy ang 16-character password.
 4. Ilagay sa `.env`: `EMAIL_USER=<gmail>` at `EMAIL_PASS=<app password>`.
+
+> Tandaan: ang tamang spelling ng email ay **`infintyboatsystem@gmail.com`** (isang `i`).
 
 ---
 

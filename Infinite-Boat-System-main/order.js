@@ -1,4 +1,4 @@
-import { supabase, sendEmailNotification, getCustomerIdentity } from "./supabase.js";
+import { supabase, sendEmailNotification, getCustomerIdentity, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatCrew, getBoatCrewTotal } from "./boatData.js";
 
 // Ensure the logged-in customer's identity (never a stale admin/worker name)
@@ -542,7 +542,7 @@ async function submitOrder() {
             .eq("orderId", rescheduleOrderId);
         if (error) { alert("Failed to reschedule: " + error.message); return; }
         sendEmailNotification({ type: "status_changed", recipient: customerEmail, data: { orderId: rescheduleOrderId, customerName, customerEmail, status: "Pending Signing", orderPhase: "Schedule Resubmitted", progress: 5 } });
-        sendEmailNotification({ type: "status_changed", recipient: "infinityboatsystem@gmail.com", data: { orderId: rescheduleOrderId, customerName, customerEmail, status: "Pending Signing", orderPhase: "Schedule Resubmitted", progress: 5 } });
+        sendEmailNotification({ type: "status_changed", recipient: ADMIN_EMAIL, data: { orderId: rescheduleOrderId, customerName, customerEmail, status: "Pending Signing", orderPhase: "Schedule Resubmitted", progress: 5 } });
         alert("Schedule resubmitted! Please wait for the contract signing appointment.");
         window.location.href = "home.html";
         return;
@@ -625,7 +625,7 @@ async function submitOrder() {
     localStorage.setItem("lastSubmittedOrder", JSON.stringify(order));
 
     sendEmailNotification({ type: "order_created", recipient: order.customerEmail, data: order });
-    sendEmailNotification({ type: "order_created", recipient: "infinityboatsystem@gmail.com", data: order });
+    sendEmailNotification({ type: "order_created", recipient: ADMIN_EMAIL, data: order });
 
     alert("Order submitted successfully! Please wait for the contract signing appointment.");
     window.location.href = "home.html";

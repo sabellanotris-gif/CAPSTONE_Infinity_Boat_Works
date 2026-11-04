@@ -405,6 +405,10 @@ window.notifySound = notifySound;
    EMAIL NOTIFICATION HELPER
    ============================================= */
 
+// Single source of truth for the company/admin inbox. Note the spelling:
+// "infinty" (one "i") is intentional — that is the real Gmail account.
+export const ADMIN_EMAIL = "infintyboatsystem@gmail.com";
+
 export async function sendEmailNotification({ type, recipient, orderId, paymentId, data } = {}) {
   if (!recipient) return;
   try {

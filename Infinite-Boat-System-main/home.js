@@ -1,4 +1,4 @@
-import { supabase, handleDbError, sendEmailNotification, API_BASE } from "./supabase.js";
+import { supabase, handleDbError, sendEmailNotification, API_BASE, ADMIN_EMAIL } from "./supabase.js";
 import {
   BOAT_SPECS,
   BOAT_MATERIALS,
@@ -2529,7 +2529,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             if (error) return;
 
             sendEmailNotification({ type: "cancellation_requested", recipient: customerEmail, data: match });
-            sendEmailNotification({ type: "cancellation_requested", recipient: "infinityboatsystem@gmail.com", data: match });
+            sendEmailNotification({ type: "cancellation_requested", recipient: ADMIN_EMAIL, data: match });
 
             const updatedUserOrders = allOrders.filter(o =>
                 o.customerEmail === customerEmail || o.customerName === customerName
@@ -2565,7 +2565,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 "Submitting cancellation request"
             );
 
-            sendEmailNotification({ type: "cancellation_requested", recipient: "infinityboatsystem@gmail.com", data: match });
+            sendEmailNotification({ type: "cancellation_requested", recipient: ADMIN_EMAIL, data: match });
             document.getElementById("cancelModal").classList.remove("show");
             localStorage.setItem("currentOrder", JSON.stringify(match));
             localStorage.setItem("cancelPaymentMode", "true");

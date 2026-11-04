@@ -1,4 +1,4 @@
-import { supabase, sendEmailNotification, API_BASE, getCustomerIdentity } from "./supabase.js";
+import { supabase, sendEmailNotification, API_BASE, getCustomerIdentity, ADMIN_EMAIL } from "./supabase.js";
 import { companyBanks } from "./bankConfig.js";
 
 // Ensure the logged-in customer's identity (never a stale admin/worker name)
@@ -844,7 +844,7 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
     const emailRecipient = savedOrder.customerEmail || sessionStorage.getItem("customerEmail") || "";
     sendEmailNotification({
       type: "payment_submitted",
-      recipient: "infinityboatsystem@gmail.com",
+      recipient: ADMIN_EMAIL,
       data: {
         orderId: savedOrder.orderId,
         customerName: savedOrder.customerName || sessionStorage.getItem("customerName"),

@@ -1,4 +1,4 @@
-import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole } from "./supabase.js";
+import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
 import { showThreeView, setHullColor, setDeckColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree } from "./boat3d.js";
 
@@ -1584,7 +1584,7 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
       .eq("orderId", revisionOrderId);
     if (error) { alert("Failed to submit revision: " + error.message); return; }
     sendEmailNotification({ type: "status_changed", recipient: customerEmail, data: { orderId: revisionOrderId, customerName, customerEmail, status: "Under Review", orderPhase: "Revision Submitted", progress: 0 } });
-    sendEmailNotification({ type: "status_changed", recipient: "infinityboatsystem@gmail.com", data: { orderId: revisionOrderId, customerName, customerEmail, status: "Under Review", orderPhase: "Revision Submitted", progress: 0 } });
+    sendEmailNotification({ type: "status_changed", recipient: ADMIN_EMAIL, data: { orderId: revisionOrderId, customerName, customerEmail, status: "Under Review", orderPhase: "Revision Submitted", progress: 0 } });
     localStorage.removeItem('customBuildDraft');
     localStorage.removeItem('boatConfig');
     alert('Your revised design has been submitted for review.');
@@ -1625,7 +1625,7 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   if (error) { alert("Failed to submit: " + error.message); return; }
 
   sendEmailNotification({ type: "order_created", recipient: order.customerEmail, data: order });
-  sendEmailNotification({ type: "order_created", recipient: "infinityboatsystem@gmail.com", data: order });
+  sendEmailNotification({ type: "order_created", recipient: ADMIN_EMAIL, data: order });
 
   localStorage.removeItem('customBuildDraft');
   localStorage.removeItem('boatConfig');

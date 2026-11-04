@@ -20,7 +20,14 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
+
+function getPublicBaseUrl(req) {
+  const configured = process.env.SERVER_URL || process.env.RENDER_EXTERNAL_URL || "";
+  if (configured) return configured.replace(/\/+$/, "");
+  return `${req.protocol}://${req.get("host")}`;
+}
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -110,6 +117,19 @@ const emailTransporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
+
+if (process.env.BREVO_API_KEY) {
+  console.log("[EMAIL] Brevo API configured (HTTPS).");
+} else if (process.env.EMAIL_USER && process.env.EMAIL_PASS && process.env.EMAIL_PASS !== "YOUR_GMAIL_APP_PASSWORD") {
+  emailTransporter.verify()
+    .then(() => console.log(`[EMAIL] SMTP ready as ${process.env.EMAIL_USER}`))
+    .catch((err) => {
+      console.error("[EMAIL] SMTP verification failed:", err.message);
+      console.error("[EMAIL] Check EMAIL_USER / EMAIL_PASS (Gmail requires an App Password).");
+    });
+} else {
+  console.warn("[EMAIL] No Brevo API key or Gmail credentials configured — emails will be simulated.");
+}
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -245,7 +265,6 @@ app.post("/api/auth/register", async (req, res) => {
       email,
       name: fullname,
       phone: phone || "",
-      role: "customer",
     }, { onConflict: "id" });
 
     if (profileError) {
@@ -263,8 +282,14 @@ app.post("/api/auth/register", async (req, res) => {
       if (!linkError) {
         verifyLink = linkData?.properties?.action_link || "";
         if (verifyLink) {
-          const serverHost = req.protocol + '://' + req.get('host');
-          verifyLink = verifyLink.replace("redirect_to=http://localhost:3000", "redirect_to=" + serverHost + "/verification-success.html");
+          const successUrl = `${getPublicBaseUrl(req)}/verification-success.html`;
+          try {
+            const linkUrl = new URL(verifyLink);
+            linkUrl.searchParams.set("redirect_to", successUrl);
+            verifyLink = linkUrl.toString();
+          } catch {
+            verifyLink = verifyLink.replace("redirect_to=http://localhost:3000", "redirect_to=" + encodeURIComponent(successUrl));
+          }
         }
       }
     } catch (err) {
@@ -272,28 +297,42 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     if (!verifyLink) {
-      verifyLink = `${process.env.SERVER_URL || "http://localhost:3000"}/api/auth/verify-email?token=${verificationToken}&uid=${userData.user.id}`;
+      verifyLink = `${getPublicBaseUrl(req)}/api/auth/verify-email?token=${verificationToken}&uid=${userData.user.id}`;
     }
 
-    sendEmail({
-      to: email,
-      subject: "Confirm Your Email — Infinity Boat Works",
-      html: `
-        <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
-          <h2 style="color:#1e3a5f;">Verify Your Email Address 🚢</h2>
-          <p>Hi <strong>${escHtml(fullname)}</strong>,</p>
-          <p>Thank you for registering! Please click the button below to confirm your email address and activate your account.</p>
-          <p style="margin:24px 0;text-align:center">
-            <a href="${verifyLink}"
-               style="background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;display:inline-block;font-size:16px">
-              Confirm Email
-            </a>
-          </p>
-          <p style="color:#888;font-size:12px;margin-top:20px">Infinity Boat Works · Smart Digital Boat System</p>
-        </div>`
-    }).catch(err => console.error("[REGISTER] Verification email send failed:", err));
+    let emailSent = false;
+    let emailSimulated = false;
+    try {
+      const emailResult = await sendEmail({
+        to: email,
+        subject: "Confirm Your Email — Infinity Boat Works",
+        html: `
+          <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
+            <h2 style="color:#1e3a5f;">Verify Your Email Address 🚢</h2>
+            <p>Hi <strong>${escHtml(fullname)}</strong>,</p>
+            <p>Thank you for registering! Please click the button below to confirm your email address and activate your account.</p>
+            <p style="margin:24px 0;text-align:center">
+              <a href="${verifyLink}"
+                 style="background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;display:inline-block;font-size:16px">
+                Confirm Email
+              </a>
+            </p>
+            <p style="color:#888;font-size:12px;margin-top:20px">Infinity Boat Works · Smart Digital Boat System</p>
+          </div>`
+      });
+      emailSimulated = !!emailResult?.simulated;
+      emailSent = !emailSimulated;
+    } catch (err) {
+      console.error("[REGISTER] Verification email send failed:", err);
+    }
 
-    res.status(201).json({ success: true, message: "Registration successful! Please check your email to confirm your account." });
+    const message = emailSent
+      ? "Registration successful! Please check your email to confirm your account."
+      : emailSimulated
+        ? "Registration successful, but email delivery is not configured on the server. Please contact the administrator to confirm your account."
+        : "Registration successful, but the confirmation email could not be sent. Please use Resend Verification on the login page.";
+
+    res.status(201).json({ success: true, emailSent, emailSimulated, message });
   } catch (err) {
     console.error("[REGISTER] Error:", err);
     res.status(500).json({ error: err.message });
@@ -346,11 +385,11 @@ app.get("/api/auth/verify-email", async (req, res) => {
 
     res.send(`
       <html>
-      <head><meta http-equiv="refresh" content="5;url=${process.env.SERVER_URL || "http://localhost:3000"}/login.html"></head>
+      <head><meta http-equiv="refresh" content="5;url=${getPublicBaseUrl(req)}/login.html"></head>
       <body style="font-family:Arial;text-align:center;padding:40px">
         <h2 style="color:#22c55e;">Email Verified! ✅</h2>
         <p>Your account has been activated. You will be redirected to login in 5 seconds.</p>
-        <p><a href="${process.env.SERVER_URL || "http://localhost:3000"}/login.html" style="color:#1e3a5f;">Click here to login now</a></p>
+        <p><a href="${getPublicBaseUrl(req)}/login.html" style="color:#1e3a5f;">Click here to login now</a></p>
       </body></html>`);
   } catch (err) {
     console.error("[VERIFY EMAIL] Error:", err);
@@ -380,10 +419,10 @@ app.post("/api/auth/resend-verification", async (req, res) => {
     const token = user.user_metadata?.verification_token;
     if (!token) return res.status(400).json({ error: "No verification token found. Please register again." });
 
-    const verifyLink = `${process.env.SERVER_URL || "http://localhost:3000"}/api/auth/verify-email?token=${token}&uid=${user.id}`;
+    const verifyLink = `${getPublicBaseUrl(req)}/api/auth/verify-email?token=${token}&uid=${user.id}`;
     const name = user.user_metadata?.name || email.split("@")[0];
 
-    await sendEmail({
+    const emailResult = await sendEmail({
       to: email,
       subject: "Confirm Your Email — Infinity Boat Works",
       html: `
@@ -397,6 +436,10 @@ app.post("/api/auth/resend-verification", async (req, res) => {
           <p style="color:#888;font-size:12px;margin-top:20px">Infinity Boat Works · Smart Digital Boat System</p>
         </div>`
     });
+
+    if (emailResult?.simulated) {
+      return res.status(503).json({ error: "Email delivery is not configured on the server. Please contact the administrator." });
+    }
 
     res.json({ success: true, message: "Verification email sent." });
   } catch (err) {
@@ -481,7 +524,7 @@ app.put("/api/worker-registrations/:id/approve", authenticate, requireAdmin, asy
           <p>Hi <strong>${escHtml(reg.name)}</strong>,</p>
           <p>Your worker registration has been approved. You can now log in and access your worker dashboard.</p>
           <p style="margin:24px 0;text-align:center">
-            <a href="${process.env.SERVER_URL || "http://localhost:3000"}/login.html"
+            <a href="${getPublicBaseUrl(req)}/login.html"
                style="background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;display:inline-block;font-size:16px">
               Login Now
             </a>
@@ -623,7 +666,7 @@ app.post("/api/admin/create-worker", authenticate, requireAdmin, async (req, res
           </table>
           <p style="color:#c0392b;font-size:13px"><strong>Important:</strong> Please change your password after your first login for security.</p>
           <p style="margin:24px 0;text-align:center">
-            <a href="${process.env.SERVER_URL || "http://localhost:3000"}/login.html"
+            <a href="${getPublicBaseUrl(req)}/login.html"
                style="background:#1e3a5f;color:#fff;padding:14px 32px;border-radius:6px;text-decoration:none;display:inline-block;font-size:16px">
               Login Now
             </a>
@@ -1949,8 +1992,11 @@ app.get("/api/reports/summary", authenticate, requireAdminOrManager, async (req,
 
 /* ============ EMAIL UTILITY ============ */
 
-const EMAIL_FROM = `"Infinity Boat Works" <${process.env.EMAIL_USER || "infiboatworks@gmail.com"}>`;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "infinityboatsystem@gmail.com";
+const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || process.env.EMAIL_USER || "infiboatworks@gmail.com";
+const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "Infinity Boat Works";
+const EMAIL_FROM = `"${EMAIL_FROM_NAME}" <${EMAIL_FROM_ADDRESS}>`;
+const EMAIL_SENDER = { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDRESS };
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "infintyboatsystem@gmail.com";
 
 const EMAIL_TEMPLATES = {
   order_created: (data) => ({
@@ -2108,16 +2154,51 @@ function DELAY_NOTICE_TEMPLATE(data) {
 }
 
 async function sendEmail({ to, subject, html }) {
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": process.env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          sender: EMAIL_SENDER,
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        }),
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        throw new Error(`Brevo ${response.status}: ${raw.slice(0, 300)}`);
+      }
+
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch {}
+      const messageId = data.messageId || "";
+
+      console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject} | Provider: brevo | ID: ${messageId || "-"}`);
+      return { success: true, provider: "brevo", messageId };
+    } catch (err) {
+      console.error(`[EMAIL FAILED] To: ${to} | Provider: brevo | Error: ${err.message}`);
+      throw err;
+    }
+  }
+
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS || process.env.EMAIL_PASS === "YOUR_GMAIL_APP_PASSWORD") {
     console.log(`[EMAIL SIMULATED] To: ${to} | Subject: ${subject}`);
     return { simulated: true, to, subject };
   }
+
   try {
     const info = await emailTransporter.sendMail({ from: EMAIL_FROM, to, subject, html });
-    console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject} | ID: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    console.log(`[EMAIL SENT] To: ${to} | Subject: ${subject} | Provider: smtp | ID: ${info.messageId}`);
+    return { success: true, provider: "smtp", messageId: info.messageId };
   } catch (err) {
-    console.error(`[EMAIL FAILED] To: ${to} | Error: ${err.message}`);
+    console.error(`[EMAIL FAILED] To: ${to} | Provider: smtp | Error: ${err.message}`);
     throw err;
   }
 }
