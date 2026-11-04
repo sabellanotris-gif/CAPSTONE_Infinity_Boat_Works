@@ -334,12 +334,31 @@ window.showOrderInfo = function (orderId) {
         </div>
         ${order.buildType === 'custom' && order.customConfig ? `
         <div class="modal-section-title" style="color:#6b21a8;"><i class="fa-solid fa-wand-magic-sparkles"></i> Custom Boat Design</div>
-        ${order.customConfig.boatPreviewImage ? `
-        <div style="text-align:center;margin-bottom:14px;">
-            <img src="${order.customConfig.boatPreviewImage}" alt="Custom Boat Preview"
-                 style="max-width:100%;max-height:280px;border-radius:12px;border:2px solid #d8b4fe;cursor:pointer;object-fit:contain;"
-                 onclick="window.open('${order.customConfig.boatPreviewImage}', '_blank')" />
-        </div>` : ''}
+        <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:center;gap:8px;margin-bottom:8px;">
+                <button type="button" onclick="showCustomPhoto()"
+                    style="padding:7px 14px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#334155;font:600 12px Poppins,sans-serif;cursor:pointer;">
+                    <i class="fa-solid fa-image"></i> Photo
+                </button>
+                <button type="button" onclick="showCustomThree('${order.orderId}')"
+                    style="padding:7px 14px;border:1px solid #a855f7;border-radius:8px;background:#faf5ff;color:#6b21a8;font:600 12px Poppins,sans-serif;cursor:pointer;">
+                    <i class="fa-solid fa-cube"></i> 3D View
+                </button>
+            </div>
+            <div id="customBoatStage"
+                style="position:relative;min-height:280px;border-radius:12px;border:2px solid #d8b4fe;overflow:hidden;background:#eef3f8;display:flex;align-items:center;justify-content:center;">
+                ${order.customConfig.boatPreviewImage ? `
+                <img id="customPreviewImg" src="${order.customConfig.boatPreviewImage}" alt="Custom Boat Preview"
+                     style="max-width:100%;max-height:280px;object-fit:contain;cursor:pointer;"
+                     onclick="window.open('${order.customConfig.boatPreviewImage}', '_blank')" />` : `
+                <span id="customPreviewImg" style="font-size:13px;color:#64748b;">No saved preview</span>`}
+                <div id="customThreeMount" style="display:none;position:absolute;inset:0;"></div>
+                <button id="customPlayBtn" type="button" onclick="toggleDashRotation()"
+                    style="display:none;position:absolute;right:12px;bottom:12px;z-index:3;padding:8px 13px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 12px Poppins,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);">
+                    ▶ Rotate 360°
+                </button>
+            </div>
+        </div>
         <div class="modal-info-grid" style="margin-bottom:12px;">
             ${order.customConfig.length ? `<div class="field"><label>Length</label><span>${order.customConfig.length}m</span></div>` : ''}
             ${order.customConfig.width ? `<div class="field"><label>Width</label><span>${order.customConfig.width}m</span></div>` : ''}
@@ -349,7 +368,9 @@ window.showOrderInfo = function (orderId) {
         </div>
         <div style="display:flex;gap:20px;margin-bottom:12px;flex-wrap:wrap;">
             ${order.customConfig.color ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.color};border:2px solid #d1d5db;"></span><span><strong>Hull:</strong> ${order.customConfig.hullColorName || 'N/A'}</span></div>` : ''}
-            ${order.customConfig.deckColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.deckColor};border:2px solid #d1d5db;"></span><span><strong>Deck:</strong> ${order.customConfig.deckColorName || 'N/A'}</span></div>` : ''}
+            ${(order.customConfig.floorColor || order.customConfig.deckColor) ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.floorColor || order.customConfig.deckColor};border:2px solid #d1d5db;"></span><span><strong>Floor:</strong> ${order.customConfig.floorColorName || order.customConfig.deckColorName || 'N/A'}</span></div>` : ''}
+            ${order.customConfig.roofColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.roofColor};border:2px solid #d1d5db;"></span><span><strong>Roof:</strong> ${order.customConfig.roofColorName || 'N/A'}</span></div>` : ''}
+            ${order.customConfig.lowerHullColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.lowerHullColor};border:2px solid #d1d5db;"></span><span><strong>Lower Hull:</strong> ${order.customConfig.lowerHullColorName || 'N/A'}</span></div>` : ''}
             ${order.customConfig.railColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.railColor};border:2px solid #d1d5db;"></span><span><strong>Rail:</strong> ${order.customConfig.railColorName || 'N/A'}</span></div>` : ''}
         </div>
         ${order.customConfig.items && order.customConfig.items.length > 0 ? `
@@ -373,7 +394,87 @@ window.showOrderInfo = function (orderId) {
 };
 
 window.closeOrderInfo = function () {
+    destroyDashViewer();
     document.getElementById('orderInfoModal').style.display = 'none';
+};
+
+/* =============================================
+   CUSTOM BOAT — 3D LIVE PREVIEW
+   ============================================= */
+
+let dashBoatViewer = null;
+
+function customConfigColors(cfg = {}) {
+    const hull = cfg.color || cfg.hullColor || cfg.lowerHullColor || '';
+    return {
+        hull,
+        body: hull,
+        door: hull,
+        roof: cfg.roofColor || '',
+        deck: cfg.floorColor || cfg.deckColor || '',
+        floor: cfg.floorColor || cfg.deckColor || '',
+        lowerHull: cfg.lowerHullColor || '',
+        rail: cfg.railColor || '',
+    };
+}
+
+function updateDashPlayBtn(rotating) {
+    const btn = document.getElementById('customPlayBtn');
+    if (!btn) return;
+    btn.textContent = rotating ? '⏸ Pause 360°' : '▶ Rotate 360°';
+    btn.setAttribute('aria-pressed', rotating ? 'true' : 'false');
+}
+
+function destroyDashViewer() {
+    if (!dashBoatViewer) return;
+    try { dashBoatViewer.destroy(); } catch (e) { /* non-fatal */ }
+    dashBoatViewer = null;
+}
+
+window.showCustomPhoto = function () {
+    destroyDashViewer();
+    const img = document.getElementById('customPreviewImg');
+    const mount = document.getElementById('customThreeMount');
+    const play = document.getElementById('customPlayBtn');
+    if (mount) { mount.style.display = 'none'; mount.innerHTML = ''; }
+    if (img) img.style.display = '';
+    if (play) play.style.display = 'none';
+};
+
+window.showCustomThree = async function (orderId) {
+    const order = allOrders.find(o => o.orderId === orderId);
+    if (!order) return;
+
+    const mount = document.getElementById('customThreeMount');
+    const img = document.getElementById('customPreviewImg');
+    const play = document.getElementById('customPlayBtn');
+    if (!mount) return;
+
+    destroyDashViewer();
+    if (img) img.style.display = 'none';
+    mount.style.display = 'block';
+    mount.innerHTML = '';
+    if (play) { play.style.display = 'block'; play.textContent = '▶ Rotate 360°'; }
+
+    try {
+        const { createBoatViewer } = await import('./boatViewer.js');
+        if (!mount.isConnected) return;
+        dashBoatViewer = createBoatViewer(mount, {
+            colors: customConfigColors(order.customConfig || {}),
+            background: 0xeef3f8,
+            autoRotate: false,
+            onAutoRotateChange: updateDashPlayBtn,
+        });
+        updateDashPlayBtn(false);
+    } catch (e) {
+        console.error('[dashboard] 3D viewer failed:', e);
+        mount.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#b91c1c;">3D view unavailable.</div>';
+    }
+};
+
+window.toggleDashRotation = function () {
+    if (!dashBoatViewer) return;
+    updateDashPlayBtn(dashBoatViewer.toggleAutoRotate());
 };
 
 /* =============================================

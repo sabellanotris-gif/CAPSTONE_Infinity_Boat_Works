@@ -176,7 +176,29 @@ rel="stylesheet">
                 ROOF COLOR
             </label>
 
-            <div class="colors deck-colors">
+            <div class="colors roof-colors">
+            </div>
+
+        </div>
+
+        <div class="color-picker">
+
+            <label>
+                FLOOR COLOR
+            </label>
+
+            <div class="colors floor-colors">
+            </div>
+
+        </div>
+
+        <div class="color-picker">
+
+            <label>
+                LOWER HULL COLOR
+            </label>
+
+            <div class="colors lower-hull-colors">
             </div>
 
         </div>
@@ -228,6 +250,11 @@ rel="stylesheet">
 
             <canvas id="boatCanvas"></canvas>
             <div id="threeViewer" style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;"></div>
+
+            <button id="threePlayBtn" type="button" aria-label="Toggle 360 rotation"
+                style="display:none;position:absolute;right:14px;bottom:14px;z-index:12;padding:9px 14px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 13px Poppins,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25);">
+                ▶ Rotate 360°
+            </button>
 
         </div>
 
@@ -411,8 +438,16 @@ rel="stylesheet">
                     <span id="colorPriceDisplay">None</span>
                 </div>
                 <div class="summary-row">
-                    <span>Deck Color</span>
-                    <span id="deckColorPriceDisplay">Teak Wood</span>
+                    <span>Roof Color</span>
+                    <span id="roofColorPriceDisplay">Default Roof</span>
+                </div>
+                <div class="summary-row">
+                    <span>Floor Color</span>
+                    <span id="floorColorPriceDisplay">Teak Wood</span>
+                </div>
+                <div class="summary-row">
+                    <span>Lower Hull Color</span>
+                    <span id="lowerHullColorPriceDisplay">Default</span>
                 </div>
                 <div class="summary-row">
                     <span>Rail Color</span>

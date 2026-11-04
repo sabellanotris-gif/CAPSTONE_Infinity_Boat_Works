@@ -1,6 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setHullColor, setDeckColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree } from "./boat3d.js";
+import { showThreeView, setHullColor, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree, isThreeAutoRotating, setAutoRotateListener, captureThreePreview } from "./boat3d.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
 // previews are allowed (preview mode is intentional for unplaced boats).
@@ -26,16 +26,6 @@ import { showThreeView, setHullColor, setDeckColor, setRailColor, setBodyColor, 
     } catch (e) { /* non-fatal */ }
   })();
 
-  // Ensure 3D view state
-  try {
-    const { showThreeView } = await import('./boat3d.js?' + Date.now());
-    if (is1950Boat()) {
-      // Don't auto-show, let user click
-    } else {
-      showThreeView(false);
-    }
-  } catch (e) {}
-
 const canvas = document.getElementById('boatCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -44,9 +34,13 @@ let zoomLevel = 1;
 let currentView = 'exterior';
 let hullColor = '#111827';
 let deckColor = '#8B7355';
+let roofColor = '#D9DDE0';
+let lowerHullColor = '#111827';
 let railColor = '#C0C0C0';
 let colorPrice = 0;
 let deckColorPrice = 0;
+let roofColorPrice = 0;
+let lowerHullColorPrice = 0;
 let railColorPrice = 0;
 let inventoryItems = { engines: [], seats: [], leds: [], colors: [], deckColors: [], railColors: [] };
 
@@ -338,6 +332,36 @@ const CUSTOMIZATION_SEED = [
   { name: 'Titanium Rail', category: 'RailColor', stock: 99, price: 18000, metadata: { hex: '#878681', colorType: 'rail', optionType: 'railColor' } }
 ];
 
+function buildColorSwatches(container, items, defaultItem, activeHex, onPick) {
+  if (!container || !items || items.length === 0) return null;
+  const def = defaultItem || items.find(i => i.metadata?.isDefault) || items[0];
+  const others = items.filter(i => i !== def);
+  const isActive = (hex) => (activeHex || '').toLowerCase() === String(hex || '').toLowerCase();
+  let activeAssigned = false;
+  let html = '';
+  if (def) {
+    const hex = def.metadata?.hex || '#111827';
+    const active = isActive(hex);
+    if (active) activeAssigned = true;
+    html += `<div class="color default${active ? ' active' : ''}" data-color="${hex}" data-id="${def.id}" data-price="${def.price || 0}" data-default="true" style="background:${hex}" title="${def.name}"></div>`;
+  }
+  html += others.map(c => {
+    const hex = c.metadata?.hex || '#2563eb';
+    const active = !activeAssigned && isActive(hex);
+    if (active) activeAssigned = true;
+    return `<div class="color${active ? ' active' : ''}" data-color="${hex}" data-id="${c.id}" data-price="${c.price || 0}" style="background:${hex}" title="${c.name}"></div>`;
+  }).join('');
+  container.innerHTML = html;
+  container.querySelectorAll('.color').forEach(el => {
+    el.addEventListener('click', () => {
+      container.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      onPick(el.dataset.color, el);
+    });
+  });
+  return def;
+}
+
 async function loadOptions() {
   let { data } = await supabase.from("inventory").select("*");
   const cats = ['Engine', 'Seats', 'LED', 'Color', 'DeckColor', 'RailColor'];
@@ -437,80 +461,63 @@ async function loadOptions() {
   const colorContainer = document.querySelector('.colors.hull-colors');
   if (colorContainer && inventoryItems.colors.length > 0) {
     const defaultHullItem = inventoryItems.colors.find(c => c.metadata?.isDefault);
-    const otherHullItems = inventoryItems.colors.filter(c => !c.metadata?.isDefault);
-    let html = '';
-    if (defaultHullItem) {
-      html += `<div class="color default active" data-color="${defaultHullItem.metadata?.hex || '#111827'}" data-id="${defaultHullItem.id}" data-price="${defaultHullItem.price || 0}" data-default="true" style="background:${defaultHullItem.metadata?.hex || '#111827'}" title="${defaultHullItem.name}"></div>`;
-    }
-    html += otherHullItems.map((c, i) =>
-      `<div class="color" data-color="${c.metadata?.hex || '#2563eb'}" data-id="${c.id}" data-price="${c.price || 0}" style="background:${c.metadata?.hex || '#2563eb'}" title="${c.name}"></div>`
-    ).join('');
-    colorContainer.innerHTML = html;
     hullColor = defaultHullItem?.metadata?.hex || '#111827';
     colorPrice = 0;
-    colorContainer.querySelectorAll('.color').forEach(el => {
-      el.addEventListener('click', () => {
-        colorContainer.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
-        el.classList.add('active');
-        hullColor = el.dataset.color;
-        colorPrice = el.dataset.default === 'true' ? 0 : getHullColorPricing();
-        const cname = el.title || '';
-        if (/body/i.test(cname)) { if (typeof setBodyColor === 'function') setBodyColor(hullColor); else setHullColor(hullColor); }
-        else if (/door/i.test(cname)) { if (typeof setDoorColor === 'function') setDoorColor(hullColor); }
-        else { setHullColor(hullColor); }
-        drawBoat();
-      });
+    buildColorSwatches(colorContainer, inventoryItems.colors, defaultHullItem, hullColor, (hex, el) => {
+      hullColor = hex;
+      colorPrice = el.dataset.default === 'true' ? 0 : getHullColorPricing();
+      const cname = el.title || '';
+      if (/body/i.test(cname)) { if (typeof setBodyColor === 'function') setBodyColor(hullColor); else setHullColor(hullColor); }
+      else if (/door/i.test(cname)) { if (typeof setDoorColor === 'function') setDoorColor(hullColor); }
+      else { setHullColor(hullColor); }
+      drawBoat();
     });
   }
 
-  const deckColorContainer = document.querySelector('.colors.deck-colors');
-  if (deckColorContainer && inventoryItems.deckColors.length > 0) {
-    const defaultDeckItem = inventoryItems.deckColors.find(c => c.metadata?.isDefault);
-    const otherDeckItems = inventoryItems.deckColors.filter(c => !c.metadata?.isDefault);
-    let html = '';
-    if (defaultDeckItem) {
-      html += `<div class="color active" data-color="${defaultDeckItem.metadata?.hex || '#8B7355'}" data-id="${defaultDeckItem.id}" data-price="${defaultDeckItem.price || 0}" data-default="true" style="background:${defaultDeckItem.metadata?.hex || '#8B7355'}" title="${defaultDeckItem.name}"></div>`;
-    }
-    html += otherDeckItems.map(c =>
-      `<div class="color" data-color="${c.metadata?.hex || '#8B7355'}" data-id="${c.id}" data-price="${c.price || 0}" style="background:${c.metadata?.hex || '#8B7355'}" title="${c.name}"></div>`
-    ).join('');
-    deckColorContainer.innerHTML = html;
+  const defaultDeckItem = inventoryItems.deckColors.find(c => c.metadata?.isDefault);
+  const defaultRoofItem = inventoryItems.deckColors.find(c => /roof/i.test(c.name || '')) || defaultDeckItem;
+
+  const roofColorContainer = document.querySelector('.colors.roof-colors');
+  if (roofColorContainer && inventoryItems.deckColors.length > 0) {
+    roofColor = defaultRoofItem?.metadata?.hex || '#D9DDE0';
+    buildColorSwatches(roofColorContainer, inventoryItems.deckColors, defaultRoofItem, roofColor, (hex) => {
+      roofColor = hex;
+      if (typeof setRoofColor === 'function') setRoofColor(roofColor);
+      drawBoat();
+    });
+  }
+
+  const floorColorContainer = document.querySelector('.colors.floor-colors');
+  if (floorColorContainer && inventoryItems.deckColors.length > 0) {
     deckColor = defaultDeckItem?.metadata?.hex || '#8B7355';
-    deckColorContainer.querySelectorAll('.color').forEach(el => {
-      el.addEventListener('click', () => {
-        deckColorContainer.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
-        el.classList.add('active');
-        deckColor = el.dataset.color;
-        const dname = el.title || '';
-        if (/roof/i.test(dname)) { if (typeof setRoofColor === 'function') setRoofColor(deckColor); }
-        else if (/deck/i.test(dname) || /floor/i.test(dname) || /teak/i.test(dname)) { setDeckColor(deckColor); }
-        else { setDeckColor(deckColor); }
-        drawBoat();
-      });
+    buildColorSwatches(floorColorContainer, inventoryItems.deckColors, defaultDeckItem, deckColor, (hex) => {
+      deckColor = hex;
+      if (typeof setFloorColor === 'function') setFloorColor(deckColor);
+      else setDeckColor(deckColor);
+      drawBoat();
+    });
+  }
+
+  const lowerHullContainer = document.querySelector('.colors.lower-hull-colors');
+  if (lowerHullContainer && inventoryItems.colors.length > 0) {
+    const defaultLowerHullItem = inventoryItems.colors.find(c => c.metadata?.isDefault);
+    lowerHullColor = defaultLowerHullItem?.metadata?.hex || '#111827';
+    buildColorSwatches(lowerHullContainer, inventoryItems.colors, defaultLowerHullItem, lowerHullColor, (hex, el) => {
+      lowerHullColor = hex;
+      lowerHullColorPrice = el.dataset.default === 'true' ? 0 : getHullColorPricing();
+      if (typeof setLowerHullColor === 'function') setLowerHullColor(lowerHullColor);
+      drawBoat();
     });
   }
 
   const railColorContainer = document.querySelector('.colors.rail-colors');
   if (railColorContainer && inventoryItems.railColors.length > 0) {
     const defaultRailItem = inventoryItems.railColors.find(c => c.metadata?.isDefault);
-    const otherRailItems = inventoryItems.railColors.filter(c => !c.metadata?.isDefault);
-    let html = '';
-    if (defaultRailItem) {
-      html += `<div class="color active" data-color="${defaultRailItem.metadata?.hex || '#C0C0C0'}" data-id="${defaultRailItem.id}" data-price="${defaultRailItem.price || 0}" data-default="true" style="background:${defaultRailItem.metadata?.hex || '#C0C0C0'}" title="${defaultRailItem.name}"></div>`;
-    }
-    html += otherRailItems.map(c =>
-      `<div class="color" data-color="${c.metadata?.hex || '#C0C0C0'}" data-id="${c.id}" data-price="${c.price || 0}" style="background:${c.metadata?.hex || '#C0C0C0'}" title="${c.name}"></div>`
-    ).join('');
-    railColorContainer.innerHTML = html;
     railColor = defaultRailItem?.metadata?.hex || '#C0C0C0';
-    railColorContainer.querySelectorAll('.color').forEach(el => {
-      el.addEventListener('click', () => {
-        railColorContainer.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
-        el.classList.add('active');
-        railColor = el.dataset.color;
-        setRailColor(railColor);
-        drawBoat();
-      });
+    buildColorSwatches(railColorContainer, inventoryItems.railColors, defaultRailItem, railColor, (hex) => {
+      railColor = hex;
+      setRailColor(railColor);
+      drawBoat();
     });
   }
   drawBoat();
@@ -1039,10 +1046,14 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   const seatTotal = parseInt(seatSelect.value) || 0;
   const perSeatPrice = seatCapacity > 0 ? Math.round(seatTotal / seatCapacity) : 0;
   const deckOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor);
+  const roofOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor);
   const railOpt = inventoryItems.railColors.find(c => c.metadata?.hex === railColor && !c.metadata?.isDefault) || inventoryItems.railColors.find(c => c.metadata?.hex === railColor);
+  const lowerHullDefault = inventoryItems.colors.find(c => c.metadata?.isDefault);
   deckColorPrice = deckOpt?.price || 0;
+  roofColorPrice = roofOpt?.price || 0;
   railColorPrice = railOpt?.price || 0;
-  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + deckColorPrice + railColorPrice;
+  lowerHullColorPrice = (lowerHullColor || '').toLowerCase() === (lowerHullDefault?.metadata?.hex || '#111827').toLowerCase() ? 0 : getHullColorPricing();
+  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + deckColorPrice + roofColorPrice + lowerHullColorPrice + railColorPrice;
 
   totalPrice.textContent = '₱' + total.toLocaleString();
 
@@ -1069,11 +1080,25 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
     colorPriceDisplay.textContent = hullOption ? hullOption.name + (hullOption.price > 0 ? ' ₱' + hullOption.price.toLocaleString() : '') : 'Default';
   }
 
-  const deckColorPriceDisplay = document.getElementById('deckColorPriceDisplay');
-  if (deckColorPriceDisplay) {
-    const deckOptions = inventoryItems.deckColors.filter(c => c.metadata?.hex === deckColor);
-    const deckOption = deckOptions.find(c => !c.metadata?.isDefault) || deckOptions[0];
-    deckColorPriceDisplay.textContent = deckOption ? deckOption.name + (deckOption.price > 0 ? ' ₱' + deckOption.price.toLocaleString() : '') : 'Default Deck';
+  const roofColorPriceDisplay = document.getElementById('roofColorPriceDisplay');
+  if (roofColorPriceDisplay) {
+    const roofOptions = inventoryItems.deckColors.filter(c => c.metadata?.hex === roofColor);
+    const roofOption = roofOptions.find(c => !c.metadata?.isDefault) || roofOptions[0];
+    roofColorPriceDisplay.textContent = roofOption ? roofOption.name + (roofOption.price > 0 ? ' ₱' + roofOption.price.toLocaleString() : '') : 'Default Roof';
+  }
+  const floorColorPriceDisplay = document.getElementById('floorColorPriceDisplay');
+  if (floorColorPriceDisplay) {
+    const floorOptions = inventoryItems.deckColors.filter(c => c.metadata?.hex === deckColor);
+    const floorOption = floorOptions.find(c => !c.metadata?.isDefault) || floorOptions[0];
+    floorColorPriceDisplay.textContent = floorOption ? floorOption.name + (floorOption.price > 0 ? ' ₱' + floorOption.price.toLocaleString() : '') : 'Default Floor';
+  }
+  const lowerHullColorPriceDisplay = document.getElementById('lowerHullColorPriceDisplay');
+  if (lowerHullColorPriceDisplay) {
+    const lowerHullOptions = inventoryItems.colors.filter(c => c.metadata?.hex === lowerHullColor);
+    const lowerHullOption = (lowerHullColor || '').toLowerCase() === (lowerHullDefault?.metadata?.hex || '#111827').toLowerCase()
+      ? lowerHullDefault
+      : (lowerHullOptions.find(c => !c.metadata?.isDefault) || lowerHullOptions[0]);
+    lowerHullColorPriceDisplay.textContent = lowerHullOption ? lowerHullOption.name + (lowerHullColorPrice > 0 ? ' ₱' + lowerHullColorPrice.toLocaleString() : '') : 'Default';
   }
   const railColorPriceDisplay = document.getElementById('railColorPriceDisplay');
   if (railColorPriceDisplay) {
@@ -1150,20 +1175,38 @@ seatSelect.addEventListener('change', drawBoat);
   
 
 
-function is1950Boat() {
-  try {
-    const draft = JSON.parse(localStorage.getItem('customBuildDraft'));
-    const name = draft?.boatData?.name || '';
-    if (/1950/i.test(name)) return true;
-  } catch (e) { }
-  const boatNameEl = document.getElementById('boatModelName');
-  if (boatNameEl && /1950/i.test(boatNameEl.textContent)) return true;
-  return false;
+const threePlayBtn = document.getElementById('threePlayBtn');
+
+function updateThreePlayButton(rotating) {
+  if (!threePlayBtn) return;
+  threePlayBtn.innerHTML = rotating ? '⏸ Pause 360°' : '▶ Rotate 360°';
+  threePlayBtn.setAttribute('aria-pressed', rotating ? 'true' : 'false');
 }
 
+setAutoRotateListener(updateThreePlayButton);
+
+function isThreeViewActive() {
+  return currentView === 'perspective';
+}
+
+function toggleThreeRotation() {
+  const rotating = rotateThree();
+  updateThreePlayButton(rotating);
+}
+
+threePlayBtn?.addEventListener('click', () => {
+  if (currentView !== 'perspective') {
+    const threeViewBtn = Array.from(document.querySelectorAll('.view-buttons button'))
+      .find((b) => /3d view|perspective/i.test(b.textContent || ''));
+    threeViewBtn?.click();
+    return;
+  }
+  toggleThreeRotation();
+});
+
 document.getElementById('rotateBtn')?.addEventListener('click', () => {
-  if (is1950Boat() && currentView === 'perspective') {
-    rotateThree();
+  if (isThreeViewActive()) {
+    toggleThreeRotation();
     return;
   }
   rotationAngle += Math.PI / 8;
@@ -1171,7 +1214,7 @@ document.getElementById('rotateBtn')?.addEventListener('click', () => {
 });
 
 document.getElementById('zoomInBtn')?.addEventListener('click', () => {
-  if (is1950Boat() && currentView === 'perspective') {
+  if (isThreeViewActive()) {
     zoomThree(1);
     return;
   }
@@ -1180,7 +1223,7 @@ document.getElementById('zoomInBtn')?.addEventListener('click', () => {
 });
 
 document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
-  if (is1950Boat() && currentView === 'perspective') {
+  if (isThreeViewActive()) {
     zoomThree(-1);
     return;
   }
@@ -1189,8 +1232,9 @@ document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
 });
 
 document.getElementById('resetBtn')?.addEventListener('click', () => {
-  if (is1950Boat() && currentView === 'perspective') {
+  if (isThreeViewActive()) {
     resetThree();
+    updateThreePlayButton(false);
     return;
   }
   rotationAngle = 0;
@@ -1209,21 +1253,17 @@ document.querySelectorAll('.view-buttons button').forEach(btn => {
     else if (text === 'rear view') currentView = 'rear';
     else if (text === 'front view') currentView = 'front';
     else if (text === '3d view' || text === 'perspective') currentView = 'perspective';
-    if (is1950Boat()) {
-      if (currentView === 'perspective') {
-        showThreeView(true);
-        const threeDiv = document.getElementById('threeViewer');
-        const canvas = document.getElementById('boatCanvas');
-        if (threeDiv) threeDiv.style.display = 'block';
-        if (canvas) canvas.style.display = 'none';
-      } else {
-        showThreeView(false);
-        drawBoat();
-      }
+
+    if (currentView === 'perspective') {
+      showThreeView(true);
+      if (threePlayBtn) threePlayBtn.style.display = 'block';
+      updateThreePlayButton(isThreeAutoRotating());
     } else {
+      if (isThreeAutoRotating()) rotateThree();
       showThreeView(false);
-  drawBoat();
-}
+      if (threePlayBtn) threePlayBtn.style.display = 'none';
+      drawBoat();
+    }
   });
 });
 
@@ -1236,16 +1276,26 @@ document.querySelector('.reset-btn').addEventListener('click', () => {
   zoomLevel = 1;
   hullColor = '#111827';
   deckColor = '#8B7355';
+  roofColor = '#D9DDE0';
+  lowerHullColor = '#111827';
   railColor = '#C0C0C0';
   colorPrice = 0;
+  roofColorPrice = 0;
+  lowerHullColorPrice = 0;
   document.querySelectorAll('.colors.hull-colors .color').forEach(c => c.classList.remove('active'));
   const defaultHull = document.querySelector('.colors.hull-colors .color.default');
   if (defaultHull) defaultHull.classList.add('active');
-  document.querySelectorAll('.colors.deck-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultDeck = document.querySelector('.colors.deck-colors .color');
-  if (defaultDeck) defaultDeck.classList.add('active');
+  document.querySelectorAll('.colors.roof-colors .color').forEach(c => c.classList.remove('active'));
+  const defaultRoof = document.querySelector('.colors.roof-colors .color.default');
+  if (defaultRoof) defaultRoof.classList.add('active');
+  document.querySelectorAll('.colors.floor-colors .color').forEach(c => c.classList.remove('active'));
+  const defaultFloor = document.querySelector('.colors.floor-colors .color.default');
+  if (defaultFloor) defaultFloor.classList.add('active');
+  document.querySelectorAll('.colors.lower-hull-colors .color').forEach(c => c.classList.remove('active'));
+  const defaultLowerHull = document.querySelector('.colors.lower-hull-colors .color.default');
+  if (defaultLowerHull) defaultLowerHull.classList.add('active');
   document.querySelectorAll('.colors.rail-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultRail = document.querySelector('.colors.rail-colors .color');
+  const defaultRail = document.querySelector('.colors.rail-colors .color.default');
   if (defaultRail) defaultRail.classList.add('active');
   drawBoat();
 });
@@ -1266,16 +1316,20 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
   const extensionCost = Math.round(pricing.rate * extraArea / 1000) * 1000;
   const basePrice = originalPrice + extensionCost;
   const qOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor);
+  const qRoofOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor);
   const sOpt = inventoryItems.railColors.find(c => c.metadata?.hex === railColor && !c.metadata?.isDefault) || inventoryItems.railColors.find(c => c.metadata?.hex === railColor);
   const qDp = qOpt?.price || 0;
+  const qRP = qRoofOpt?.price || 0;
   const qRp = sOpt?.price || 0;
-  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + qDp + qRp;
+  const qLHp = (lowerHullColor || '').toLowerCase() === (inventoryItems.colors.find(c => c.metadata?.isDefault)?.metadata?.hex || '#111827').toLowerCase() ? 0 : getHullColorPricing();
+  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + qDp + qRP + qLHp + qRp;
 
   const engineBrandName = engineBrand.value || '';
   const engineHPText = engineHP.selectedOptions[0]?.textContent || '';
   const engineDisplayName = engineBrandName && engineHPText && engineHPText !== 'None' ? engineBrandName + ' ' + engineHPText : 'None';
 
   const qHullOpt = inventoryItems.colors.find(c => c.metadata?.hex === hullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === hullColor);
+  const qLowerHullOpt = inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor);
 
   const items = [
     { name: 'Base Boat', amount: originalPrice }
@@ -1292,7 +1346,13 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     items.push({ name: 'Hull Paint: ' + (qHullOpt?.name || 'Custom'), amount: colorPrice });
   }
   if (qDp > 0) {
-    items.push({ name: 'Deck Color: ' + (qOpt?.name || 'Custom'), amount: qDp });
+    items.push({ name: 'Floor Color: ' + (qOpt?.name || 'Custom'), amount: qDp });
+  }
+  if (qRP > 0) {
+    items.push({ name: 'Roof Color: ' + (qRoofOpt?.name || 'Custom'), amount: qRP });
+  }
+  if (qLHp > 0) {
+    items.push({ name: 'Lower Hull Color: ' + (qLowerHullOpt?.name || 'Custom'), amount: qLHp });
   }
   if (qRp > 0) {
     items.push({ name: 'Rail Color: ' + (sOpt?.name || 'Custom'), amount: qRp });
@@ -1321,6 +1381,14 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     deckColor: deckColor,
     deckColorPrice: String(qDp),
     deckColorName: qOpt?.name || 'Default Deck',
+    floorColor: deckColor,
+    floorColorName: qOpt?.name || 'Default Floor',
+    roofColor: roofColor,
+    roofColorPrice: String(qRP),
+    roofColorName: qRoofOpt?.name || 'Default Roof',
+    lowerHullColor: lowerHullColor,
+    lowerHullColorPrice: String(qLHp),
+    lowerHullColorName: qLowerHullOpt?.name || 'Default',
     railColor: railColor,
     railColorPrice: String(qRp),
     railColorName: sOpt?.name || 'Default Rail',
@@ -1389,9 +1457,17 @@ function updateColorPreview() {
   const hullMatch = document.querySelector(`.colors.hull-colors .color[data-color="${hullColor}"]`);
   if (hullMatch) hullMatch.classList.add('active');
 
-  document.querySelectorAll('.colors.deck-colors .color').forEach(c => c.classList.remove('active'));
-  const deckMatch = document.querySelector(`.colors.deck-colors .color[data-color="${deckColor}"]`);
-  if (deckMatch) deckMatch.classList.add('active');
+  document.querySelectorAll('.colors.roof-colors .color').forEach(c => c.classList.remove('active'));
+  const roofMatch = document.querySelector(`.colors.roof-colors .color[data-color="${roofColor}"]`);
+  if (roofMatch) roofMatch.classList.add('active');
+
+  document.querySelectorAll('.colors.floor-colors .color').forEach(c => c.classList.remove('active'));
+  const floorMatch = document.querySelector(`.colors.floor-colors .color[data-color="${deckColor}"]`);
+  if (floorMatch) floorMatch.classList.add('active');
+
+  document.querySelectorAll('.colors.lower-hull-colors .color').forEach(c => c.classList.remove('active'));
+  const lowerHullMatch = document.querySelector(`.colors.lower-hull-colors .color[data-color="${lowerHullColor}"]`);
+  if (lowerHullMatch) lowerHullMatch.classList.add('active');
 
   document.querySelectorAll('.colors.rail-colors .color').forEach(c => c.classList.remove('active'));
   const railMatch = document.querySelector(`.colors.rail-colors .color[data-color="${railColor}"]`);
@@ -1440,10 +1516,17 @@ async function loadRevisionOrder(orderId) {
     if (lOpt) ledSelect.value = lOpt.value;
   }
   hullColor = cfg.color || "#111827";
-  deckColor = cfg.deckColor || "#8B7355";
+  deckColor = cfg.deckColor || cfg.floorColor || "#8B7355";
+  roofColor = cfg.roofColor || "#D9DDE0";
+  lowerHullColor = cfg.lowerHullColor || "#111827";
   railColor = cfg.railColor || "#C0C0C0";
   colorPrice = parseInt(cfg.colorPrice) || 0;
   updateColorPreview();
+  if (cfg.color) setHullColor(hullColor);
+  if (cfg.roofColor) setRoofColor(roofColor);
+  if (cfg.deckColor || cfg.floorColor) setDeckColor(deckColor);
+  if (cfg.lowerHullColor) setLowerHullColor(lowerHullColor);
+  if (cfg.railColor) setRailColor(railColor);
   renderCanvas();
 }
 
@@ -1483,16 +1566,20 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   const enginePrice = parseInt(engineHP.value);
   const ledPrice = parseInt(ledSelect.value);
   const dOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor);
+  const rfOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor);
   const rOpt = inventoryItems.railColors.find(c => c.metadata?.hex === railColor && !c.metadata?.isDefault) || inventoryItems.railColors.find(c => c.metadata?.hex === railColor);
   const dp = dOpt?.price || 0;
+  const rfp = rfOpt?.price || 0;
   const rp = rOpt?.price || 0;
-  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + dp + rp;
+  const lhp = (lowerHullColor || '').toLowerCase() === (inventoryItems.colors.find(c => c.metadata?.isDefault)?.metadata?.hex || '#111827').toLowerCase() ? 0 : getHullColorPricing();
+  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + dp + rfp + lhp + rp;
 
   const engineBrandName = engineBrand.value || '';
   const engineHPText = engineHP.selectedOptions[0]?.textContent || '';
   const engineDisplayName = engineBrandName && engineHPText && engineHPText !== 'None' ? engineBrandName + ' ' + engineHPText : 'None';
 
   const hullOpt = inventoryItems.colors.find(c => c.metadata?.hex === hullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === hullColor);
+  const lowerHullOpt = inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor);
 
   const items = [
     { name: 'Base Boat', amount: originalPrice }
@@ -1509,25 +1596,50 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     items.push({ name: 'Hull Paint: ' + (hullOpt?.name || 'Custom'), amount: colorPrice });
   }
   if (dp > 0) {
-    items.push({ name: 'Deck Color: ' + (dOpt?.name || 'Custom'), amount: dp });
+    items.push({ name: 'Floor Color: ' + (dOpt?.name || 'Custom'), amount: dp });
+  }
+  if (rfp > 0) {
+    items.push({ name: 'Roof Color: ' + (rfOpt?.name || 'Custom'), amount: rfp });
+  }
+  if (lhp > 0) {
+    items.push({ name: 'Lower Hull Color: ' + (lowerHullOpt?.name || 'Custom'), amount: lhp });
   }
   if (rp > 0) {
     items.push({ name: 'Rail Color: ' + (rOpt?.name || 'Custom'), amount: rp });
   }
 
-  const savedView = currentView;
-  const savedRotation = rotationAngle;
-  const savedZoom = zoomLevel;
-  currentView = 'exterior';
-  rotationAngle = 0;
-  zoomLevel = 1;
-  drawBoat();
+  // Prefer a 3D render for the saved preview so the admin dashboard shows
+  // the actual 3D boat. Fall back to the 2D drawing if WebGL fails.
   let boatPreviewImage = '';
-  try { boatPreviewImage = canvas.toDataURL('image/png'); } catch (e) { boatPreviewImage = ''; }
-  currentView = savedView;
-  rotationAngle = savedRotation;
-  zoomLevel = savedZoom;
-  drawBoat();
+  try {
+    boatPreviewImage = await captureThreePreview({
+      hull: hullColor,
+      body: hullColor,
+      door: hullColor,
+      roof: roofColor,
+      deck: deckColor,
+      floor: deckColor,
+      lowerHull: lowerHullColor,
+      rail: railColor,
+    });
+  } catch (e) {
+    boatPreviewImage = '';
+  }
+
+  if (!boatPreviewImage) {
+    const savedView = currentView;
+    const savedRotation = rotationAngle;
+    const savedZoom = zoomLevel;
+    currentView = 'exterior';
+    rotationAngle = 0;
+    zoomLevel = 1;
+    drawBoat();
+    try { boatPreviewImage = canvas.toDataURL('image/png'); } catch (e) { boatPreviewImage = ''; }
+    currentView = savedView;
+    rotationAngle = savedRotation;
+    zoomLevel = savedZoom;
+    drawBoat();
+  }
 
   const config = {
     length: lengthRange.value,
@@ -1550,6 +1662,14 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     deckColor: deckColor,
     deckColorPrice: String(dp),
     deckColorName: dOpt?.name || 'Default Deck',
+    floorColor: deckColor,
+    floorColorName: dOpt?.name || 'Default Floor',
+    roofColor: roofColor,
+    roofColorPrice: String(rfp),
+    roofColorName: rfOpt?.name || 'Default Roof',
+    lowerHullColor: lowerHullColor,
+    lowerHullColorPrice: String(lhp),
+    lowerHullColorName: lowerHullOpt?.name || 'Default',
     railColor: railColor,
     railColorPrice: String(rp),
     railColorName: rOpt?.name || 'Default Rail',

@@ -1,4 +1,5 @@
 import { supabase, handleDbError, sendEmailNotification, API_BASE, parseContractSchedule, formatScheduleDate, formatScheduleDateTime } from './supabase.js';
+import { createBoatViewer } from './boatViewer.js';
 
 window.handleLogout = async function () {
     await supabase.auth.signOut();
@@ -58,6 +59,7 @@ function updateFilterCounts() {
 }
 
 function renderApprovals() {
+    destroyApprovalViewer();
     const container = document.getElementById('approvalsContainer');
     const emptyState = document.getElementById('emptyState');
     let filtered = allApprovals;
@@ -78,6 +80,85 @@ function renderApprovals() {
         return renderPaymentCard(a, realIndex);
     }).join('');
 }
+
+/* =============================================
+   CUSTOM BOAT — LIVE 3D PREVIEW
+   ============================================= */
+
+let approvalViewer = null;
+
+function destroyApprovalViewer() {
+    if (!approvalViewer) return;
+    try { approvalViewer.destroy(); } catch (e) { /* non-fatal */ }
+    approvalViewer = null;
+}
+
+function approvalColors(cfg = {}) {
+    const hull = cfg.color || cfg.hullColor || cfg.lowerHullColor || '';
+    return {
+        hull,
+        body: hull,
+        door: hull,
+        roof: cfg.roofColor || '',
+        deck: cfg.floorColor || cfg.deckColor || '',
+        floor: cfg.floorColor || cfg.deckColor || '',
+        lowerHull: cfg.lowerHullColor || '',
+        rail: cfg.railColor || '',
+    };
+}
+
+function updateApprovalPlayBtn(idx, rotating) {
+    const btn = document.getElementById(`approvalPlay-${idx}`);
+    if (!btn) return;
+    btn.textContent = rotating ? '⏸ Pause 360°' : '▶ Rotate 360°';
+    btn.setAttribute('aria-pressed', rotating ? 'true' : 'false');
+}
+
+window.showApprovalPhoto = function (idx) {
+    destroyApprovalViewer();
+    const img = document.getElementById(`approvalPreview-${idx}`);
+    const mount = document.getElementById(`approvalThree-${idx}`);
+    const play = document.getElementById(`approvalPlay-${idx}`);
+    if (mount) { mount.style.display = 'none'; mount.innerHTML = ''; }
+    if (img) img.style.display = '';
+    if (play) play.style.display = 'none';
+};
+
+window.showApprovalThree = async function (idx) {
+    const approval = allApprovals[idx];
+    if (!approval) return;
+
+    const cfg = approval.data?.customConfig || {};
+    const mount = document.getElementById(`approvalThree-${idx}`);
+    const img = document.getElementById(`approvalPreview-${idx}`);
+    const play = document.getElementById(`approvalPlay-${idx}`);
+    if (!mount) return;
+
+    destroyApprovalViewer();
+    if (img) img.style.display = 'none';
+    mount.style.display = 'block';
+    mount.innerHTML = '';
+    if (play) { play.style.display = 'block'; play.textContent = '▶ Rotate 360°'; }
+
+    try {
+        if (!mount.isConnected) return;
+        approvalViewer = createBoatViewer(mount, {
+            colors: approvalColors(cfg),
+            background: 0xeef3f8,
+            autoRotate: false,
+            onAutoRotateChange: (rotating) => updateApprovalPlayBtn(idx, rotating),
+        });
+        updateApprovalPlayBtn(idx, false);
+    } catch (e) {
+        console.error('[approvals] 3D viewer failed:', e);
+        mount.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;color:#b91c1c;">3D view unavailable.</div>';
+    }
+};
+
+window.toggleApprovalRotation = function (idx) {
+    if (!approvalViewer) return;
+    updateApprovalPlayBtn(idx, approvalViewer.toggleAutoRotate());
+};
 
 function renderScheduleCard(a, idx) {
     const o = a.data;
@@ -174,9 +255,29 @@ function renderScheduleCard(a, idx) {
         ${isCustom && customConfig ? `
         <div class="payment-info" style="background:#f5f3ff;border-color:#d8b4fe;">
             <h4 style="color:#6b21a8;"><i class="fas fa-wand-magic-sparkles"></i> Custom Configuration</h4>
-            ${customConfig.boatPreviewImage ? `
-            <div class="custom-boat-preview">
-                <img src="${customConfig.boatPreviewImage}" alt="Custom Boat Preview" />
+            ${customConfig.boatPreviewImage || customConfig.color ? `
+            <div style="margin-top:8px;">
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <button type="button" onclick="showApprovalPhoto(${idx})"
+                        style="padding:6px 12px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font:600 11px Poppins,sans-serif;cursor:pointer;">
+                        <i class="fas fa-image"></i> Photo
+                    </button>
+                    <button type="button" onclick="showApprovalThree(${idx})"
+                        style="padding:6px 12px;border:1px solid #a855f7;border-radius:7px;background:#faf5ff;color:#6b21a8;font:600 11px Poppins,sans-serif;cursor:pointer;">
+                        <i class="fas fa-cube"></i> 3D View
+                    </button>
+                </div>
+                <div style="position:relative;min-height:260px;border-radius:10px;border:1px solid #d8b4fe;overflow:hidden;background:#eef3f8;display:flex;align-items:center;justify-content:center;">
+                    ${customConfig.boatPreviewImage ? `
+                    <img id="approvalPreview-${idx}" src="${customConfig.boatPreviewImage}" alt="Custom Boat Preview"
+                         style="max-width:100%;max-height:280px;object-fit:contain;" />` : `
+                    <span id="approvalPreview-${idx}" style="font-size:12px;color:#64748b;">No saved photo - use 3D view</span>`}
+                    <div id="approvalThree-${idx}" style="display:none;position:absolute;inset:0;"></div>
+                    <button id="approvalPlay-${idx}" type="button" onclick="toggleApprovalRotation(${idx})"
+                        style="display:none;position:absolute;right:10px;bottom:10px;z-index:3;padding:7px 12px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 11px Poppins,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);">
+                        ▶ Rotate 360°
+                    </button>
+                </div>
             </div>` : ''}
             <div class="payment-amounts" style="grid-template-columns:repeat(3,1fr);">
                 ${customConfig.length ? `<div class="pa-item"><span class="label">Length</span><span class="value" style="font-size:13px;">${customConfig.length}m</span></div>` : ''}
@@ -187,7 +288,9 @@ function renderScheduleCard(a, idx) {
             </div>
             <div style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;">
                 ${customConfig.color ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.color};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Hull:</strong> ${customConfig.hullColorName || 'N/A'}</span></div>` : ''}
-                ${customConfig.deckColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.deckColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Deck:</strong> ${customConfig.deckColorName || 'N/A'}</span></div>` : ''}
+                ${(customConfig.floorColor || customConfig.deckColor) ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.floorColor || customConfig.deckColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Floor:</strong> ${customConfig.floorColorName || customConfig.deckColorName || 'N/A'}</span></div>` : ''}
+                ${customConfig.roofColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.roofColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Roof:</strong> ${customConfig.roofColorName || 'N/A'}</span></div>` : ''}
+                ${customConfig.lowerHullColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.lowerHullColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Lower Hull:</strong> ${customConfig.lowerHullColorName || 'N/A'}</span></div>` : ''}
                 ${customConfig.railColor ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.railColor};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Rail:</strong> ${customConfig.railColorName || 'N/A'}</span></div>` : ''}
             </div>
             ${customConfig.items && customConfig.items.length > 0 ? `
