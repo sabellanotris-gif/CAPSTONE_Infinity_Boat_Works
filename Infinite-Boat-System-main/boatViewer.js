@@ -38,7 +38,12 @@ function eachMaterial(root, fn) {
 function matchesColorSlot(slot, matName, mat) {
   switch (slot) {
     case 'hull':
-      return matName.includes('hull') || matName.includes('lower') || matName.includes('stripe');
+      // The model's main hull surface is the "body" material. Never let the
+      // hull slot touch the "Lower Hull Stripe" material, which has its own
+      // LOWER HULL COLOR control.
+      return (matName.includes('hull') && !matName.includes('lower') && !matName.includes('stripe'))
+        || matName.includes('body')
+        || matName.includes('tripo_material');
     case 'body':
       return matName.includes('body') || (matName.includes('tripo_material') && !!mat.map);
     case 'door':
@@ -49,7 +54,7 @@ function matchesColorSlot(slot, matName, mat) {
     case 'floor':
       return matName.includes('deck') || matName.includes('floor');
     case 'lowerHull':
-      return matName.includes('lower');
+      return matName.includes('lower') || matName.includes('stripe');
     case 'rail':
       return matName.includes('rail');
     default:
