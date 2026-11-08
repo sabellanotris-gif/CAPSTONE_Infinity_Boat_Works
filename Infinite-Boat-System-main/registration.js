@@ -59,7 +59,13 @@ window.validateForm = async function () {
       return;
     }
 
-    alert("Registration successful! Please check your email to confirm your account.");
+    if (result.emailSent === false) {
+      alert(result.message || "Account created, but the confirmation email could not be sent. Please use Resend Verification on the login page.");
+      window.location.href = "login.html";
+      return;
+    }
+
+    alert(result.message || "Registration successful! Please check your email to confirm your account.");
     window.location.href = "login.html";
   } catch (error) {
     console.log(error);

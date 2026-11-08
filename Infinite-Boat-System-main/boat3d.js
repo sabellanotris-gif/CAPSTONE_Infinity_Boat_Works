@@ -41,7 +41,9 @@ export function initThreeViewer() {
   viewerContainer = container;
   viewer = createBoatViewer(container, {
     colors: pendingColors,
-    autoRotate: false,
+    // Open the 3D view already spinning a full 360°, while staying freely
+    // orbitable by dragging (the spin pauses during the drag, then resumes).
+    autoRotate: true,
     onAutoRotateChange: notifyAutoRotate,
   });
   initialized = true;
@@ -53,6 +55,9 @@ export function showThreeView(show) {
 
   if (show) {
     initThreeViewer();
+    // Every time the 3D view is opened, restart the 360° spin (free orbit
+    // still works; the spin pauses while dragging and resumes after).
+    if (viewer && !viewer.isAutoRotating()) viewer.setAutoRotate(true);
     if (threeDiv) {
       threeDiv.style.display = 'block';
       threeDiv.style.position = 'absolute';
@@ -100,16 +105,9 @@ export function zoomThree(dir) {
 }
 
 export function resetThree() {
-  if (viewer) viewer.reset();
-}
-
-/**
- * Jump the camera under the hull so the underside can be inspected.
- */
-export function viewThreeFromBelow() {
   if (!viewer) return;
   if (viewer.isAutoRotating()) viewer.setAutoRotate(false);
-  viewer.viewFromBelow();
+  viewer.reset();
 }
 
 /**

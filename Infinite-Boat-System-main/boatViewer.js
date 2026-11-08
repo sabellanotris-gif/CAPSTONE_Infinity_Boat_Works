@@ -87,7 +87,7 @@ export function createBoatViewer(container, options = {}) {
     background: 0x87ceeb,
     interactive: true,
     autoRotate: false,
-    autoRotateSpeed: 1.2,
+    autoRotateSpeed: 2.0,
     colors: {},
     fallbackWidth: 640,
     fallbackHeight: 420,
@@ -139,8 +139,11 @@ export function createBoatViewer(container, options = {}) {
   controls.zoomSpeed = 0.6;
   controls.enablePan = false;
   controls.rotateSpeed = 0.5;
+  // Full 360° orbit: unlimited horizontal rotation and top-to-bottom
+  // vertical rotation so the whole boat (including the underside) is reachable.
+  controls.minAzimuthAngle = -Infinity;
+  controls.maxAzimuthAngle = Infinity;
   controls.minPolarAngle = 0;
-  // Allow a full vertical orbit so the underside of the hull can be inspected.
   controls.maxPolarAngle = Math.PI;
   controls.autoRotateSpeed = opts.autoRotateSpeed;
   controls.enabled = opts.interactive;
@@ -158,11 +161,11 @@ export function createBoatViewer(container, options = {}) {
     emitAutoRotate();
   }
 
-  // Any manual interaction (drag, wheel, touch) stops the auto rotation and
-  // hands control back to the user immediately.
-  controls.addEventListener('start', () => {
-    if (autoRotating) setAutoRotate(false);
-  });
+  // Report the initial state so the caller's button starts on the right label.
+  if (autoRotating) emitAutoRotate();
+
+  // While the user drags, OrbitControls pauses auto-rotation on its own and
+  // resumes it on release, so dragging always works even during a 360° spin.
 
   controls.mouseButtons = {
     LEFT: THREE.MOUSE.ROTATE,
@@ -336,21 +339,6 @@ export function createBoatViewer(container, options = {}) {
       controls.update();
       camera.updateProjectionMatrix();
       model.rotation.set(0, 0, 0);
-    },
-    viewFromBelow() {
-      if (!model) return;
-      const box = new THREE.Box3().setFromObject(model);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      const modelSize = Math.max(size.x, size.y, size.z) || 12;
-      camera.position.set(
-        center.x + modelSize * 0.35,
-        center.y - modelSize * 1.7,
-        center.z + modelSize * 1.1
-      );
-      controls.target.copy(center);
-      controls.update();
-      camera.updateProjectionMatrix();
     },
     resize,
     isReady() {

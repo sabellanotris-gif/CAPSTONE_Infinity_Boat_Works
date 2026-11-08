@@ -357,10 +357,6 @@ window.showOrderInfo = function (orderId) {
                     style="display:none;position:absolute;right:12px;bottom:12px;z-index:3;padding:8px 13px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 12px Poppins,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);">
                     ▶ Rotate 360°
                 </button>
-                <button id="customBottomBtn" type="button" onclick="viewDashFromBelow()"
-                    style="display:none;position:absolute;left:12px;bottom:12px;z-index:3;padding:8px 13px;border:none;border-radius:999px;background:rgba(17,24,39,.82);color:#fff;font:600 12px Poppins,sans-serif;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);">
-                    ⬇ Ilalim
-                </button>
             </div>
         </div>
         <div class="modal-info-grid" style="margin-bottom:12px;">
@@ -440,11 +436,9 @@ window.showCustomPhoto = function () {
     const img = document.getElementById('customPreviewImg');
     const mount = document.getElementById('customThreeMount');
     const play = document.getElementById('customPlayBtn');
-    const bottom = document.getElementById('customBottomBtn');
     if (mount) { mount.style.display = 'none'; mount.innerHTML = ''; }
     if (img) img.style.display = '';
     if (play) play.style.display = 'none';
-    if (bottom) bottom.style.display = 'none';
 };
 
 window.showCustomThree = async function (orderId) {
@@ -454,7 +448,6 @@ window.showCustomThree = async function (orderId) {
     const mount = document.getElementById('customThreeMount');
     const img = document.getElementById('customPreviewImg');
     const play = document.getElementById('customPlayBtn');
-    const bottom = document.getElementById('customBottomBtn');
     if (!mount) return;
 
     destroyDashViewer();
@@ -462,7 +455,6 @@ window.showCustomThree = async function (orderId) {
     mount.style.display = 'block';
     mount.innerHTML = '';
     if (play) { play.style.display = 'block'; play.textContent = '▶ Rotate 360°'; }
-    if (bottom) bottom.style.display = 'block';
 
     try {
         const { createBoatViewer } = await import('./boatViewer.js');
@@ -470,10 +462,10 @@ window.showCustomThree = async function (orderId) {
         dashBoatViewer = createBoatViewer(mount, {
             colors: customConfigColors(order.customConfig || {}),
             background: 0xeef3f8,
-            autoRotate: false,
+            autoRotate: true,
             onAutoRotateChange: updateDashPlayBtn,
         });
-        updateDashPlayBtn(false);
+        updateDashPlayBtn(dashBoatViewer.isAutoRotating());
     } catch (e) {
         console.error('[dashboard] 3D viewer failed:', e);
         mount.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:13px;color:#b91c1c;">3D view unavailable.</div>';
@@ -483,13 +475,6 @@ window.showCustomThree = async function (orderId) {
 window.toggleDashRotation = function () {
     if (!dashBoatViewer) return;
     updateDashPlayBtn(dashBoatViewer.toggleAutoRotate());
-};
-
-window.viewDashFromBelow = function () {
-    if (!dashBoatViewer) return;
-    dashBoatViewer.setAutoRotate(false);
-    dashBoatViewer.viewFromBelow();
-    updateDashPlayBtn(false);
 };
 
 /* =============================================

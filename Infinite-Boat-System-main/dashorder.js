@@ -101,7 +101,9 @@ function renderOrders(filter) {
                         <span>LED: ₱${safeNum(order.customConfig.led).toLocaleString()}</span>
                         `}
                         <span>Hull Color: ${order.customConfig.hullColorName || order.customConfig.color || 'N/A'}</span>
-                        <span>Deck Color: ${order.customConfig.deckColorName || 'N/A'}</span>
+                        <span>Floor Color: ${order.customConfig.floorColorName || order.customConfig.deckColorName || 'N/A'}</span>
+                        <span>Roof Color: ${order.customConfig.roofColorName || 'N/A'}</span>
+                        <span>Lower Hull Color: ${order.customConfig.lowerHullColorName || 'N/A'}</span>
                         <span>Rail Color: ${order.customConfig.railColorName || 'N/A'}</span>
                     </div>
                 </div>` : ''}
@@ -547,7 +549,9 @@ function viewOrder(index) {
             html += '<div><strong>LED</strong><p>₱' + safeNum(order.customConfig.led).toLocaleString() + '</p></div>';
         }
         html += '<div><strong>Hull Color</strong><p>' + (order.customConfig.hullColorName || order.customConfig.color || 'N/A') + '</p></div>';
-        html += '<div><strong>Deck Color</strong><p>' + (order.customConfig.deckColorName || 'N/A') + '</p></div>';
+        html += '<div><strong>Floor Color</strong><p>' + (order.customConfig.floorColorName || order.customConfig.deckColorName || 'N/A') + '</p></div>';
+        html += '<div><strong>Roof Color</strong><p>' + (order.customConfig.roofColorName || 'N/A') + '</p></div>';
+        html += '<div><strong>Lower Hull Color</strong><p>' + (order.customConfig.lowerHullColorName || 'N/A') + '</p></div>';
         html += '<div><strong>Rail Color</strong><p>' + (order.customConfig.railColorName || 'N/A') + '</p></div>';
         html += '</div>';
     }

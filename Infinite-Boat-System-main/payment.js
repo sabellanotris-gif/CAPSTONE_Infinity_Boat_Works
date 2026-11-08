@@ -728,7 +728,9 @@ payNowBtn.addEventListener(
                     document.getElementById("previewCustomItems").style.display = "none";
                 }
                 document.getElementById("previewHullColor").textContent = cfg.hullColorName || cfg.color || "N/A";
-                document.getElementById("previewDeckColor").textContent = cfg.deckColorName || "N/A";
+                document.getElementById("previewFloorColor").textContent = cfg.floorColorName || cfg.deckColorName || "N/A";
+                document.getElementById("previewRoofColor").textContent = cfg.roofColorName || "N/A";
+                document.getElementById("previewLowerHullColor").textContent = cfg.lowerHullColorName || "N/A";
                 document.getElementById("previewRailColor").textContent = cfg.railColorName || "N/A";
                 document.getElementById("previewCustomTotal").textContent = cfg.totalPrice || "N/A";
             }
@@ -941,7 +943,9 @@ document.getElementById("proceedPaymentBtn")?.addEventListener("click", async ()
             receiptHtml += '<div><strong>LED:</strong> ₱' + (cfg.led ? Number(String(cfg.led).replace(/[₱,]/g,"")).toLocaleString() : "0") + '</div>';
         }
         receiptHtml += '<div><strong>Hull Color:</strong> ' + (cfg.hullColorName || cfg.color || "N/A") + '</div>';
-        receiptHtml += '<div><strong>Deck Color:</strong> ' + (cfg.deckColorName || "N/A") + '</div>';
+        receiptHtml += '<div><strong>Floor Color:</strong> ' + (cfg.floorColorName || cfg.deckColorName || "N/A") + '</div>';
+        receiptHtml += '<div><strong>Roof Color:</strong> ' + (cfg.roofColorName || "N/A") + '</div>';
+        receiptHtml += '<div><strong>Lower Hull Color:</strong> ' + (cfg.lowerHullColorName || "N/A") + '</div>';
         receiptHtml += '<div><strong>Rail Color:</strong> ' + (cfg.railColorName || "N/A") + '</div>';
         receiptHtml += '<div><strong>Custom Total:</strong> ' + (cfg.totalPrice || "N/A") + '</div>';
         document.getElementById("receiptCustomConfig").innerHTML = receiptHtml;

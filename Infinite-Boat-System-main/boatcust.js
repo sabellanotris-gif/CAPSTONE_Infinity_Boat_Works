@@ -1,6 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setHullColor, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree, isThreeAutoRotating, setAutoRotateListener, captureThreePreview, viewThreeFromBelow } from "./boat3d.js";
+import { showThreeView, setHullColor, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree, isThreeAutoRotating, setAutoRotateListener, captureThreePreview } from "./boat3d.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
 // previews are allowed (preview mode is intentional for unplaced boats).
@@ -1176,7 +1176,6 @@ seatSelect.addEventListener('change', drawBoat);
 
 
 const threePlayBtn = document.getElementById('threePlayBtn');
-const threeBottomBtn = document.getElementById('threeBottomBtn');
 
 function updateThreePlayButton(rotating) {
   if (!threePlayBtn) return;
@@ -1203,17 +1202,6 @@ threePlayBtn?.addEventListener('click', () => {
     return;
   }
   toggleThreeRotation();
-});
-
-threeBottomBtn?.addEventListener('click', () => {
-  if (currentView !== 'perspective') {
-    const threeViewBtn = Array.from(document.querySelectorAll('.view-buttons button'))
-      .find((b) => /3d view|perspective/i.test(b.textContent || ''));
-    threeViewBtn?.click();
-    return;
-  }
-  viewThreeFromBelow();
-  updateThreePlayButton(false);
 });
 
 document.getElementById('rotateBtn')?.addEventListener('click', () => {
@@ -1269,13 +1257,11 @@ document.querySelectorAll('.view-buttons button').forEach(btn => {
     if (currentView === 'perspective') {
       showThreeView(true);
       if (threePlayBtn) threePlayBtn.style.display = 'block';
-      if (threeBottomBtn) threeBottomBtn.style.display = 'block';
       updateThreePlayButton(isThreeAutoRotating());
     } else {
       if (isThreeAutoRotating()) rotateThree();
       showThreeView(false);
       if (threePlayBtn) threePlayBtn.style.display = 'none';
-      if (threeBottomBtn) threeBottomBtn.style.display = 'none';
       drawBoat();
     }
   });
