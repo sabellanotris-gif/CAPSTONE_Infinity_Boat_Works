@@ -1,6 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setHullColor, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree, isThreeAutoRotating, setAutoRotateListener, captureThreePreview } from "./boat3d.js";
+import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree, isThreeAutoRotating, setAutoRotateListener, captureThreePreview } from "./boat3d.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
 // previews are allowed (preview mode is intentional for unplaced boats).
@@ -513,9 +513,14 @@ async function loadOptions() {
       hullColor = hex;
       colorPrice = isDefaultBodyColor(hex) ? 0 : getHullColorPricing();
       const cname = el.title || '';
-      if (/body/i.test(cname)) { if (typeof setBodyColor === 'function') setBodyColor(hullColor); else setHullColor(hullColor); }
-      else if (/door/i.test(cname)) { if (typeof setDoorColor === 'function') setDoorColor(hullColor); }
-      else { setHullColor(hullColor); }
+      // Always drive the "body" slot. Using the legacy "hull" slot here would
+      // lose to the default body color applied in loadOptions(), because both
+      // slots paint the same material and "body" is applied last.
+      if (/door/i.test(cname)) {
+        if (typeof setDoorColor === 'function') setDoorColor(hullColor);
+      } else {
+        if (typeof setBodyColor === 'function') setBodyColor(hullColor);
+      }
       drawBoat();
     });
   }

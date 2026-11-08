@@ -79,7 +79,9 @@ function pushColor(slot, hex) {
   if (viewer) viewer.setColors({ [slot]: hex });
 }
 
-export function setHullColor(hex) { pushColor('hull', hex); }
+// Legacy alias: "hull" and "body" both paint the boat's main hull surface.
+// Map it to the body slot so the two can never fight over the same material.
+export function setHullColor(hex) { pushColor('body', hex); }
 export function setBodyColor(hex) { pushColor('body', hex); }
 export function setDoorColor(hex) { pushColor('door', hex); }
 export function setRoofColor(hex) { pushColor('roof', hex); }
