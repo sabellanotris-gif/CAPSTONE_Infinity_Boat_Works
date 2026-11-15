@@ -141,7 +141,7 @@ export function createBoatViewer(container, options = {}) {
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.enableZoom = opts.interactive;
-  controls.zoomSpeed = 0.6;
+  controls.zoomToCursor = false;
   controls.enablePan = false;
   controls.rotateSpeed = 0.5;
   // Full 360° orbit: unlimited horizontal rotation and top-to-bottom
@@ -152,6 +152,34 @@ export function createBoatViewer(container, options = {}) {
   controls.maxPolarAngle = Math.PI;
   controls.autoRotateSpeed = opts.autoRotateSpeed;
   controls.enabled = opts.interactive;
+
+  // The wheel is handled by our own capture-phase listener so it behaves
+  // exactly like the toolbar Zoom In/Out buttons: instant ×0.85 / ×1.18
+  // steps around the boat's center, clamped to min/max distance (the clamp
+  // happens inside controls.update()). OrbitControls' built-in wheel
+  // handler never sees the event. Pinch-to-zoom stays with OrbitControls.
+  const WHEEL_NOTCH = 100;
+  let wheelAccum = 0;
+
+  function dollyCamera(dir) {
+    const scale = dir > 0 ? 0.85 : 1.18;
+    camera.position.sub(controls.target);
+    camera.position.multiplyScalar(scale);
+    camera.position.add(controls.target);
+    controls.update();
+  }
+
+  if (opts.interactive) {
+    el.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      wheelAccum += event.deltaY;
+      const steps = Math.floor(Math.abs(wheelAccum) / WHEEL_NOTCH);
+      const dir = wheelAccum < 0 ? 1 : -1; // scroll up = zoom in
+      for (let i = 0; i < steps; i++) dollyCamera(dir);
+      wheelAccum -= Math.sign(wheelAccum) * WHEEL_NOTCH * steps;
+    }, { capture: true, passive: false });
+  }
 
   let autoRotating = !!opts.autoRotate;
   controls.autoRotate = autoRotating;
@@ -201,6 +229,31 @@ export function createBoatViewer(container, options = {}) {
   let destroyed = false;
   let frameId = 0;
 
+  // Horizontal (length/beam) stretch state. The base model is normalized to
+  // a fixed size on load; the configured dimensions scale it along two axes.
+  let baseScale = 1;
+  let lengthAxis = 'z';
+  let beamAxis = 'x';
+  const pendingDimensions = { lengthFactor: 1, beamFactor: 1 };
+  const targetScale = new THREE.Vector3(1, 1, 1);
+
+  if (opts.dimensions) {
+    const lf = Number(opts.dimensions.lengthFactor);
+    const bf = Number(opts.dimensions.beamFactor);
+    if (Number.isFinite(lf)) pendingDimensions.lengthFactor = Math.min(1.5, Math.max(0.5, lf));
+    if (Number.isFinite(bf)) pendingDimensions.beamFactor = Math.min(1.5, Math.max(0.5, bf));
+  }
+
+  function applyDimensionFactors(snap = false) {
+    if (!model) return;
+    const lf = pendingDimensions.lengthFactor;
+    const bf = pendingDimensions.beamFactor;
+    const sx = beamAxis === 'x' ? baseScale * bf : baseScale * lf;
+    const sz = beamAxis === 'z' ? baseScale * bf : baseScale * lf;
+    targetScale.set(sx, baseScale, sz);
+    if (snap) model.scale.copy(targetScale);
+  }
+
   const pendingColors = {};
   Object.keys(opts.colors || {}).forEach((key) => {
     if (opts.colors[key]) pendingColors[key] = opts.colors[key];
@@ -230,6 +283,11 @@ export function createBoatViewer(container, options = {}) {
   function animate() {
     if (destroyed) return;
     frameId = requestAnimationFrame(animate);
+    if (model) {
+      // Ease the model toward the configured dimensions.
+      model.scale.lerp(targetScale, 0.18);
+      if (model.scale.distanceToSquared(targetScale) < 1e-8) model.scale.copy(targetScale);
+    }
     controls.update();
     renderer.render(scene, camera);
   }
@@ -275,14 +333,21 @@ export function createBoatViewer(container, options = {}) {
         const center2 = box2.getCenter(new THREE.Vector3());
         const modelSize = Math.max(size2.x, size2.y, size2.z) || 12;
 
+        // Record the base scale and which world axis is the boat's length
+        // (the longer horizontal axis). The other horizontal axis is beam.
+        baseScale = scale;
+        lengthAxis = size2.x >= size2.z ? 'x' : 'z';
+        beamAxis = lengthAxis === 'x' ? 'z' : 'x';
+        applyDimensionFactors(true);
+
         camera.position.set(modelSize * 1.45, modelSize * 0.65, modelSize * 1.45);
         camera.near = modelSize * 0.01;
         camera.far = modelSize * 100;
         camera.updateProjectionMatrix();
 
         controls.target.copy(center2);
-        controls.minDistance = modelSize * 1.05;
-        controls.maxDistance = modelSize * 2.6;
+        controls.minDistance = modelSize * 0.65;
+        controls.maxDistance = modelSize * 4.0;
         controls.update();
 
         applyPendingColors();
@@ -316,6 +381,15 @@ export function createBoatViewer(container, options = {}) {
       });
       applyPendingColors();
     },
+    // Stretch the boat horizontally: length along the length axis and beam
+    // along the beam axis, both smoothly eased in the render loop.
+    setDimensions(lengthFactor = 1, beamFactor = 1) {
+      const lf = Number(lengthFactor);
+      const bf = Number(beamFactor);
+      pendingDimensions.lengthFactor = Number.isFinite(lf) ? Math.min(1.5, Math.max(0.5, lf)) : 1;
+      pendingDimensions.beamFactor = Number.isFinite(bf) ? Math.min(1.5, Math.max(0.5, bf)) : 1;
+      applyDimensionFactors(false);
+    },
     setAutoRotate,
     toggleAutoRotate() {
       setAutoRotate(!autoRotating);
@@ -325,11 +399,7 @@ export function createBoatViewer(container, options = {}) {
       return autoRotating;
     },
     zoom(dir) {
-      const scale = dir > 0 ? 0.94 : 1.06;
-      camera.position.sub(controls.target);
-      camera.position.multiplyScalar(scale);
-      camera.position.add(controls.target);
-      controls.update();
+      dollyCamera(dir);
     },
     reset() {
       if (!model) return;
@@ -337,10 +407,10 @@ export function createBoatViewer(container, options = {}) {
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
       const modelSize = Math.max(size.x, size.y, size.z) || 12;
-      camera.position.set(modelSize * 1.45, modelSize * 0.6, modelSize * 1.45);
+      camera.position.set(modelSize * 1.45, modelSize * 0.65, modelSize * 1.45);
       controls.target.copy(center);
-      controls.minDistance = modelSize * 1.05;
-      controls.maxDistance = modelSize * 2.6;
+      controls.minDistance = modelSize * 0.65;
+      controls.maxDistance = modelSize * 4.0;
       controls.update();
       camera.updateProjectionMatrix();
       model.rotation.set(0, 0, 0);
@@ -424,6 +494,7 @@ export function createBoatViewer(container, options = {}) {
  */
 export async function captureBoatSnapshot({
   colors = {},
+  dimensions = null,
   width = 900,
   height = 560,
   timeout = 8000,
@@ -439,6 +510,7 @@ export async function captureBoatSnapshot({
   try {
     viewer = createBoatViewer(host, {
       colors,
+      dimensions,
       autoRotate: false,
       interactive: false,
       background: 0xeef3f8,

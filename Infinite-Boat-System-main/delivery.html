@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Delivery - Infinity Boat Works</title>
+<link rel="stylesheet" href="delivery.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="sidebar.css">
+<link rel="stylesheet" href="admin-type.css">
+</head>
+<body>
+<script>
+window.onpageshow = function(e) {
+    if (e.persisted) window.location.reload();
+};
+</script>
+<div class="dashboard-layout">
+<aside class="sidebar">
+    <div>
+        <h1 class="logo">BoatShop</h1>
+        <nav class="sidebar-menu"></nav>
+        <script src="sidebarNav.js"></script>
+    </div>
+    <button class="logout-btn" onclick="handleLogout();">Logout</button>
+</aside>
+
+<main class="main-content">
+    <div class="topbar">
+        <div>
+            <h2>Delivery Tracking</h2>
+            <p>Orders approaching hand-over and boats already on their way — manage sea trials, dates, and delays.</p>
+        </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="dd-stats" id="ddStats">
+        <div class="dd-stat preparing"><span class="dd-stat-num" id="statPreparing">–</span><span class="dd-stat-label">Preparing</span></div>
+        <div class="dd-stat ready"><span class="dd-stat-num" id="statReady">–</span><span class="dd-stat-label">Ready for Delivery</span></div>
+        <div class="dd-stat transit"><span class="dd-stat-num" id="statTransit">–</span><span class="dd-stat-label">In Transit</span></div>
+        <div class="dd-stat delivered"><span class="dd-stat-num" id="statDelivered">–</span><span class="dd-stat-label">Delivered</span></div>
+        <div class="dd-stat overdue"><span class="dd-stat-num" id="statOverdue">–</span><span class="dd-stat-label">Overdue</span></div>
+    </div>
+
+    <!-- Search + filters -->
+    <div class="dd-controls">
+        <div class="dd-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="ddSearch" placeholder="Search boat, customer, or order ID..." autocomplete="off">
+        </div>
+        <div class="dd-filters" id="ddFilters">
+            <button class="dd-chip active" data-filter="all">All</button>
+            <button class="dd-chip" data-filter="delayed">Delayed</button>
+            <button class="dd-chip" data-filter="delivered">Delivered</button>
+        </div>
+    </div>
+
+    <!-- Pipeline board -->
+    <div class="dd-board" id="ddBoard">
+        <section class="dd-column" data-status="Preparing for Delivery">
+            <header class="dd-column-header"><span class="dd-col-dot preparing"></span>Preparing for Delivery<span class="dd-col-count" id="colPreparing">0</span></header>
+            <div class="dd-column-body" id="colBodyPreparing"></div>
+        </section>
+        <section class="dd-column" data-status="Ready for Delivery">
+            <header class="dd-column-header"><span class="dd-col-dot ready"></span>Ready for Delivery<span class="dd-col-count" id="colReady">0</span></header>
+            <div class="dd-column-body" id="colBodyReady"></div>
+        </section>
+        <section class="dd-column" data-status="In Transit">
+            <header class="dd-column-header"><span class="dd-col-dot transit"></span>In Transit<span class="dd-col-count" id="colTransit">0</span></header>
+            <div class="dd-column-body" id="colBodyTransit"></div>
+        </section>
+        <section class="dd-column" data-status="Delivered">
+            <header class="dd-column-header"><span class="dd-col-dot delivered"></span>Delivered<span class="dd-col-count" id="colDelivered">0</span></header>
+            <div class="dd-column-body" id="colBodyDelivered"></div>
+        </section>
+    </div>
+
+    <div id="ddEmpty" class="dd-empty" style="display:none;">
+        <i class="fa-solid fa-truck-ramp-box"></i>
+        <h3>Nothing in delivery yet</h3>
+        <p>Orders appear here once they reach at least 70% completion or the boat is marked Delivered. Sea trials and committed dates take effect at that point.</p>
+    </div>
+
+    <!-- Terms + penalty reference for staff -->
+    <div class="dd-reference">
+        <div class="dd-ref-card">
+            <h3><i class="fa-solid fa-gavel"></i> Delivery Terms (what the customer signs)</h3>
+            <ol id="ddTermsList" class="dd-terms-list"></ol>
+            <p class="dd-ref-note">The customer signs these terms in their project page once the boat is In Transit or Delivered. Signing also marks the delivery as confirmed.</p>
+        </div>
+        <div class="dd-ref-card">
+            <h3><i class="fa-solid fa-percent"></i> Delay Penalty Rule</h3>
+            <ul class="dd-penalty-list">
+                <li><span class="dd-pct-badge">1%</span> of boat price — 1 to 7 days past committed date</li>
+                <li><span class="dd-pct-badge">2%</span> of boat price — 8 to 14 days past committed date</li>
+                <li><span class="dd-pct-badge">5%</span> of boat price — 15 to 30 days past committed date</li>
+                <li><span class="dd-pct-badge">8%</span> of boat price — more than 30 days past committed date</li>
+            </ul>
+            <p class="dd-ref-note">Penalties are deducted from the remaining balance and are computed automatically from the committed and actual delivery dates.</p>
+        </div>
+    </div>
+</main>
+</div>
+
+<!-- Delivery Manage Modal -->
+<div id="deliveryModal" class="view-modal">
+    <div class="modal-content modal-lg">
+        <button class="close-modal" onclick="closeDeliveryModal()">&times;</button>
+        <div id="deliveryModalBody"></div>
+    </div>
+</div>
+
+<script src="toast.js"></script>
+<script type="module" src="delivery.js?v=1"></script>
+</body>
+</html>

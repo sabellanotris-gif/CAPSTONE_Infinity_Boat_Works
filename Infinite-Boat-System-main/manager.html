@@ -38,13 +38,32 @@ window.onpageshow = function(e) {
 
 <main class="main-content">
 
+    <!-- ===== PROFILE DROPDOWN ===== -->
+    <div id="adminProfileDropdown" class="admin-notif-dropdown profile-dropdown" role="menu" aria-label="Profile menu">
+        <div class="profile-dropdown-header">
+            <img id="dropdownAvatar" class="profile-dropdown-avatar" src="./images/user.png" alt="Profile">
+            <div class="profile-dropdown-id">
+                <p id="dropdownName" class="profile-dropdown-name">Manager</p>
+                <p id="dropdownEmail" class="profile-dropdown-email">—</p>
+            </div>
+        </div>
+        <a class="profile-dropdown-item" href="profile.html" role="menuitem">
+            <i class="fa-solid fa-user-pen"></i> Edit Profile
+        </a>
+        <button class="profile-dropdown-item profile-dropdown-logout" id="dropdownLogoutBtn" type="button" role="menuitem">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+    </div>
+
     <div class="topbar">
         <div>
             <h1>Welcome Back, <span id="managerName">Project Manager</span></h1>
             <p>Coordinate boat projects, create build teams, and monitor construction progress.</p>
         </div>
         <div class="topbar-right">
-            <img id="adminprofile" src="./images/user.png" class="profile-image">
+            <button class="profile-image-btn" id="adminProfileBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Open profile menu">
+                <img id="adminprofile" src="./images/user.png" class="profile-image" alt="Manager profile">
+            </button>
         </div>
     </div>
 

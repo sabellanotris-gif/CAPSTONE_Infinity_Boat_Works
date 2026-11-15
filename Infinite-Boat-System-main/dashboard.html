@@ -92,6 +92,23 @@ window.onpageshow = function(e) {
         <div class="notif-list" id="adminNotifList"></div>
     </div>
 
+    <!-- ===== PROFILE DROPDOWN ===== -->
+    <div id="adminProfileDropdown" class="admin-notif-dropdown profile-dropdown" role="menu" aria-label="Profile menu">
+        <div class="profile-dropdown-header">
+            <img id="dropdownAvatar" class="profile-dropdown-avatar" src="./images/user.png" alt="Profile">
+            <div class="profile-dropdown-id">
+                <p id="dropdownName" class="profile-dropdown-name">Admin</p>
+                <p id="dropdownEmail" class="profile-dropdown-email">—</p>
+            </div>
+        </div>
+        <a class="profile-dropdown-item" href="profile.html" role="menuitem">
+            <i class="fa-solid fa-user-pen"></i> Edit Profile
+        </a>
+        <button class="profile-dropdown-item profile-dropdown-logout" id="dropdownLogoutBtn" type="button" role="menuitem">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+    </div>
+
     <div class="topbar">
 
         <div>
@@ -121,15 +138,12 @@ window.onpageshow = function(e) {
         <div class="topbar-right">
 
 
-            <div class="search-box">
 
-                <i class="fa-solid fa-magnifying-glass"></i>
+            <button class="compact-toggle-btn" id="compactModeBtn" type="button" aria-pressed="false" title="Toggle minimal view" aria-label="Toggle minimal view">
 
-                <input
-                type="text"
-                placeholder="Search boat projects...">
+                <i class="fa-solid fa-compress"></i>
 
-            </div>
+            </button>
 
             <button class="notification-btn" id="adminNotifBell" style="position:relative;">
 
@@ -139,7 +153,11 @@ window.onpageshow = function(e) {
             </button>
 
 
-            <img id="adminprofile" src="./images/user.png" class="profile-image">
+            <button class="profile-image-btn" id="adminProfileBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Open profile menu">
+
+                <img id="adminprofile" src="./images/user.png" class="profile-image" alt="Admin profile">
+
+            </button>
 
         </div>
 
@@ -303,10 +321,10 @@ window.onpageshow = function(e) {
 
 
 
-    <section class="dashboard-grid">
+    <section class="dashboard-grid primary-grid">
 
 
-        <div class="dashboard-card large-card">
+        <div class="dashboard-card large-card" data-card-id="liveProjects">
 
             <div class="card-header">
 
@@ -329,7 +347,7 @@ window.onpageshow = function(e) {
 
         </div>
 
-        <div class="dashboard-card small-card">
+        <div class="dashboard-card small-card" data-card-id="recentPayments">
 
             <div class="card-header">
 
@@ -348,9 +366,9 @@ window.onpageshow = function(e) {
     </section>
 
 
-    <section class="dashboard-grid">
+    <section class="dashboard-grid minimal-hide">
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-card-id="inventoryAlerts">
 
             <div class="card-header">
 
@@ -366,7 +384,7 @@ window.onpageshow = function(e) {
 
         </div>
 
-     <div class="dashboard-card">
+     <div class="dashboard-card" data-card-id="analyticsOverview">
 
             <div class="card-header">
 
@@ -384,23 +402,23 @@ window.onpageshow = function(e) {
 
     </section>
 
-    <section class="dashboard-grid">
+    <section class="dashboard-grid minimal-hide">
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-card-id="upcomingMilestones">
             <div class="card-header">
                 <h2><i class="fa-solid fa-flag"></i> Upcoming Milestones</h2>
             </div>
             <div id="upcomingMilestonesContainer"></div>
         </div>
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-card-id="overdueTasks">
             <div class="card-header">
                 <h2><i class="fa-solid fa-clock"></i> Overdue Tasks</h2>
             </div>
             <div id="overdueTasksContainer"></div>
         </div>
 
-        <div class="dashboard-card">
+        <div class="dashboard-card" data-card-id="projectsByPhase">
             <div class="card-header">
                 <h2><i class="fa-solid fa-layer-group"></i> Projects by Phase</h2>  
             </div>

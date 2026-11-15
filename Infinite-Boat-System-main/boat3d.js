@@ -7,6 +7,7 @@ import {
 let viewer = null;
 let viewerContainer = null;
 const pendingColors = {};
+const pendingDimensions = { lengthFactor: 1, beamFactor: 1 };
 let autoRotateListener = null;
 
 export let initialized = false;
@@ -41,6 +42,7 @@ export function initThreeViewer() {
   viewerContainer = container;
   viewer = createBoatViewer(container, {
     colors: pendingColors,
+    dimensions: pendingDimensions,
     // Open the 3D view already spinning a full 360°, while staying freely
     // orbitable by dragging (the spin pauses during the drag, then resumes).
     autoRotate: true,
@@ -49,34 +51,40 @@ export function initThreeViewer() {
   initialized = true;
 }
 
-export function showThreeView(show) {
+// The 3D viewer is the only preview. Calling this on load initialises the
+// viewer and makes sure the 360° spin is running (free orbit still works;
+// the spin pauses while dragging and resumes after).
+export function showThreeView() {
   const threeDiv = document.getElementById('threeViewer');
-  const canvas = document.getElementById('boatCanvas');
 
-  if (show) {
-    initThreeViewer();
-    // Every time the 3D view is opened, restart the 360° spin (free orbit
-    // still works; the spin pauses while dragging and resumes after).
-    if (viewer && !viewer.isAutoRotating()) viewer.setAutoRotate(true);
-    if (threeDiv) {
-      threeDiv.style.display = 'block';
-      threeDiv.style.position = 'absolute';
-      threeDiv.style.top = '0';
-      threeDiv.style.left = '0';
-      threeDiv.style.width = '100%';
-      threeDiv.style.height = '100%';
-    }
-    if (canvas) canvas.style.display = 'none';
-    if (viewer) viewer.resize();
-  } else {
-    if (threeDiv) threeDiv.style.display = 'none';
-    if (canvas) canvas.style.display = 'block';
+  initThreeViewer();
+  if (viewer && !viewer.isAutoRotating()) viewer.setAutoRotate(true);
+  if (threeDiv) {
+    threeDiv.style.display = 'block';
+    threeDiv.style.position = 'absolute';
+    threeDiv.style.top = '0';
+    threeDiv.style.left = '0';
+    threeDiv.style.width = '100%';
+    threeDiv.style.height = '100%';
   }
+  if (viewer) viewer.resize();
 }
 
 function pushColor(slot, hex) {
   pendingColors[slot] = hex;
   if (viewer) viewer.setColors({ [slot]: hex });
+}
+
+/**
+ * Stretch the boat horizontally: lengthFactor scales along the length axis,
+ * beamFactor along the beam axis (both ~±20% around the designed size).
+ */
+export function setDimensions(lengthFactor = 1, beamFactor = 1) {
+  const lf = Number(lengthFactor);
+  const bf = Number(beamFactor);
+  pendingDimensions.lengthFactor = Number.isFinite(lf) ? lf : 1;
+  pendingDimensions.beamFactor = Number.isFinite(bf) ? bf : 1;
+  if (viewer) viewer.setDimensions(pendingDimensions.lengthFactor, pendingDimensions.beamFactor);
 }
 
 // Legacy alias: "hull" and "body" both paint the boat's main hull surface.
@@ -116,11 +124,11 @@ export function resetThree() {
  * Capture the 3D boat as a JPEG data URL for the admin dashboard.
  * Falls back to an off-screen render when the viewer was never opened.
  */
-export async function captureThreePreview(colors = {}) {
+export async function captureThreePreview(colors = {}, dimensions = pendingDimensions) {
   if (viewer && viewer.isReady()) {
     const shot = viewer.getSnapshot(900, 0.85);
     if (shot) return shot;
   }
   const merged = { ...pendingColors, ...colors };
-  return captureBoatSnapshot({ colors: merged });
+  return captureBoatSnapshot({ colors: merged, dimensions });
 }

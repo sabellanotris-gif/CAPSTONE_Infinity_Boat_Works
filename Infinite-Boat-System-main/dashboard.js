@@ -17,13 +17,21 @@ function applyAdminIdentity(user) {
   const displayName = (user && (user.name || user.email))
     ? (user.name || user.email.split('@')[0])
     : "Admin";
+  const prettyName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
   if (adminNameSpan && displayName) {
-    adminNameSpan.textContent = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+    adminNameSpan.textContent = prettyName;
   }
   const adminProfile = document.getElementById('adminprofile');
   if (user && user.photo) {
     adminProfile.src = user.photo;
   }
+  // Fill the profile dropdown (avatar button → menu)
+  const dropdownAvatar = document.getElementById('dropdownAvatar');
+  const dropdownName = document.getElementById('dropdownName');
+  const dropdownEmail = document.getElementById('dropdownEmail');
+  if (dropdownName) dropdownName.textContent = prettyName;
+  if (dropdownEmail) dropdownEmail.textContent = (user && user.email) || '';
+  if (dropdownAvatar && user && user.photo) dropdownAvatar.src = user.photo;
 }
 applyAdminIdentity(storedUser);
 if (!storedUser.email && !storedUser.name) {
@@ -640,25 +648,6 @@ function renderDonutCharts() {
 }
 
 /* =============================================
-   SEARCH
-   ============================================= */
-
-const searchInput = document.querySelector('.search-box input');
-searchInput?.addEventListener('input', function () {
-    const query = this.value.toLowerCase();
-    document.querySelectorAll('.accordion-section').forEach(section => {
-        let hasMatch = false;
-        section.querySelectorAll('.project-row').forEach(row => {
-            const text = row.textContent.toLowerCase();
-            const match = text.includes(query);
-            row.style.display = match ? '' : 'none';
-            if (match) hasMatch = true;
-        });
-        section.style.display = hasMatch ? '' : 'none';
-    });
-});
-
-/* =============================================
    QUICK ACTION BUTTONS
    ============================================= */
 
@@ -808,11 +797,43 @@ if (adminBell && adminDropdown) {
         const badge = document.getElementById("adminNotifBadge");
         if (badge) badge.style.display = "none";
         adminDropdown.classList.toggle("show");
+        // Close the profile dropdown when the bell opens.
+        document.getElementById("adminProfileDropdown")?.classList.remove("show");
     });
     document.addEventListener("click", (e) => {
         if (!adminBell.contains(e.target) && !adminDropdown.contains(e.target)) {
             adminDropdown.classList.remove("show");
         }
+    });
+}
+
+// Profile dropdown (avatar button)
+const profileBtn = document.getElementById("adminProfileBtn");
+const profileDropdown = document.getElementById("adminProfileDropdown");
+if (profileBtn && profileDropdown) {
+    profileBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const opening = !profileDropdown.classList.contains("show");
+        profileDropdown.classList.toggle("show");
+        profileBtn.setAttribute("aria-expanded", opening ? "true" : "false");
+        // Close the notification dropdown when the profile menu opens.
+        if (opening) adminDropdown?.classList.remove("show");
+    });
+    document.addEventListener("click", (e) => {
+        if (!profileBtn.contains(e.target) && !profileDropdown.contains(e.target)) {
+            profileDropdown.classList.remove("show");
+            profileBtn.setAttribute("aria-expanded", "false");
+        }
+    });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+            profileDropdown.classList.remove("show");
+            profileBtn.setAttribute("aria-expanded", "false");
+        }
+    });
+    document.getElementById("dropdownLogoutBtn")?.addEventListener("click", () => {
+        if (typeof window.handleLogout === "function") window.handleLogout();
     });
 }
 
@@ -995,5 +1016,77 @@ function setupAdminRealtime() {
 }
 
 setupAdminRealtime();
+
+// =====================================================
+// MINIMAL MODE + COLLAPSIBLE CARDS
+// =====================================================
+// Persisted in localStorage so the admin's layout choice survives reloads:
+//   boatadmin.minimalMode    '1' | '0'
+//   boatadmin.collapsedCards JSON array of data-card-id values
+(function setupMinimalDashboard() {
+  const MINIMAL_KEY = 'boatadmin.minimalMode';
+  const COLLAPSED_KEY = 'boatadmin.collapsedCards';
+  const minimalBtn = document.getElementById('compactModeBtn');
+  const minimalIcon = minimalBtn?.querySelector('i');
+
+  function getCollapsedIds() {
+    try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]'); } catch { return []; }
+  }
+  function saveCollapsedIds(ids) {
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(ids)); } catch { /* non-fatal */ }
+  }
+
+  // Inject a collapse button into every dashboard card header.
+  const cards = Array.from(document.querySelectorAll('.dashboard-card[data-card-id]'));
+  cards.forEach((card) => {
+    const header = card.querySelector('.card-header');
+    if (!header || header.querySelector('.card-collapse-btn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card-collapse-btn';
+    btn.setAttribute('aria-label', 'Collapse section');
+    btn.setAttribute('aria-expanded', 'true');
+    btn.innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
+    btn.addEventListener('click', () => {
+      const collapsed = card.classList.toggle('collapsed');
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      const ids = getCollapsedIds().filter((id) => id !== card.dataset.cardId);
+      if (collapsed) ids.push(card.dataset.cardId);
+      saveCollapsedIds(ids);
+    });
+    header.appendChild(btn);
+  });
+
+  // Restore collapsed state.
+  const savedCollapsed = getCollapsedIds();
+  if (savedCollapsed.length > 0) {
+    cards.forEach((card) => {
+      if (!savedCollapsed.includes(card.dataset.cardId)) return;
+      card.classList.add('collapsed');
+      const btn = card.querySelector('.card-collapse-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  // Minimal mode keeps only the essentials: a slim stats strip and the
+  // full-width Live Boat Projects list. Everything else is hidden.
+  function applyMinimal(on) {
+    document.body.classList.toggle('minimal-mode', on);
+    if (minimalBtn) {
+      minimalBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      minimalBtn.title = on ? 'Show full dashboard' : 'Show minimal view';
+    }
+    if (minimalIcon) {
+      minimalIcon.classList.toggle('fa-compress', !on);
+      minimalIcon.classList.toggle('fa-expand', on);
+    }
+  }
+  applyMinimal(localStorage.getItem(MINIMAL_KEY) === '1');
+  minimalBtn?.addEventListener('click', () => {
+    const on = !document.body.classList.contains('minimal-mode');
+    applyMinimal(on);
+    try { localStorage.setItem(MINIMAL_KEY, on ? '1' : '0'); } catch { /* non-fatal */ }
+  });
+})();
 
 })();

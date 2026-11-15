@@ -1,6 +1,7 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setDoorColor, rotateThree, zoomThree, resetThree, isThreeAutoRotating, setAutoRotateListener, captureThreePreview } from "./boat3d.js";
+import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions } from "./boat3d.js";
+import { createColorWheel } from "./colorWheel.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
 // previews are allowed (preview mode is intentional for unplaced boats).
@@ -26,20 +27,33 @@ import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailC
     } catch (e) { /* non-fatal */ }
   })();
 
-const canvas = document.getElementById('boatCanvas');
-const ctx = canvas.getContext('2d');
-
 // Default boat colors shown before the customer picks anything.
 const DEFAULT_BODY_HEX = '#ffffff';
 const DEFAULT_LOWER_HULL_HEX = '#2563eb';
 const DEFAULT_RAIL_HEX = '#F0F0F0';
+const DEFAULT_ROOF_HEX = '#D9DDE0';
+const DEFAULT_FLOOR_HEX = '#8B7355';
 
-let rotationAngle = 0;
-let zoomLevel = 1;
-let currentView = 'exterior';
+// The 7 shared primary presets rendered in every color section. Anything
+// picked from the custom wheel (or any non-preset hex) is charged like a
+// non-default preset.
+const PRESET_COLORS = [
+  { name: 'White', hex: '#ffffff' },
+  { name: 'Black', hex: '#111827' },
+  { name: 'Red', hex: '#dc2626' },
+  { name: 'Blue', hex: '#2563eb' },
+  { name: 'Yellow', hex: '#eab308' },
+  { name: 'Green', hex: '#166534' },
+  { name: 'Gray', hex: '#9ca3af' },
+];
+
+// Flat fee for a custom wheel color in sections that are not covered by
+// boat-type paint pricing (Roof / Floor / Rail).
+const CUSTOM_SECTION_PAINT_PRICE = 8000;
+
 let hullColor = DEFAULT_BODY_HEX;
-let deckColor = '#8B7355';
-let roofColor = '#D9DDE0';
+let deckColor = DEFAULT_FLOOR_HEX;
+let roofColor = DEFAULT_ROOF_HEX;
 let lowerHullColor = DEFAULT_LOWER_HULL_HEX;
 let railColor = DEFAULT_RAIL_HEX;
 let colorPrice = 0;
@@ -53,31 +67,6 @@ function sameColor(a, b) {
   return String(a || '').toLowerCase() === String(b || '').toLowerCase();
 }
 
-function findColorByHex(items, hex) {
-  return (items || []).find(c => sameColor(c.metadata?.hex, hex)) || null;
-}
-
-function getDefaultBodyItem() {
-  return findColorByHex(inventoryItems.colors, DEFAULT_BODY_HEX)
-    || inventoryItems.colors.find(c => c.metadata?.isDefault)
-    || inventoryItems.colors[0]
-    || null;
-}
-
-function getDefaultLowerHullItem() {
-  return findColorByHex(inventoryItems.colors, DEFAULT_LOWER_HULL_HEX)
-    || inventoryItems.colors.find(c => c.metadata?.isDefault)
-    || inventoryItems.colors[0]
-    || null;
-}
-
-function getDefaultRailItem() {
-  return findColorByHex(inventoryItems.railColors, DEFAULT_RAIL_HEX)
-    || inventoryItems.railColors.find(c => c.metadata?.isDefault)
-    || inventoryItems.railColors[0]
-    || null;
-}
-
 function isDefaultBodyColor(hex) {
   return sameColor(hex, DEFAULT_BODY_HEX);
 }
@@ -88,6 +77,129 @@ function isDefaultLowerHullColor(hex) {
 
 function isDefaultRailColor(hex) {
   return sameColor(hex, DEFAULT_RAIL_HEX);
+}
+
+function isRoofDefault(hex) {
+  return sameColor(hex, DEFAULT_ROOF_HEX);
+}
+
+function isFloorDefault(hex) {
+  return sameColor(hex, DEFAULT_FLOOR_HEX);
+}
+
+function presetNameFor(hex) {
+  const match = PRESET_COLORS.find(p => sameColor(p.hex, hex));
+  return match ? match.name : 'Custom Paint';
+}
+
+// Every section charges its non-default colors like a non-default preset;
+// the section default is always free. Arbitrary wheel colors are priced the
+// same way.
+function getSectionColorPrice(section, hex) {
+  switch (section) {
+    case 'hull':
+      return isDefaultBodyColor(hex) ? 0 : getHullColorPricing();
+    case 'lower-hull':
+      return isDefaultLowerHullColor(hex) ? 0 : getHullColorPricing();
+    case 'roof':
+      return isRoofDefault(hex) ? 0 : CUSTOM_SECTION_PAINT_PRICE;
+    case 'floor':
+      return isFloorDefault(hex) ? 0 : CUSTOM_SECTION_PAINT_PRICE;
+    case 'rail':
+      return isDefaultRailColor(hex) ? 0 : CUSTOM_SECTION_PAINT_PRICE;
+    default:
+      return 0;
+  }
+}
+
+// Registry describing the five color sections; shared by the preset swatch
+// builder, the custom wheels and the revision-mode restore path.
+const COLOR_SECTIONS = [
+  { key: 'hull', containerSelector: '.colors.hull-colors', getHex: () => hullColor, setHex: (v) => { hullColor = v; }, defaultHex: DEFAULT_BODY_HEX, apply3D: (v) => { if (typeof setBodyColor === 'function') setBodyColor(v); } },
+  { key: 'roof', containerSelector: '.colors.roof-colors', getHex: () => roofColor, setHex: (v) => { roofColor = v; }, defaultHex: DEFAULT_ROOF_HEX, apply3D: (v) => { if (typeof setRoofColor === 'function') setRoofColor(v); } },
+  { key: 'floor', containerSelector: '.colors.floor-colors', getHex: () => deckColor, setHex: (v) => { deckColor = v; }, defaultHex: DEFAULT_FLOOR_HEX, apply3D: (v) => { if (typeof setFloorColor === 'function') setFloorColor(v); else setDeckColor(v); } },
+  { key: 'lower-hull', containerSelector: '.colors.lower-hull-colors', getHex: () => lowerHullColor, setHex: (v) => { lowerHullColor = v; }, defaultHex: DEFAULT_LOWER_HULL_HEX, apply3D: (v) => { if (typeof setLowerHullColor === 'function') setLowerHullColor(v); } },
+  { key: 'rail', containerSelector: '.colors.rail-colors', getHex: () => railColor, setHex: (v) => { railColor = v; }, defaultHex: DEFAULT_RAIL_HEX, apply3D: (v) => { if (typeof setRailColor === 'function') setRailColor(v); } },
+];
+
+function sectionByKey(key) {
+  return COLOR_SECTIONS.find(s => s.key === key) || null;
+}
+
+const wheelControls = {};
+
+function scheduleColorRefresh() {
+  if (scheduleColorRefresh.queued) return;
+  scheduleColorRefresh.queued = true;
+  requestAnimationFrame(() => {
+    scheduleColorRefresh.queued = false;
+    refreshSummary(); // refreshSummary() also recomputes the summary prices
+  });
+}
+
+// Single entry point for both preset swatches and wheel picks.
+function applySectionColor(key, hex, { fromWheel = false } = {}) {
+  const section = sectionByKey(key);
+  if (!section) return;
+  section.setHex(hex);
+  section.apply3D(hex);
+  const container = document.querySelector(section.containerSelector);
+  let matchedPreset = false;
+  if (container) {
+    container.querySelectorAll('.color').forEach(el => {
+      const on = sameColor(el.dataset.color, hex);
+      el.classList.toggle('active', on);
+      if (on) matchedPreset = true;
+    });
+  }
+  const toggle = document.querySelector(`.wheel-toggle[data-wheel="${key}"]`);
+  if (toggle) toggle.classList.toggle('active', !matchedPreset);
+  const wheel = wheelControls[key];
+  if (wheel && !fromWheel) wheel.setHex(hex);
+  scheduleColorRefresh();
+}
+
+function buildPresetSwatches(section, activeHex) {
+  const container = document.querySelector(section.containerSelector);
+  if (!container) return;
+  const active = (hex) => sameColor(hex, activeHex);
+  const defaultIsPreset = PRESET_COLORS.some(p => sameColor(p.hex, section.defaultHex));
+  let html = '';
+  if (!defaultIsPreset) {
+    html += `<div class="color default${active(section.defaultHex) ? ' active' : ''}" data-color="${section.defaultHex}" data-default="true" style="background:${section.defaultHex}" title="Default"></div>`;
+  }
+  html += PRESET_COLORS.map(p => {
+    const isDef = sameColor(p.hex, section.defaultHex);
+    return `<div class="color${isDef ? ' default' : ''}${active(p.hex) ? ' active' : ''}" data-color="${p.hex}" data-name="${p.name}" data-default="${isDef ? 'true' : 'false'}" style="background:${p.hex}" title="${p.name}"></div>`;
+  }).join('');
+  container.innerHTML = html;
+  container.querySelectorAll('.color').forEach(el => {
+    el.addEventListener('click', () => applySectionColor(section.key, el.dataset.color));
+  });
+}
+
+function toggleWheelPanel(key) {
+  const panel = document.getElementById('wheelPanel-' + key);
+  const toggle = document.querySelector(`.wheel-toggle[data-wheel="${key}"]`);
+  const section = sectionByKey(key);
+  if (!panel || !toggle || !section) return;
+  const willOpen = panel.hidden;
+  panel.hidden = !willOpen;
+  toggle.classList.toggle('open', willOpen);
+  toggle.setAttribute('aria-expanded', String(willOpen));
+  if (willOpen && !wheelControls[key]) {
+    wheelControls[key] = createColorWheel(panel, {
+      initialHex: section.getHex(),
+      size: 170,
+      onChange: (hex) => applySectionColor(key, hex, { fromWheel: true }),
+    });
+  }
+}
+
+function setupWheelToggles() {
+  document.querySelectorAll('.wheel-toggle').forEach(btn => {
+    btn.addEventListener('click', () => toggleWheelPanel(btn.dataset.wheel));
+  });
 }
 
 const HULL_COLOR_PRICING = {
@@ -378,36 +490,6 @@ const CUSTOMIZATION_SEED = [
   { name: 'Titanium Rail', category: 'RailColor', stock: 99, price: 18000, metadata: { hex: '#878681', colorType: 'rail', optionType: 'railColor' } }
 ];
 
-function buildColorSwatches(container, items, defaultItem, activeHex, onPick) {
-  if (!container || !items || items.length === 0) return null;
-  const def = defaultItem || items.find(i => i.metadata?.isDefault) || items[0];
-  const others = items.filter(i => i !== def);
-  const isActive = (hex) => (activeHex || '').toLowerCase() === String(hex || '').toLowerCase();
-  let activeAssigned = false;
-  let html = '';
-  if (def) {
-    const hex = def.metadata?.hex || '#111827';
-    const active = isActive(hex);
-    if (active) activeAssigned = true;
-    html += `<div class="color default${active ? ' active' : ''}" data-color="${hex}" data-id="${def.id}" data-price="${def.price || 0}" data-default="true" style="background:${hex}" title="${def.name}"></div>`;
-  }
-  html += others.map(c => {
-    const hex = c.metadata?.hex || '#2563eb';
-    const active = !activeAssigned && isActive(hex);
-    if (active) activeAssigned = true;
-    return `<div class="color${active ? ' active' : ''}" data-color="${hex}" data-id="${c.id}" data-price="${c.price || 0}" style="background:${hex}" title="${c.name}"></div>`;
-  }).join('');
-  container.innerHTML = html;
-  container.querySelectorAll('.color').forEach(el => {
-    el.addEventListener('click', () => {
-      container.querySelectorAll('.color').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
-      onPick(el.dataset.color, el);
-    });
-  });
-  return def;
-}
-
 async function loadOptions() {
   let { data } = await supabase.from("inventory").select("*");
   const cats = ['Engine', 'Seats', 'LED', 'Color', 'DeckColor', 'RailColor'];
@@ -489,7 +571,7 @@ async function loadOptions() {
   }
   engineBrand.addEventListener('change', () => {
     populateEngineHP(engineBrand.value);
-    drawBoat();
+    refreshSummary();
   });
 
   seatSelect.innerHTML = '<option value="0" data-capacity="0" data-id="" data-name="None">None</option>' +
@@ -504,75 +586,8 @@ async function loadOptions() {
       `<option value="${l.price}" data-id="${l.id}" data-name="${l.name}">${l.name}</option>`
     ).join('');
 
-  const colorContainer = document.querySelector('.colors.hull-colors');
-  if (colorContainer && inventoryItems.colors.length > 0) {
-    const defaultHullItem = getDefaultBodyItem();
-    hullColor = DEFAULT_BODY_HEX;
-    colorPrice = 0;
-    buildColorSwatches(colorContainer, inventoryItems.colors, defaultHullItem, hullColor, (hex, el) => {
-      hullColor = hex;
-      colorPrice = isDefaultBodyColor(hex) ? 0 : getHullColorPricing();
-      const cname = el.title || '';
-      // Always drive the "body" slot. Using the legacy "hull" slot here would
-      // lose to the default body color applied in loadOptions(), because both
-      // slots paint the same material and "body" is applied last.
-      if (/door/i.test(cname)) {
-        if (typeof setDoorColor === 'function') setDoorColor(hullColor);
-      } else {
-        if (typeof setBodyColor === 'function') setBodyColor(hullColor);
-      }
-      drawBoat();
-    });
-  }
-
-  const defaultDeckItem = inventoryItems.deckColors.find(c => c.metadata?.isDefault);
-  const defaultRoofItem = inventoryItems.deckColors.find(c => /roof/i.test(c.name || '')) || defaultDeckItem;
-
-  const roofColorContainer = document.querySelector('.colors.roof-colors');
-  if (roofColorContainer && inventoryItems.deckColors.length > 0) {
-    roofColor = defaultRoofItem?.metadata?.hex || '#D9DDE0';
-    buildColorSwatches(roofColorContainer, inventoryItems.deckColors, defaultRoofItem, roofColor, (hex) => {
-      roofColor = hex;
-      if (typeof setRoofColor === 'function') setRoofColor(roofColor);
-      drawBoat();
-    });
-  }
-
-  const floorColorContainer = document.querySelector('.colors.floor-colors');
-  if (floorColorContainer && inventoryItems.deckColors.length > 0) {
-    deckColor = defaultDeckItem?.metadata?.hex || '#8B7355';
-    buildColorSwatches(floorColorContainer, inventoryItems.deckColors, defaultDeckItem, deckColor, (hex) => {
-      deckColor = hex;
-      if (typeof setFloorColor === 'function') setFloorColor(deckColor);
-      else setDeckColor(deckColor);
-      drawBoat();
-    });
-  }
-
-  const lowerHullContainer = document.querySelector('.colors.lower-hull-colors');
-  if (lowerHullContainer && inventoryItems.colors.length > 0) {
-    const defaultLowerHullItem = getDefaultLowerHullItem();
-    lowerHullColor = DEFAULT_LOWER_HULL_HEX;
-    lowerHullColorPrice = 0;
-    buildColorSwatches(lowerHullContainer, inventoryItems.colors, defaultLowerHullItem, lowerHullColor, (hex, el) => {
-      lowerHullColor = hex;
-      lowerHullColorPrice = isDefaultLowerHullColor(hex) ? 0 : getHullColorPricing();
-      if (typeof setLowerHullColor === 'function') setLowerHullColor(lowerHullColor);
-      drawBoat();
-    });
-  }
-
-  const railColorContainer = document.querySelector('.colors.rail-colors');
-  if (railColorContainer && inventoryItems.railColors.length > 0) {
-    const defaultRailItem = getDefaultRailItem();
-    railColor = DEFAULT_RAIL_HEX;
-    railColorPrice = 0;
-    buildColorSwatches(railColorContainer, inventoryItems.railColors, defaultRailItem, railColor, (hex) => {
-      railColor = hex;
-      setRailColor(railColor);
-      drawBoat();
-    });
-  }
+  // Color sections (7 primary presets + per-section HSV wheel) are built at
+  // module init and do not depend on the inventory fetch.
 
   // Keep the 3D view in sync with the default colors as soon as the options
   // load. Skip this in revision mode because loadRevisionOrder() applies the
@@ -585,26 +600,31 @@ async function loadOptions() {
     if (typeof setRailColor === 'function') setRailColor(railColor);
   }
 
-  drawBoat();
+  refreshSummary();
 }
 
-function resizeCanvas() {
-  const wrapper = canvas.parentElement;
-  const rect = wrapper.getBoundingClientRect();
-  canvas.width = rect.width * window.devicePixelRatio;
-  canvas.height = rect.height * window.devicePixelRatio;
-  canvas.style.width = rect.width + 'px';
-  canvas.style.height = rect.height + 'px';
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  drawBoat();
+// Dimension factors relative to the designed boat. Used both to stretch
+// the 3D model and to keep the submitted preview consistent with what the
+// customer configured.
+function getDimensionFactors() {
+  const specs = getBoatSpecs(getDraftBoatName());
+  const refLen = parseSpecMeters(specs?.length) || 10;
+  const refBeam = parseSpecMeters(specs?.breadth) || 2.8;
+  const len = parseFloat(lengthRange.value);
+  const wid = parseFloat(widthRange.value);
+  const clamp = (v) => Math.min(1.2, Math.max(0.8, v));
+  return {
+    lengthFactor: clamp(len / refLen),
+    beamFactor: clamp(wid / refBeam),
+  };
 }
 
-function drawBoat() {
-  const w = canvas.width / window.devicePixelRatio;
-  const h = canvas.height / window.devicePixelRatio;
-  ctx.clearRect(0, 0, w, h);
+function applyDimensionsTo3D() {
+  const { lengthFactor, beamFactor } = getDimensionFactors();
+  if (typeof setDimensions === 'function') setDimensions(lengthFactor, beamFactor);
+}
 
+function refreshSummary() {
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
   const maxCap = getFitCapacity(len, wid);
@@ -613,487 +633,8 @@ function drawBoat() {
   const seatOpt = seatSelect.selectedOptions[0];
   const seats = parseInt(seatOpt?.dataset?.capacity || 8);
   const ledVal = parseInt(ledSelect.value);
-
-  ctx.save();
-  const cx = w / 2;
-  const cy = h / 2;
-  ctx.translate(cx, cy);
-  ctx.scale(zoomLevel, zoomLevel);
-  ctx.rotate(rotationAngle);
-
-  const boatLen = len * 15;
-  const boatWid = wid * 15;
-
-  drawWater(boatLen, boatWid);
-  if (currentView === 'exterior') drawExterior(boatLen, boatWid);
-  else if (currentView === 'interior') drawInterior(boatLen, boatWid);
-  else if (currentView === 'top') drawTopView(boatLen, boatWid);
-  else if (currentView === 'rear') drawRearView(boatLen, boatWid);
-  else if (currentView === 'front') drawFrontView(boatLen, boatWid);
-  else if (currentView === 'perspective') drawPerspectiveView(boatLen, boatWid);
-
-  ctx.restore();
-
   updateSummary(len, wid, engineVal, seats, ledVal, maxCap);
-}
-
-function drawWater(boatLen, boatWid) {
-  const gradient = ctx.createRadialGradient(0, 40, 10, 0, 40, boatLen * 0.8);
-  gradient.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
-  gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.ellipse(0, boatLen * 0.3, boatLen * 0.7, boatLen * 0.2, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function drawExterior(boatLen, boatWid) {
-  const hl = boatLen / 2;
-  const hw = boatWid / 2;
-
-  ctx.save();
-
-  ctx.shadowColor = 'rgba(0,0,0,0.1)';
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 5;
-
-  ctx.fillStyle = hullColor;
-  ctx.strokeStyle = darkenColor(hullColor, 20);
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(-hl, hw * 0.3);
-  ctx.quadraticCurveTo(-hl * 0.6, hw * 1.2, 0, hw);
-  ctx.quadraticCurveTo(hl * 0.6, hw * 1.2, hl, hw * 0.3);
-  ctx.quadraticCurveTo(hl * 0.7, -hw * 0.3, hl * 0.3, -hw * 0.8);
-  ctx.quadraticCurveTo(0, -hw, -hl * 0.3, -hw * 0.8);
-  ctx.quadraticCurveTo(-hl * 0.7, -hw * 0.3, -hl, hw * 0.3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.shadowColor = 'transparent';
-
-  ctx.fillStyle = deckColor;
-  ctx.strokeStyle = darkenColor(deckColor, 15);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.15, -hw * 0.7);
-  ctx.quadraticCurveTo(0, -hw * 0.8, hl * 0.15, -hw * 0.7);
-  ctx.quadraticCurveTo(hl * 0.5, -hw * 0.2, hl * 0.7, hw * 0.1);
-  ctx.lineTo(-hl * 0.7, hw * 0.1);
-  ctx.quadraticCurveTo(-hl * 0.5, -hw * 0.2, -hl * 0.15, -hw * 0.7);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = darkenColor(hullColor, 40);
-  ctx.strokeStyle = darkenColor(hullColor, 60);
-  ctx.lineWidth = 1.5;
-
-  const cabW = boatWid * 0.5;
-  const cabH = boatLen * 0.18;
-  const cabX = -boatLen * 0.05;
-  const cabY = -boatWid * 0.3;
-
-  ctx.beginPath();
-  ctx.roundRect(cabX - cabW / 2, cabY - cabH, cabW, cabH, 4);
-  ctx.fill();
-  ctx.stroke();
-
-  const winGrad = ctx.createLinearGradient(cabX - cabW / 2 + 4, 0, cabX + cabW / 2 - 4, 0);
-  winGrad.addColorStop(0, 'rgba(147, 197, 253, 0.7)');
-  winGrad.addColorStop(0.5, 'rgba(191, 219, 254, 0.9)');
-  winGrad.addColorStop(1, 'rgba(147, 197, 253, 0.7)');
-
-  const winW = cabW * 0.7;
-  const winH = cabH * 0.55;
-  ctx.fillStyle = winGrad;
-  ctx.beginPath();
-  ctx.roundRect(cabX - winW / 2, cabY - cabH + 6, winW, winH, 3);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.strokeStyle = railColor;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.65, hw * 0.25);
-  ctx.lineTo(-hl * 0.65, -hw * 0.15);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(hl * 0.65, hw * 0.25);
-  ctx.lineTo(hl * 0.65, -hw * 0.15);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.65, -hw * 0.15);
-  ctx.quadraticCurveTo(0, -hw * 0.35, hl * 0.65, -hw * 0.15);
-  ctx.stroke();
-
-  const engX = boatLen * 0.42;
-  const engY = boatWid * 0.2;
-  ctx.fillStyle = '#374151';
-  ctx.beginPath();
-  ctx.ellipse(engX, engY, boatWid * 0.15, boatWid * 0.08, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#1f2937';
-  ctx.beginPath();
-  ctx.ellipse(engX + boatWid * 0.12, engY, boatWid * 0.05, boatWid * 0.04, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-function drawInterior(boatLen, boatWid) {
-  const hl = boatLen / 2;
-  const hw = boatWid / 2;
-
-  ctx.fillStyle = hullColor;
-  ctx.strokeStyle = darkenColor(hullColor, 30);
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(-hl, hw * 0.3);
-  ctx.quadraticCurveTo(-hl * 0.6, hw * 1.2, 0, hw);
-  ctx.quadraticCurveTo(hl * 0.6, hw * 1.2, hl, hw * 0.3);
-  ctx.quadraticCurveTo(hl * 0.7, -hw * 0.3, hl * 0.3, -hw * 0.8);
-  ctx.quadraticCurveTo(0, -hw, -hl * 0.3, -hw * 0.8);
-  ctx.quadraticCurveTo(-hl * 0.7, -hw * 0.3, -hl, hw * 0.3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = deckColor;
-  ctx.strokeStyle = darkenColor(deckColor, 10);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.05, -hw * 0.6);
-  ctx.quadraticCurveTo(0, -hw * 0.7, hl * 0.05, -hw * 0.6);
-  ctx.quadraticCurveTo(hl * 0.4, -hw * 0.1, hl * 0.55, hw * 0.15);
-  ctx.lineTo(-hl * 0.55, hw * 0.15);
-  ctx.quadraticCurveTo(-hl * 0.4, -hw * 0.1, -hl * 0.05, -hw * 0.6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  const seatOpt = seatSelect.selectedOptions[0];
-  const seats = parseInt(seatOpt?.dataset?.capacity || 8);
-  const seatRows = Math.min(seats, 15);
-  const rowCount = Math.ceil(seatRows / 2);
-  const seatSpacing = (boatLen * 0.6) / rowCount;
-
-  for (let i = 0; i < rowCount; i++) {
-    const sx = -boatLen * 0.2 + i * seatSpacing;
-    ctx.fillStyle = '#1f2937';
-    ctx.beginPath();
-    ctx.roundRect(sx - 6, -hw * 0.1, 12, 8, 3);
-    ctx.fill();
-    ctx.fillStyle = '#4b5563';
-    ctx.beginPath();
-    ctx.roundRect(sx - 6, hw * 0.05, 12, 8, 3);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = '#1f2937';
-  ctx.beginPath();
-  ctx.roundRect(-15, -10, 30, 16, 4);
-  ctx.fill();
-  ctx.fillStyle = '#4ade80';
-  ctx.beginPath();
-  ctx.arc(0, -2, 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '10px Poppins, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('INTERIOR LAYOUT', 0, hw * 0.7);
-}
-
-function drawTopView(boatLen, boatWid) {
-  const hl = boatLen / 2;
-  const hw = boatWid / 2;
-
-  ctx.fillStyle = hullColor;
-  ctx.strokeStyle = darkenColor(hullColor, 20);
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(-hl, 0);
-  ctx.quadraticCurveTo(-hl * 0.7, -hw, 0, -hw);
-  ctx.quadraticCurveTo(hl * 0.7, -hw, hl, 0);
-  ctx.quadraticCurveTo(hl * 0.7, hw, 0, hw);
-  ctx.quadraticCurveTo(-hl * 0.7, hw, -hl, 0);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = deckColor;
-  ctx.strokeStyle = darkenColor(deckColor, 15);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.roundRect(-boatLen * 0.08, -boatWid * 0.35, boatLen * 0.16, boatWid * 0.7, 4);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(147, 197, 253, 0.6)';
-  ctx.beginPath();
-  ctx.roundRect(-boatLen * 0.05, -boatWid * 0.28, boatLen * 0.1, boatWid * 0.56, 3);
-  ctx.fill();
-
-  ctx.fillStyle = '#374151';
-  ctx.beginPath();
-  ctx.ellipse(hl * 0.35, 0, boatWid * 0.1, boatWid * 0.06, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '10px Poppins, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('TOP VIEW', 0, boatWid * 0.85);
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '9px Poppins, sans-serif';
-  ctx.fillText('L: ' + lengthRange.value + 'm x W: ' + widthRange.value + 'm', 0, boatWid * 0.95);
-}
-
-function drawRearView(boatLen, boatWid) {
-  const hw = boatWid / 2;
-
-  ctx.fillStyle = hullColor;
-  ctx.strokeStyle = darkenColor(hullColor, 20);
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(-hw, boatWid * 0.3);
-  ctx.quadraticCurveTo(-hw * 0.7, boatWid * 0.1, -hw * 0.6, -boatWid * 0.2);
-  ctx.quadraticCurveTo(-hw * 0.3, -boatWid * 0.5, 0, -boatWid * 0.55);
-  ctx.quadraticCurveTo(hw * 0.3, -boatWid * 0.5, hw * 0.6, -boatWid * 0.2);
-  ctx.quadraticCurveTo(hw * 0.7, boatWid * 0.1, hw, boatWid * 0.3);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = darkenColor(hullColor, 40);
-  const cabW = boatWid * 0.45;
-  const cabH = boatWid * 0.25;
-  ctx.beginPath();
-  ctx.roundRect(-cabW / 2, -boatWid * 0.35 - cabH, cabW, cabH, 3);
-  ctx.fill();
-  ctx.strokeStyle = darkenColor(hullColor, 60);
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(147, 197, 253, 0.6)';
-  ctx.beginPath();
-  ctx.roundRect(-cabW / 2 + 3, -boatWid * 0.35 - cabH + 3, cabW - 6, cabH * 0.5, 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#374151';
-  const engSpacing = boatWid * 0.15;
-  ctx.beginPath();
-  ctx.ellipse(-engSpacing, boatWid * 0.1, boatWid * 0.06, boatWid * 0.04, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(engSpacing, boatWid * 0.1, boatWid * 0.06, boatWid * 0.04, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '10px Poppins, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('REAR VIEW', 0, boatWid * 0.65);
-}
-
-function drawFrontView(boatLen, boatWid) {
-  const hw = boatWid / 2;
-
-  ctx.fillStyle = hullColor;
-  ctx.strokeStyle = darkenColor(hullColor, 20);
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(-hw * 0.6, boatWid * 0.25);
-  ctx.quadraticCurveTo(-hw * 0.5, boatWid * 0.05, -hw * 0.45, -boatWid * 0.15);
-  ctx.quadraticCurveTo(-hw * 0.25, -boatWid * 0.45, 0, -boatWid * 0.5);
-  ctx.quadraticCurveTo(hw * 0.25, -boatWid * 0.45, hw * 0.45, -boatWid * 0.15);
-  ctx.quadraticCurveTo(hw * 0.5, boatWid * 0.05, hw * 0.6, boatWid * 0.25);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = deckColor;
-  ctx.strokeStyle = darkenColor(deckColor, 20);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-hw * 0.4, -boatWid * 0.1);
-  ctx.quadraticCurveTo(0, -boatWid * 0.35, hw * 0.4, -boatWid * 0.1);
-  ctx.lineTo(hw * 0.35, -boatWid * 0.05);
-  ctx.quadraticCurveTo(0, -boatWid * 0.25, -hw * 0.35, -boatWid * 0.05);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = darkenColor(hullColor, 40);
-  const cabW = boatWid * 0.45;
-  const cabH = boatWid * 0.22;
-  ctx.beginPath();
-  ctx.roundRect(-cabW / 2, -boatWid * 0.3 - cabH, cabW, cabH, 3);
-  ctx.fill();
-  ctx.strokeStyle = darkenColor(hullColor, 60);
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(147, 197, 253, 0.6)';
-  ctx.beginPath();
-  ctx.roundRect(-cabW / 2 + 3, -boatWid * 0.3 - cabH + 3, cabW - 6, cabH * 0.5, 2);
-  ctx.fill();
-
-  ctx.strokeStyle = railColor;
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(-hw * 0.55, boatWid * 0.2);
-  ctx.lineTo(-hw * 0.55, -boatWid * 0.05);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(hw * 0.55, boatWid * 0.2);
-  ctx.lineTo(hw * 0.55, -boatWid * 0.05);
-  ctx.stroke();
-
-  ctx.strokeStyle = railColor;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-hw * 0.55, -boatWid * 0.05);
-  ctx.quadraticCurveTo(0, -boatWid * 0.2, hw * 0.55, -boatWid * 0.05);
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '10px Poppins, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('FRONT VIEW', 0, boatWid * 0.65);
-}
-
-function drawPerspectiveView(boatLen, boatWid) {
-  const hl = boatLen / 2;
-  const hw = boatWid / 2;
-  const perspective = 0.35;
-
-  ctx.fillStyle = hullColor;
-  ctx.strokeStyle = darkenColor(hullColor, 20);
-  ctx.lineWidth = 2;
-
-  ctx.beginPath();
-  ctx.moveTo(-hl, hw * 0.35);
-  ctx.quadraticCurveTo(-hl * 0.65, hw * 1.1, 0, hw * 0.95);
-  ctx.quadraticCurveTo(hl * 0.65, hw * 1.1, hl, hw * 0.35);
-  ctx.quadraticCurveTo(hl * 0.75, -hw * 0.25, hl * 0.35, -hw * 0.75);
-  ctx.quadraticCurveTo(0, -hw * 0.9, -hl * 0.35, -hw * 0.75);
-  ctx.quadraticCurveTo(-hl * 0.75, -hw * 0.25, -hl, hw * 0.35);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = deckColor;
-  ctx.strokeStyle = darkenColor(deckColor, 15);
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.65, hw * 0.15);
-  ctx.quadraticCurveTo(-hl * 0.35, -hw * 0.55, 0, -hw * 0.65);
-  ctx.quadraticCurveTo(hl * 0.35, -hw * 0.55, hl * 0.65, hw * 0.15);
-  ctx.lineTo(hl * 0.55, hw * 0.2);
-  ctx.quadraticCurveTo(0, -hw * 0.45, -hl * 0.55, hw * 0.2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = darkenColor(hullColor, 40);
-  ctx.strokeStyle = darkenColor(hullColor, 60);
-  ctx.lineWidth = 1.5;
-  const cabW = boatWid * 0.42;
-  const cabH = boatLen * 0.16;
-  const cabX = -boatLen * 0.03;
-  const cabY = -boatWid * 0.28;
-  ctx.beginPath();
-  ctx.roundRect(cabX - cabW / 2, cabY - cabH, cabW, cabH, 4);
-  ctx.fill();
-  ctx.stroke();
-
-  const winGrad = ctx.createLinearGradient(cabX - cabW / 2 + 4, 0, cabX + cabW / 2 - 4, 0);
-  winGrad.addColorStop(0, 'rgba(147, 197, 253, 0.7)');
-  winGrad.addColorStop(0.5, 'rgba(191, 219, 254, 0.9)');
-  winGrad.addColorStop(1, 'rgba(147, 197, 253, 0.7)');
-  const winW = cabW * 0.7;
-  const winH = cabH * 0.5;
-  ctx.fillStyle = winGrad;
-  ctx.beginPath();
-  ctx.roundRect(cabX - winW / 2, cabY - cabH + 5, winW, winH, 3);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.strokeStyle = railColor;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.6, hw * 0.3);
-  ctx.lineTo(-hl * 0.6, -hw * 0.1);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(hl * 0.6, hw * 0.3);
-  ctx.lineTo(hl * 0.6, -hw * 0.1);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-hl * 0.6, -hw * 0.1);
-  ctx.quadraticCurveTo(0, -hw * 0.35, hl * 0.6, -hw * 0.1);
-  ctx.stroke();
-
-  const seatOpt = seatSelect.selectedOptions[0];
-  const seats = parseInt(seatOpt?.dataset?.capacity || 8);
-  const seatRows = Math.min(Math.ceil(seats / 2), 10);
-  const seatSpacing = (boatLen * 0.45) / seatRows;
-  for (let i = 0; i < seatRows; i++) {
-    const sx = -boatLen * 0.15 + i * seatSpacing;
-    ctx.fillStyle = '#1f2937';
-    ctx.beginPath();
-    ctx.roundRect(sx - 4, -hw * 0.05, 8, 6, 2);
-    ctx.fill();
-    ctx.fillStyle = '#4b5563';
-    ctx.beginPath();
-    ctx.roundRect(sx - 4, hw * 0.08, 8, 6, 2);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = '#374151';
-  const engX = hl * 0.4;
-  const engY = hw * 0.22;
-  ctx.beginPath();
-  ctx.ellipse(engX, engY, boatWid * 0.12, boatWid * 0.07, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#1f2937';
-  ctx.beginPath();
-  ctx.ellipse(engX + boatWid * 0.1, engY, boatWid * 0.04, boatWid * 0.03, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  const ledVal = parseInt(ledSelect.value);
-  if (ledVal > 0) {
-    const ledOption = ledSelect.selectedOptions[0];
-    const ledName = ledOption?.dataset?.name || '';
-    const isRGB = ledName.toLowerCase().includes('rgb');
-    const ledGlow = isRGB ? 'rgba(168, 85, 247, 0.3)' : 'rgba(59, 130, 246, 0.3)';
-    ctx.shadowColor = ledGlow;
-    ctx.shadowBlur = 15;
-    ctx.strokeStyle = isRGB ? 'rgba(168, 85, 247, 0.6)' : 'rgba(59, 130, 246, 0.6)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-hl * 0.58, hw * 0.28);
-    ctx.lineTo(hl * 0.58, hw * 0.28);
-    ctx.stroke();
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-  }
-
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.font = '10px Poppins, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('3D PERSPECTIVE', 0, boatWid * 0.85);
+  applyDimensionsTo3D();
 }
 
 function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
@@ -1110,13 +651,14 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   const seatCapacity = parseInt(seatOpt?.dataset?.capacity || seats);
   const seatTotal = parseInt(seatSelect.value) || 0;
   const perSeatPrice = seatCapacity > 0 ? Math.round(seatTotal / seatCapacity) : 0;
-  const deckOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor);
-  const roofOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor);
-  const railOpt = inventoryItems.railColors.find(c => c.metadata?.hex === railColor && !c.metadata?.isDefault) || inventoryItems.railColors.find(c => c.metadata?.hex === railColor);
-  deckColorPrice = deckOpt?.price || 0;
-  roofColorPrice = roofOpt?.price || 0;
-  railColorPrice = isDefaultRailColor(railColor) ? 0 : (railOpt?.price || 0);
-  lowerHullColorPrice = isDefaultLowerHullColor(lowerHullColor) ? 0 : getHullColorPricing();
+  // Prices come from the shared preset/wheel rules: each section default is
+  // free, every other color (including arbitrary wheel colors) is charged
+  // like a non-default preset.
+  colorPrice = getSectionColorPrice('hull', hullColor);
+  deckColorPrice = getSectionColorPrice('floor', deckColor);
+  roofColorPrice = getSectionColorPrice('roof', roofColor);
+  railColorPrice = getSectionColorPrice('rail', railColor);
+  lowerHullColorPrice = getSectionColorPrice('lower-hull', lowerHullColor);
   const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + deckColorPrice + roofColorPrice + lowerHullColorPrice + railColorPrice;
 
   totalPrice.textContent = '₱' + total.toLocaleString();
@@ -1139,38 +681,34 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   if (ledPriceDisplay) ledPriceDisplay.textContent = '₱' + ledPrice.toLocaleString();
   const colorPriceDisplay = document.getElementById('colorPriceDisplay');
   if (colorPriceDisplay) {
-    const hullOptions = inventoryItems.colors.filter(c => c.metadata?.hex === hullColor);
-    const hullOption = hullOptions.find(c => !c.metadata?.isDefault) || hullOptions[0];
-    colorPriceDisplay.textContent = hullOption ? hullOption.name + (hullOption.price > 0 ? ' ₱' + hullOption.price.toLocaleString() : '') : 'Default';
+    colorPriceDisplay.textContent = isDefaultBodyColor(hullColor)
+      ? 'Default'
+      : presetNameFor(hullColor) + (colorPrice > 0 ? ' ₱' + colorPrice.toLocaleString() : '');
   }
 
   const roofColorPriceDisplay = document.getElementById('roofColorPriceDisplay');
   if (roofColorPriceDisplay) {
-    const roofOptions = inventoryItems.deckColors.filter(c => c.metadata?.hex === roofColor);
-    const roofOption = roofOptions.find(c => !c.metadata?.isDefault) || roofOptions[0];
-    roofColorPriceDisplay.textContent = roofOption ? roofOption.name + (roofOption.price > 0 ? ' ₱' + roofOption.price.toLocaleString() : '') : 'Default Roof';
+    roofColorPriceDisplay.textContent = isRoofDefault(roofColor)
+      ? 'Default Roof'
+      : presetNameFor(roofColor) + (roofColorPrice > 0 ? ' ₱' + roofColorPrice.toLocaleString() : '');
   }
   const floorColorPriceDisplay = document.getElementById('floorColorPriceDisplay');
   if (floorColorPriceDisplay) {
-    const floorOptions = inventoryItems.deckColors.filter(c => c.metadata?.hex === deckColor);
-    const floorOption = floorOptions.find(c => !c.metadata?.isDefault) || floorOptions[0];
-    floorColorPriceDisplay.textContent = floorOption ? floorOption.name + (floorOption.price > 0 ? ' ₱' + floorOption.price.toLocaleString() : '') : 'Default Floor';
+    floorColorPriceDisplay.textContent = isFloorDefault(deckColor)
+      ? 'Default Floor'
+      : presetNameFor(deckColor) + (deckColorPrice > 0 ? ' ₱' + deckColorPrice.toLocaleString() : '');
   }
   const lowerHullColorPriceDisplay = document.getElementById('lowerHullColorPriceDisplay');
   if (lowerHullColorPriceDisplay) {
-    const lowerHullOptions = inventoryItems.colors.filter(c => c.metadata?.hex === lowerHullColor);
-    const lowerHullOption = isDefaultLowerHullColor(lowerHullColor)
-      ? getDefaultLowerHullItem()
-      : (lowerHullOptions.find(c => !c.metadata?.isDefault) || lowerHullOptions[0]);
-    lowerHullColorPriceDisplay.textContent = lowerHullOption ? lowerHullOption.name + (lowerHullColorPrice > 0 ? ' ₱' + lowerHullColorPrice.toLocaleString() : '') : 'Default';
+    lowerHullColorPriceDisplay.textContent = isDefaultLowerHullColor(lowerHullColor)
+      ? 'Default'
+      : presetNameFor(lowerHullColor) + (lowerHullColorPrice > 0 ? ' ₱' + lowerHullColorPrice.toLocaleString() : '');
   }
   const railColorPriceDisplay = document.getElementById('railColorPriceDisplay');
   if (railColorPriceDisplay) {
-    const railOptions = inventoryItems.railColors.filter(c => c.metadata?.hex === railColor);
-    const railOption = isDefaultRailColor(railColor)
-      ? getDefaultRailItem()
-      : (railOptions.find(c => !c.metadata?.isDefault) || railOptions[0]);
-    railColorPriceDisplay.textContent = railOption ? railOption.name + (railColorPrice > 0 ? ' ₱' + railColorPrice.toLocaleString() : '') : 'Default Rail';
+    railColorPriceDisplay.textContent = isDefaultRailColor(railColor)
+      ? 'Default Rail'
+      : presetNameFor(railColor) + (railColorPrice > 0 ? ' ₱' + railColorPrice.toLocaleString() : '');
   }
 
   recommendedSeats.textContent = maxCap + ' Seats';
@@ -1214,29 +752,19 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   scoreCircle.textContent = score + '%';
 }
 
-function darkenColor(hex, amount) {
-  let r = parseInt(hex.slice(1, 3), 16);
-  let g = parseInt(hex.slice(3, 5), 16);
-  let b = parseInt(hex.slice(5, 7), 16);
-  r = Math.max(0, r - amount);
-  g = Math.max(0, g - amount);
-  b = Math.max(0, b - amount);
-  return '#' + r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0');
-}
-
 lengthRange.addEventListener('input', () => {
   lengthValue.textContent = parseFloat(lengthRange.value) + 'm';
-  drawBoat();
+  refreshSummary();
 });
 
 widthRange.addEventListener('input', () => {
   widthValue.textContent = parseFloat(widthRange.value) + 'm';
-  drawBoat();
+  refreshSummary();
 });
 
-engineHP.addEventListener('change', drawBoat);
-seatSelect.addEventListener('change', drawBoat);
-  ledSelect.addEventListener('change', drawBoat);
+engineHP.addEventListener('change', refreshSummary);
+seatSelect.addEventListener('change', refreshSummary);
+  ledSelect.addEventListener('change', refreshSummary);
   
   
 
@@ -1251,86 +779,30 @@ function updateThreePlayButton(rotating) {
 
 setAutoRotateListener(updateThreePlayButton);
 
-function isThreeViewActive() {
-  return currentView === 'perspective';
-}
-
 function toggleThreeRotation() {
   const rotating = rotateThree();
   updateThreePlayButton(rotating);
 }
 
 threePlayBtn?.addEventListener('click', () => {
-  if (currentView !== 'perspective') {
-    const threeViewBtn = Array.from(document.querySelectorAll('.view-buttons button'))
-      .find((b) => /3d view|perspective/i.test(b.textContent || ''));
-    threeViewBtn?.click();
-    return;
-  }
   toggleThreeRotation();
 });
 
 document.getElementById('rotateBtn')?.addEventListener('click', () => {
-  if (isThreeViewActive()) {
-    toggleThreeRotation();
-    return;
-  }
-  rotationAngle += Math.PI / 8;
-  drawBoat();
+  toggleThreeRotation();
 });
 
 document.getElementById('zoomInBtn')?.addEventListener('click', () => {
-  if (isThreeViewActive()) {
-    zoomThree(1);
-    return;
-  }
-  zoomLevel = Math.min(2, zoomLevel + 0.1);
-  drawBoat();
+  zoomThree(1);
 });
 
 document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
-  if (isThreeViewActive()) {
-    zoomThree(-1);
-    return;
-  }
-  zoomLevel = Math.max(0.3, zoomLevel - 0.1);
-  drawBoat();
+  zoomThree(-1);
 });
 
 document.getElementById('resetBtn')?.addEventListener('click', () => {
-  if (isThreeViewActive()) {
-    resetThree();
-    updateThreePlayButton(false);
-    return;
-  }
-  rotationAngle = 0;
-  zoomLevel = 1;
-  drawBoat();
-});
-
-document.querySelectorAll('.view-buttons button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.view-buttons button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const text = btn.textContent.trim().toLowerCase();
-    if (text === 'exterior') currentView = 'exterior';
-    else if (text === 'interior') currentView = 'interior';
-    else if (text === 'top view') currentView = 'top';
-    else if (text === 'rear view') currentView = 'rear';
-    else if (text === 'front view') currentView = 'front';
-    else if (text === '3d view' || text === 'perspective') currentView = 'perspective';
-
-    if (currentView === 'perspective') {
-      showThreeView(true);
-      if (threePlayBtn) threePlayBtn.style.display = 'block';
-      updateThreePlayButton(isThreeAutoRotating());
-    } else {
-      if (isThreeAutoRotating()) rotateThree();
-      showThreeView(false);
-      if (threePlayBtn) threePlayBtn.style.display = 'none';
-      drawBoat();
-    }
-  });
+  resetThree();
+  updateThreePlayButton(false);
 });
 
 document.querySelector('.reset-btn').addEventListener('click', () => {
@@ -1338,38 +810,27 @@ document.querySelector('.reset-btn').addEventListener('click', () => {
   applyDefaultEngineSelection();
   applyDefaultSeatSelection();
   ledSelect.value = '0';
-  rotationAngle = 0;
-  zoomLevel = 1;
+  resetThree();
+  updateThreePlayButton(false);
   hullColor = DEFAULT_BODY_HEX;
-  deckColor = '#8B7355';
-  roofColor = '#D9DDE0';
+  deckColor = DEFAULT_FLOOR_HEX;
+  roofColor = DEFAULT_ROOF_HEX;
   lowerHullColor = DEFAULT_LOWER_HULL_HEX;
   railColor = DEFAULT_RAIL_HEX;
-  colorPrice = 0;
-  roofColorPrice = 0;
-  lowerHullColorPrice = 0;
-  railColorPrice = 0;
-  document.querySelectorAll('.colors.hull-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultHull = document.querySelector('.colors.hull-colors .color.default');
-  if (defaultHull) defaultHull.classList.add('active');
-  document.querySelectorAll('.colors.roof-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultRoof = document.querySelector('.colors.roof-colors .color.default');
-  if (defaultRoof) defaultRoof.classList.add('active');
-  document.querySelectorAll('.colors.floor-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultFloor = document.querySelector('.colors.floor-colors .color.default');
-  if (defaultFloor) defaultFloor.classList.add('active');
-  document.querySelectorAll('.colors.lower-hull-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultLowerHull = document.querySelector('.colors.lower-hull-colors .color.default');
-  if (defaultLowerHull) defaultLowerHull.classList.add('active');
-  document.querySelectorAll('.colors.rail-colors .color').forEach(c => c.classList.remove('active'));
-  const defaultRail = document.querySelector('.colors.rail-colors .color.default');
-  if (defaultRail) defaultRail.classList.add('active');
-  if (typeof setBodyColor === 'function') setBodyColor(hullColor);
-  if (typeof setRoofColor === 'function') setRoofColor(roofColor);
-  if (typeof setFloorColor === 'function') setFloorColor(deckColor);
-  if (typeof setLowerHullColor === 'function') setLowerHullColor(lowerHullColor);
-  if (typeof setRailColor === 'function') setRailColor(railColor);
-  drawBoat();
+  COLOR_SECTIONS.forEach(section => {
+    const panel = document.getElementById('wheelPanel-' + section.key);
+    const toggle = document.querySelector(`.wheel-toggle[data-wheel="${section.key}"]`);
+    if (panel) panel.hidden = true;
+    if (toggle) {
+      toggle.classList.remove('active', 'open');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+    const wheel = wheelControls[section.key];
+    if (wheel) wheel.setHex(section.defaultHex);
+    section.apply3D(section.defaultHex);
+  });
+  updateColorPreview();
+  refreshSummary();
 });
 
 document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
@@ -1387,21 +848,22 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
   const extraArea = Math.max(0, customArea - stdArea);
   const extensionCost = Math.round(pricing.rate * extraArea / 1000) * 1000;
   const basePrice = originalPrice + extensionCost;
-  const qOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor);
-  const qRoofOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor);
-  const sOpt = inventoryItems.railColors.find(c => c.metadata?.hex === railColor && !c.metadata?.isDefault) || inventoryItems.railColors.find(c => c.metadata?.hex === railColor);
-  const qDp = qOpt?.price || 0;
-  const qRP = qRoofOpt?.price || 0;
-  const qRp = isDefaultRailColor(railColor) ? 0 : (sOpt?.price || 0);
-  const qLHp = isDefaultLowerHullColor(lowerHullColor) ? 0 : getHullColorPricing();
+  const qDp = getSectionColorPrice('floor', deckColor);
+  const qRP = getSectionColorPrice('roof', roofColor);
+  const qRp = getSectionColorPrice('rail', railColor);
+  const qLHp = getSectionColorPrice('lower-hull', lowerHullColor);
+  colorPrice = getSectionColorPrice('hull', hullColor);
   const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + qDp + qRP + qLHp + qRp;
 
   const engineBrandName = engineBrand.value || '';
   const engineHPText = engineHP.selectedOptions[0]?.textContent || '';
   const engineDisplayName = engineBrandName && engineHPText && engineHPText !== 'None' ? engineBrandName + ' ' + engineHPText : 'None';
 
-  const qHullOpt = inventoryItems.colors.find(c => c.metadata?.hex === hullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === hullColor);
-  const qLowerHullOpt = inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor);
+  const qHullName = isDefaultBodyColor(hullColor) ? 'Default' : presetNameFor(hullColor);
+  const qLowerHullName = isDefaultLowerHullColor(lowerHullColor) ? 'Default' : presetNameFor(lowerHullColor);
+  const qFloorName = isFloorDefault(deckColor) ? 'Default Floor' : presetNameFor(deckColor);
+  const qRoofName = isRoofDefault(roofColor) ? 'Default Roof' : presetNameFor(roofColor);
+  const qRailName = isDefaultRailColor(railColor) ? 'Default Rail' : presetNameFor(railColor);
 
   const items = [
     { name: 'Base Boat', amount: originalPrice }
@@ -1415,19 +877,19 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     { name: 'LED: ' + (ledSelect.selectedOptions[0]?.dataset?.name || ''), amount: ledPrice }
   );
   if (colorPrice > 0) {
-    items.push({ name: 'Hull Paint: ' + (qHullOpt?.name || 'Custom'), amount: colorPrice });
+    items.push({ name: 'Hull Paint: ' + qHullName, amount: colorPrice });
   }
   if (qDp > 0) {
-    items.push({ name: 'Floor Color: ' + (qOpt?.name || 'Custom'), amount: qDp });
+    items.push({ name: 'Floor Color: ' + qFloorName, amount: qDp });
   }
   if (qRP > 0) {
-    items.push({ name: 'Roof Color: ' + (qRoofOpt?.name || 'Custom'), amount: qRP });
+    items.push({ name: 'Roof Color: ' + qRoofName, amount: qRP });
   }
   if (qLHp > 0) {
-    items.push({ name: 'Lower Hull Color: ' + (qLowerHullOpt?.name || 'Custom'), amount: qLHp });
+    items.push({ name: 'Lower Hull Color: ' + qLowerHullName, amount: qLHp });
   }
   if (qRp > 0) {
-    items.push({ name: 'Rail Color: ' + (sOpt?.name || 'Custom'), amount: qRp });
+    items.push({ name: 'Rail Color: ' + qRailName, amount: qRp });
   }
 
   const config = {
@@ -1449,21 +911,21 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     ledName: ledSelect.selectedOptions[0]?.dataset?.name || '',
     color: hullColor,
     colorPrice: String(colorPrice),
-    hullColorName: qHullOpt?.name || 'Default',
+    hullColorName: qHullName,
     deckColor: deckColor,
     deckColorPrice: String(qDp),
-    deckColorName: qOpt?.name || 'Default Deck',
+    deckColorName: isFloorDefault(deckColor) ? 'Default Deck' : presetNameFor(deckColor),
     floorColor: deckColor,
-    floorColorName: qOpt?.name || 'Default Floor',
+    floorColorName: qFloorName,
     roofColor: roofColor,
     roofColorPrice: String(qRP),
-    roofColorName: qRoofOpt?.name || 'Default Roof',
+    roofColorName: qRoofName,
     lowerHullColor: lowerHullColor,
     lowerHullColorPrice: String(qLHp),
-    lowerHullColorName: qLowerHullOpt?.name || 'Default',
+    lowerHullColorName: qLowerHullName,
     railColor: railColor,
     railColorPrice: String(qRp),
-    railColorName: sOpt?.name || 'Default Rail',
+    railColorName: qRailName,
     totalPrice: '₱' + total.toLocaleString(),
     items: items,
     date: new Date().toISOString()
@@ -1539,30 +1001,25 @@ function updateWidthDisplay() {
   widthValue.textContent = parseFloat(widthRange.value) + 'm';
 }
 function updateColorPreview() {
-  document.querySelectorAll('.colors.hull-colors .color').forEach(c => c.classList.remove('active'));
-  const hullMatch = document.querySelector(`.colors.hull-colors .color[data-color="${hullColor}"]`);
-  if (hullMatch) hullMatch.classList.add('active');
-
-  document.querySelectorAll('.colors.roof-colors .color').forEach(c => c.classList.remove('active'));
-  const roofMatch = document.querySelector(`.colors.roof-colors .color[data-color="${roofColor}"]`);
-  if (roofMatch) roofMatch.classList.add('active');
-
-  document.querySelectorAll('.colors.floor-colors .color').forEach(c => c.classList.remove('active'));
-  const floorMatch = document.querySelector(`.colors.floor-colors .color[data-color="${deckColor}"]`);
-  if (floorMatch) floorMatch.classList.add('active');
-
-  document.querySelectorAll('.colors.lower-hull-colors .color').forEach(c => c.classList.remove('active'));
-  const lowerHullMatch = document.querySelector(`.colors.lower-hull-colors .color[data-color="${lowerHullColor}"]`);
-  if (lowerHullMatch) lowerHullMatch.classList.add('active');
-
-  document.querySelectorAll('.colors.rail-colors .color').forEach(c => c.classList.remove('active'));
-  const railMatch = document.querySelector(`.colors.rail-colors .color[data-color="${railColor}"]`);
-  if (railMatch) railMatch.classList.add('active');
+  COLOR_SECTIONS.forEach(section => {
+    const hex = section.getHex();
+    const container = document.querySelector(section.containerSelector);
+    let matchedPreset = false;
+    if (container) {
+      container.querySelectorAll('.color').forEach(c => {
+        const on = sameColor(c.dataset.color, hex);
+        c.classList.toggle('active', on);
+        if (on) matchedPreset = true;
+      });
+    }
+    // An arbitrary saved (e.g. wheel) color activates the section's Custom
+    // toggle instead of any preset tile.
+    const toggle = document.querySelector(`.wheel-toggle[data-wheel="${section.key}"]`);
+    if (toggle) toggle.classList.toggle('active', !matchedPreset);
+    const wheel = wheelControls[section.key];
+    if (wheel) wheel.setHex(hex);
+  });
 }
-function renderCanvas() {
-  drawBoat();
-}
-
 async function loadRevisionOrder(orderId) {
   const { data } = await handleDbError(
     supabase.from("boat_orders").select("*").eq("orderId", orderId).single(),
@@ -1608,18 +1065,13 @@ async function loadRevisionOrder(orderId) {
     if (lOpt) ledSelect.value = lOpt.value;
   }
   hullColor = cfg.color || DEFAULT_BODY_HEX;
-  deckColor = cfg.deckColor || cfg.floorColor || "#8B7355";
-  roofColor = cfg.roofColor || "#D9DDE0";
+  deckColor = cfg.deckColor || cfg.floorColor || DEFAULT_FLOOR_HEX;
+  roofColor = cfg.roofColor || DEFAULT_ROOF_HEX;
   lowerHullColor = cfg.lowerHullColor || DEFAULT_LOWER_HULL_HEX;
   railColor = cfg.railColor || DEFAULT_RAIL_HEX;
-  colorPrice = parseInt(cfg.colorPrice) || 0;
+  COLOR_SECTIONS.forEach(section => section.apply3D(section.getHex()));
   updateColorPreview();
-  if (typeof setBodyColor === 'function') setBodyColor(hullColor);
-  if (typeof setRoofColor === 'function') setRoofColor(roofColor);
-  if (typeof setFloorColor === 'function') setFloorColor(deckColor);
-  if (typeof setLowerHullColor === 'function') setLowerHullColor(lowerHullColor);
-  if (typeof setRailColor === 'function') setRailColor(railColor);
-  renderCanvas();
+  refreshSummary();
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -1662,21 +1114,22 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   const seatTotal = parseInt(seatSelect.value) || 0;
   const enginePrice = parseInt(engineHP.value);
   const ledPrice = parseInt(ledSelect.value);
-  const dOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === deckColor);
-  const rfOpt = inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor && !c.metadata?.isDefault) || inventoryItems.deckColors.find(c => c.metadata?.hex === roofColor);
-  const rOpt = inventoryItems.railColors.find(c => c.metadata?.hex === railColor && !c.metadata?.isDefault) || inventoryItems.railColors.find(c => c.metadata?.hex === railColor);
-  const dp = dOpt?.price || 0;
-  const rfp = rfOpt?.price || 0;
-  const rp = isDefaultRailColor(railColor) ? 0 : (rOpt?.price || 0);
-  const lhp = isDefaultLowerHullColor(lowerHullColor) ? 0 : getHullColorPricing();
+  const dp = getSectionColorPrice('floor', deckColor);
+  const rfp = getSectionColorPrice('roof', roofColor);
+  const rp = getSectionColorPrice('rail', railColor);
+  const lhp = getSectionColorPrice('lower-hull', lowerHullColor);
+  colorPrice = getSectionColorPrice('hull', hullColor);
   const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + dp + rfp + lhp + rp;
 
   const engineBrandName = engineBrand.value || '';
   const engineHPText = engineHP.selectedOptions[0]?.textContent || '';
   const engineDisplayName = engineBrandName && engineHPText && engineHPText !== 'None' ? engineBrandName + ' ' + engineHPText : 'None';
 
-  const hullOpt = inventoryItems.colors.find(c => c.metadata?.hex === hullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === hullColor);
-  const lowerHullOpt = inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor && !c.metadata?.isDefault) || inventoryItems.colors.find(c => c.metadata?.hex === lowerHullColor);
+  const hullName = isDefaultBodyColor(hullColor) ? 'Default' : presetNameFor(hullColor);
+  const lowerHullName = isDefaultLowerHullColor(lowerHullColor) ? 'Default' : presetNameFor(lowerHullColor);
+  const floorName = isFloorDefault(deckColor) ? 'Default Floor' : presetNameFor(deckColor);
+  const roofName = isRoofDefault(roofColor) ? 'Default Roof' : presetNameFor(roofColor);
+  const railName = isDefaultRailColor(railColor) ? 'Default Rail' : presetNameFor(railColor);
 
   const items = [
     { name: 'Base Boat', amount: originalPrice }
@@ -1690,23 +1143,24 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     { name: 'LED: ' + (ledSelect.selectedOptions[0]?.dataset?.name || ''), amount: ledPrice }
   );
   if (colorPrice > 0) {
-    items.push({ name: 'Hull Paint: ' + (hullOpt?.name || 'Custom'), amount: colorPrice });
+    items.push({ name: 'Hull Paint: ' + hullName, amount: colorPrice });
   }
   if (dp > 0) {
-    items.push({ name: 'Floor Color: ' + (dOpt?.name || 'Custom'), amount: dp });
+    items.push({ name: 'Floor Color: ' + floorName, amount: dp });
   }
   if (rfp > 0) {
-    items.push({ name: 'Roof Color: ' + (rfOpt?.name || 'Custom'), amount: rfp });
+    items.push({ name: 'Roof Color: ' + roofName, amount: rfp });
   }
   if (lhp > 0) {
-    items.push({ name: 'Lower Hull Color: ' + (lowerHullOpt?.name || 'Custom'), amount: lhp });
+    items.push({ name: 'Lower Hull Color: ' + lowerHullName, amount: lhp });
   }
   if (rp > 0) {
-    items.push({ name: 'Rail Color: ' + (rOpt?.name || 'Custom'), amount: rp });
+    items.push({ name: 'Rail Color: ' + railName, amount: rp });
   }
 
   // Prefer a 3D render for the saved preview so the admin dashboard shows
-  // the actual 3D boat. Fall back to the 2D drawing if WebGL fails.
+  // The saved preview is a 3D snapshot of the boat. If WebGL is unavailable
+  // the admin dashboard simply shows no preview image.
   let boatPreviewImage = '';
   try {
     boatPreviewImage = await captureThreePreview({
@@ -1718,24 +1172,9 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
       floor: deckColor,
       lowerHull: lowerHullColor,
       rail: railColor,
-    });
+    }, getDimensionFactors());
   } catch (e) {
     boatPreviewImage = '';
-  }
-
-  if (!boatPreviewImage) {
-    const savedView = currentView;
-    const savedRotation = rotationAngle;
-    const savedZoom = zoomLevel;
-    currentView = 'exterior';
-    rotationAngle = 0;
-    zoomLevel = 1;
-    drawBoat();
-    try { boatPreviewImage = canvas.toDataURL('image/png'); } catch (e) { boatPreviewImage = ''; }
-    currentView = savedView;
-    rotationAngle = savedRotation;
-    zoomLevel = savedZoom;
-    drawBoat();
   }
 
   const config = {
@@ -1755,21 +1194,21 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     ledName: ledSelect.selectedOptions[0]?.dataset?.name || '',
     color: hullColor,
     colorPrice: String(colorPrice),
-    hullColorName: hullOpt?.name || 'Default',
+    hullColorName: hullName,
     deckColor: deckColor,
     deckColorPrice: String(dp),
-    deckColorName: dOpt?.name || 'Default Deck',
+    deckColorName: isFloorDefault(deckColor) ? 'Default Deck' : presetNameFor(deckColor),
     floorColor: deckColor,
-    floorColorName: dOpt?.name || 'Default Floor',
+    floorColorName: floorName,
     roofColor: roofColor,
     roofColorPrice: String(rfp),
-    roofColorName: rfOpt?.name || 'Default Roof',
+    roofColorName: roofName,
     lowerHullColor: lowerHullColor,
     lowerHullColorPrice: String(lhp),
-    lowerHullColorName: lowerHullOpt?.name || 'Default',
+    lowerHullColorName: lowerHullName,
     railColor: railColor,
     railColorPrice: String(rp),
-    railColorName: rOpt?.name || 'Default Rail',
+    railColorName: railName,
     totalPrice: '₱' + total.toLocaleString(),
     items: items,
     originalPrice: String(originalPrice),
@@ -1871,26 +1310,19 @@ function loadBoatModelInfo() {
   }
 }
 
-window.addEventListener('resize', resizeCanvas);
 loadBoatModelInfo();
 
-ctx.__proto__.roundRect = function (x, y, w, h, r) {
-  if (r > w / 2) r = w / 2;
-  if (r > h / 2) r = h / 2;
-  this.moveTo(x + r, y);
-  this.lineTo(x + w - r, y);
-  this.quadraticCurveTo(x + w, y, x + w, y + r);
-  this.lineTo(x + w, y + h - r);
-  this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  this.lineTo(x + r, y + h);
-  this.quadraticCurveTo(x, y + h, x, y + h - r);
-  this.lineTo(x, y + r);
-  this.quadraticCurveTo(x, y, x + r, y);
-  return this;
-};
-
+// Build the color sections (7 primary presets + per-section HSV wheel)
+// before anything else so the color UI renders even if the inventory fetch
+// fails. Revision mode reapplies its saved colors afterwards.
+setupWheelToggles();
+COLOR_SECTIONS.forEach(section => {
+  buildPresetSwatches(section, section.getHex());
+});
+// The 3D viewer is the only preview; show it as soon as the module loads.
+showThreeView();
 applyBoatSpecDefaults();
-loadOptions().then(() => resizeCanvas()).catch(err => {
+loadOptions().then(() => refreshSummary()).catch(err => {
   console.error('loadOptions failed:', err);
-  resizeCanvas();
+  refreshSummary();
 });

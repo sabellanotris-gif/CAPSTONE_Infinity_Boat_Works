@@ -267,6 +267,92 @@ select{
     pointer-events:none;
 }
 
+/* Custom (wheel) color picker, one per color section */
+.wheel-toggle{
+    margin-top:10px;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:7px 16px;
+    font-family:'Poppins',sans-serif;
+    font-size:12px;
+    font-weight:600;
+    color:#475569;
+    background:#f8fafc;
+    border:1.5px solid #e2e8f0;
+    border-radius:999px;
+    cursor:pointer;
+    transition:0.2s;
+}
+
+.wheel-toggle:hover{
+    border-color:#2563eb;
+    color:#1f3760;
+    background:#eff6ff;
+}
+
+.wheel-toggle.active{
+    border-color:#2563eb;
+    color:#1f3760;
+    background:#eff6ff;
+    box-shadow:0 0 0 2px rgba(37,99,235,0.15);
+}
+
+.wheel-panel{
+    margin-top:10px;
+    padding:12px;
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    background:#f8fafc;
+    display:flex;
+    justify-content:center;
+}
+
+.wheel-panel[hidden]{
+    display:none;
+}
+
+.wheel-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+}
+
+.wheel-footer{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.wheel-chip{
+    width:26px;
+    height:26px;
+    border-radius:8px;
+    border:1px solid rgba(15,23,42,0.2);
+    background:#ffffff;
+    flex:0 0 auto;
+}
+
+.wheel-hex{
+    width:88px;
+    padding:6px 8px;
+    font-family:'Poppins',sans-serif;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.5px;
+    color:#1f3760;
+    background:#ffffff;
+    border:1.5px solid #e2e8f0;
+    border-radius:8px;
+    outline:none;
+    text-transform:uppercase;
+}
+
+.wheel-hex:focus{
+    border-color:#2563eb;
+}
+
 .white{
     background:#ffffff;
 }
@@ -407,62 +493,6 @@ select{
 
     box-shadow:
     0 12px 35px rgba(0,0,0,0.08);
-}
-
-/* =========================================================
-   THREE.JS CANVAS
-========================================================= */
-
-#boatCanvas{
-
-    width:100% !important;
-
-    height:100% !important;
-
-    display:block;
-}
-
-/* =========================================================
-   VIEW BUTTONS
-========================================================= */
-
-.view-buttons{
-
-    display:flex;
-
-    justify-content:center;
-
-    flex-wrap:wrap;
-
-    gap:10px;
-
-    margin-top:16px;
-}
-
-.view-buttons button{
-
-    border:none;
-
-    background:white;
-
-    padding:12px 18px;
-
-    border-radius:14px;
-
-    cursor:pointer;
-
-    font-weight:600;
-
-    font-size:13px;
-
-    transition:0.25s;
-}
-
-.view-buttons .active{
-
-    background:#2563eb;
-
-    color:white;
 }
 
 /* =========================================================

@@ -12,10 +12,22 @@ const newPasswordInput = document.getElementById("newPassword");
 const confirmPasswordInput = document.getElementById("confirmPassword");
 
 async function checkAuth() {
-  const auth = await window.requireRole(["customer", "user"]);
+  const auth = await window.requireRole(["customer", "user", "admin", "manager"]);
   if (!auth) return;
   currentUser = auth.session.user;
   sessionStorage.setItem("userId", currentUser.id);
+
+  // Send admins/managers back to their role's landing page on close.
+  const role = auth.profile?.role || sessionStorage.getItem("role") || "";
+  const closeBtn = document.getElementById("profileCloseBtn");
+  if (closeBtn) {
+    const target = role === "admin" ? "dashboard.html"
+      : role === "manager" ? "manager.html"
+      : role === "worker" ? "worker.html"
+      : "home.html";
+    closeBtn.setAttribute("onclick", `window.location.href='${target}'`);
+  }
+
   await loadProfile(currentUser.id);
 }
 

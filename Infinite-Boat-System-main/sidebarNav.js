@@ -45,6 +45,7 @@
       children: [
         { label: "Boat Progress", href: "dashprogress.html" },
         { label: "Workers", href: "dashworkers.html" },
+        { label: "Delivery", href: "delivery.html" },
         { label: "Inventory", href: "dashinventory.html", adminOnly: true }
       ]
     },
