@@ -2133,8 +2133,56 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    // Pulls notifications delivered by the server (e.g. payment reminders from
+    // the project manager) so they show up in the bell alongside local updates.
+    async function loadDbNotifications() {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return [];
+            const res = await fetch(API_BASE + "/notifications", {
+                headers: { Authorization: "Bearer " + token }
+            });
+            if (!res.ok) return [];
+            const rows = await res.json();
+            return (Array.isArray(rows) ? rows : []).map(n => ({
+                id: n.id,
+                msg: (n.title ? n.title + ": " : "") + (n.message || ""),
+                time: n.createdAt || new Date().toISOString(),
+                orderId: n.orderId || "",
+                fromDb: true,
+                read: !!n.read
+            }));
+        } catch (e) {
+            console.error("Failed to load notifications:", e);
+            return [];
+        }
+    }
+
+    async function markDbNotificationsRead() {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) return;
+            await fetch(API_BASE + "/notifications/read-all", {
+                method: "POST",
+                headers: { Authorization: "Bearer " + token }
+            });
+        } catch (e) {
+            console.error("Failed to mark notifications read:", e);
+        }
+    }
+
     const notifications = generateNotifications();
     renderNotifications(notifications);
+
+    loadDbNotifications().then(dbNotifications => {
+        if (!dbNotifications.length) return;
+        const merged = [...dbNotifications, ...notifications]
+            .sort((a, b) => new Date(b.time) - new Date(a.time))
+            .slice(0, 30);
+        renderNotifications(merged);
+    });
 
     const scrollToId = localStorage.getItem("scrollToOrderId");
     if (scrollToId) {
@@ -2165,6 +2213,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         bell.addEventListener("click", (e) => {
             e.preventDefault();
             localStorage.setItem("notifLastViewed", Date.now());
+            markDbNotificationsRead();
             const badge = document.getElementById("notifBadge");
             if (badge) badge.style.display = "none";
             dropdown.classList.toggle("show");
@@ -2178,6 +2227,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("markAllRead")?.addEventListener("click", () => {
         localStorage.removeItem("boatNotifications");
+        markDbNotificationsRead();
         renderNotifications([]);
         const badge = document.getElementById("notifBadge");
         if (badge) { badge.style.display = "none"; badge.textContent = "0"; }

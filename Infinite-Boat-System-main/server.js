@@ -219,10 +219,34 @@ app.post("/api/auth/me", authenticate, (req, res) => {
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { email, password, fullname, phone } = req.body;
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const password = String(req.body?.password || "");
+    const fullname = String(req.body?.fullname || "").trim();
+    let phone = String(req.body?.phone || "").replace(/\D/g, "");
+
+    // Accept the international form too, but always store 09XXXXXXXXX.
+    if (phone.length === 12 && phone.startsWith("63")) {
+      phone = "0" + phone.slice(2);
+    } else if (phone.length === 10 && phone.startsWith("9")) {
+      // Bare national form typed under a fixed +63 prefix.
+      phone = "0" + phone;
+    }
+
+    const emailPattern = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
+    const phonePattern = /^09\d{9}$/;
 
     if (!email || !password || !fullname) {
       return res.status(400).json({ error: "Missing required fields: email, password, fullname" });
+    }
+
+    // Client-side checks are only for UX — the real gate lives here so the
+    // validation cannot be bypassed with a crafted request.
+    if (email.length > 254 || email.includes("..") || !emailPattern.test(email)) {
+      return res.status(400).json({ error: "Please enter a valid email address." });
+    }
+
+    if (!phonePattern.test(phone)) {
+      return res.status(400).json({ error: "Please enter a valid 11-digit PH mobile number (09XXXXXXXXX) or its +63 form." });
     }
 
     if (password.length < 8) {
@@ -1135,6 +1159,11 @@ app.put("/api/orders/:orderId", authenticate, async (req, res) => {
     // dropped before the update reaches the database.
     const payload = trusted ? { ...updates } : pickCustomerOrderFields(updates);
 
+    // Payment method is fixed when the order is created and can no longer be
+    // changed by the customer afterwards (e.g. while revising a design).
+    // Admins/managers retain the ability to correct it for data-fix scenarios.
+    if (!trusted) delete payload.paymentMethod;
+
     const { data, error } = await supabase
       .from("boat_orders")
       .update({ ...payload, updatedAt: new Date().toISOString() })
@@ -1157,6 +1186,123 @@ app.delete("/api/orders/:orderId", authenticate, requireAdmin, async (req, res) 
 
     if (error) return res.status(500).json({ error: error.message });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============ PAYMENT REMINDERS ============ */
+
+// What the customer still owes, derived server-side so the amount cannot be
+// forged by a client. Mirrors the payment gate used when approving milestones.
+//   0 = downpayment (30%), 1 = mid-construction (40%), 2 = final (30%), 3 = done
+function getDuePaymentInfo(order) {
+  const price = parseFloat(String(order.boatPrice || "0").replace(/[^0-9.]/g, "")) || 0;
+  const remaining = Number(order.remainingBalance || 0) || 0;
+  const step = Number(order.paymentStep || 0);
+  const isFullPayment = String(order.paymentMethod || "").toLowerCase() === "full payment";
+  const gates = { 0: 0, 1: 40, 2: 75, 3: 100 };
+
+  let due = null;
+  if (isFullPayment) {
+    if (step === 0) due = { label: "Full Payment", amount: remaining || price };
+  } else if (step === 0) {
+    due = { label: "Downpayment", amount: Math.round(price * 0.30) };
+  } else if (step === 1) {
+    due = { label: "Mid-Construction Payment", amount: Math.round(price * 0.40) };
+  } else if (step === 2) {
+    due = { label: "Final Payment", amount: Math.round(price * 0.30) };
+  } else if (remaining > 0) {
+    due = { label: "Final Payment", amount: remaining };
+  }
+
+  return { step, gate: gates[step] ?? 0, price, remaining, isFullPayment, due };
+}
+
+// Manager/admin sends a payment reminder to the customer: in-app notification
+// + email, and records the last reminder on the order for audit/display.
+app.post("/api/orders/:orderId/payment-reminder", authenticate, requireAdminOrManager, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    const { data: order, error } = await adminDb
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    if (order.status === "Completed" || order.status === "Cancelled") {
+      return res.status(400).json({ error: "This order is no longer active" });
+    }
+
+    const info = getDuePaymentInfo(order);
+    if (!info.due || info.due.amount <= 0) {
+      return res.status(400).json({ error: "This order has no outstanding payment" });
+    }
+
+    let message = String((req.body && req.body.message) || "").trim().slice(0, 1000);
+    if (!message) {
+      const firstName = String(order.customerName || "Customer").split(" ")[0];
+      message = `Hi ${firstName}, our team is ready to proceed with the next milestone for ${order.boatName || "your boat"}, but the ${info.due.label} of ₱${info.due.amount.toLocaleString()} is still pending. Please settle the payment so we can continue the build. Thank you!`;
+    }
+
+    const sentAt = new Date().toISOString();
+    let inApp = false;
+    let email = false;
+
+    // In-app notification (delivered through the customer's notification bell).
+    if (order.userId) {
+      const { error: notifErr } = await adminDb.from("notifications").insert({
+        userId: order.userId,
+        title: "Payment Reminder",
+        message,
+        type: "payment_reminder",
+        orderId: order.orderId,
+      });
+      if (notifErr) console.error("[PAYMENT REMINDER] Notification insert failed:", notifErr.message);
+      else inApp = true;
+    }
+
+    // Email — respond with in-app success even if email delivery fails.
+    if (order.customerEmail) {
+      try {
+        const { subject, html } = EMAIL_TEMPLATES.payment_reminder({
+          ...order,
+          message,
+          requiredPayment: info.due.label,
+          amountDue: info.due.amount,
+        });
+        const result = await sendEmail({ to: order.customerEmail, subject, html });
+        email = !!(result && (result.success || result.simulated));
+      } catch (mailErr) {
+        console.error("[PAYMENT REMINDER] Email failed:", mailErr.message);
+      }
+    }
+
+    // Record the last reminder on the order (best-effort; ignore column-missing errors).
+    const { error: saveErr } = await adminDb
+      .from("boat_orders")
+      .update({
+        paymentReminder: {
+          sentAt,
+          message,
+          phase: info.due.label,
+          amount: info.due.amount,
+          by: req.user.id,
+        },
+      })
+      .eq("orderId", order.orderId);
+    if (saveErr) console.error("[PAYMENT REMINDER] Could not save reminder record:", saveErr.message);
+
+    res.json({
+      success: true,
+      sentAt,
+      inApp,
+      email,
+      phase: info.due.label,
+      amount: info.due.amount,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2110,6 +2256,25 @@ const EMAIL_TEMPLATES = {
           <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Amount</strong></td><td style="padding:8px;border:1px solid #ddd">₱${Number(data.amount || 0).toLocaleString()}</td></tr>
         </table>
         <p>Please resubmit your payment with the correct details. Contact us if you need assistance.</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+      </div>`
+  }),
+
+  payment_reminder: (data) => ({
+    subject: `Payment Reminder — ${data.orderId}`,
+    html: `
+      <div style="font-family:Arial;max-width:600px;margin:auto;padding:20px;border:1px solid #ddd;border-radius:8px">
+        <h2 style="color:#b45309;">Payment Reminder 🔔</h2>
+        <p>Hi <strong>${escHtml(data.customerName || "Valued Customer")}</strong>,</p>
+        <p>This is a friendly reminder that a payment is still pending on your order. The next build milestone can only proceed once this is settled.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0">
+          <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Order ID</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.orderId)}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Boat Model</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.boatName || "—")}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Payment Due</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.requiredPayment || data.phase || "—")}</td></tr>
+          <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Amount Due</strong></td><td style="padding:8px;border:1px solid #ddd;color:#b45309;font-weight:bold">₱${Number(data.amountDue || 0).toLocaleString()}</td></tr>
+        </table>
+        ${data.message ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin:16px 0;"><p style="margin:0;font-size:14px;color:#78350f;">${escHtml(data.message)}</p></div>` : ""}
+        <p><strong>Next Step:</strong> Log in to your account to complete the payment so the build team can continue.</p>
         <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
       </div>`
   }),

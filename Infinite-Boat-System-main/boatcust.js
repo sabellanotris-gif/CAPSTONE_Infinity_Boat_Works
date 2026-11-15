@@ -1487,6 +1487,28 @@ let revisionOrderId = null;
   }
 })();
 
+// Locks the payment-method radios to a saved method. Payment method is chosen
+// once (during the initial order flow) and can no longer be changed afterwards,
+// including during design revisions.
+function lockPaymentRadios(method, noteText) {
+  const radios = document.querySelectorAll('input[name="custPaymentMethod"]');
+  radios.forEach(r => {
+    r.disabled = true;
+    if (r.value === method) r.checked = true;
+  });
+  const labels = document.querySelectorAll('#custFullPayLabel, #custInstallLabel');
+  labels.forEach(l => { if (l) l.style.cursor = 'default'; });
+
+  const section = document.getElementById('custPaymentSection');
+  if (section && noteText && !section.querySelector('.payment-locked-note')) {
+    const note = document.createElement('p');
+    note.className = 'payment-locked-note';
+    note.style.cssText = 'margin:10px 0 0;font-size:11px;color:#64748b;';
+    note.innerHTML = '<i class="fa-solid fa-lock"></i> ' + noteText;
+    section.appendChild(note);
+  }
+}
+
 (function checkAccessControl() {
   if (revisionOrderId) return;
   let draft;
@@ -1504,15 +1526,7 @@ let revisionOrderId = null;
     if (modelEl) modelEl.textContent = 'Boat Preview';
   } else {
     const savedMethod = draft.paymentMethod;
-    if (savedMethod) {
-      const radios = document.querySelectorAll('input[name="custPaymentMethod"]');
-      radios.forEach(r => {
-        r.disabled = true;
-        if (r.value === savedMethod) r.checked = true;
-      });
-      const labels = document.querySelectorAll('#custFullPayLabel, #custInstallLabel');
-      labels.forEach(l => { if (l) l.style.cursor = 'default'; });
-    }
+    if (savedMethod) lockPaymentRadios(savedMethod);
   }
 })();
 
@@ -1556,15 +1570,21 @@ async function loadRevisionOrder(orderId) {
   );
   if (!data || !data.customConfig) return;
   const cfg = data.customConfig;
+  const savedPaymentMethod = data.paymentMethod || "Full Payment";
   const draft = {
     boatData: { name: data.boatName?.replace(" (Custom)", ""), image: data.boatImage, price: cfg.originalPrice || data.boatPrice },
     buildType: "custom",
+    paymentMethod: savedPaymentMethod,
     contractSchedule: data.contractSchedule,
     guidelineResponses: data.guidelineResponses || {},
     comments: data.guidelineComments || {}
   };
   localStorage.setItem("customBuildDraft", JSON.stringify(draft));
   localStorage.setItem("boatConfig", JSON.stringify(cfg));
+
+  // Payment method is locked for revisions — it was fixed when the order was
+  // first placed and must not change on a design revision.
+  lockPaymentRadios(savedPaymentMethod, "Payment method is locked for this revision.");
 
   await waitForOptionsReady();
 
@@ -1617,7 +1637,12 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   const isRevision = !!revisionOrderId;
   if (!draft || !draft.boatData) {
     if (!isRevision) {
-      alert('No custom build session found. Please start from the order page.');
+      await showToast({
+        title: "No build session found",
+        text: "Please start a custom build from the order page.",
+        variant: "warning",
+        duration: 1400,
+      });
       window.location.href = 'home.html';
       return;
     }
@@ -1779,7 +1804,11 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     sendEmailNotification({ type: "status_changed", recipient: ADMIN_EMAIL, data: { orderId: revisionOrderId, customerName, customerEmail, status: "Under Review", orderPhase: "Revision Submitted", progress: 0 } });
     localStorage.removeItem('customBuildDraft');
     localStorage.removeItem('boatConfig');
-    alert('Your revised design has been submitted for review.');
+    await showToast({
+      title: "Revision submitted",
+      text: "Your revised design is now under engineering review.",
+      duration: 1500,
+    });
     window.location.href = 'home.html';
     return;
   }
@@ -1822,7 +1851,11 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   localStorage.removeItem('customBuildDraft');
   localStorage.removeItem('boatConfig');
 
-  alert('Custom design submitted for engineering review! You will be notified once it has been evaluated.');
+  await showToast({
+    title: "Submitted for review",
+    text: "You will be notified once the design has been evaluated.",
+    duration: 1500,
+  });
   window.location.href = 'home.html';
 });
 

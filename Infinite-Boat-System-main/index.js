@@ -53,3 +53,52 @@ document.addEventListener('keydown', (e) => {
 
 showSlide(0);
 startAutoSlide();
+
+// ---- Sticky header background on scroll ----
+const siteHeader = document.querySelector('header');
+
+function updateHeaderState() {
+  if (!siteHeader) return;
+  siteHeader.classList.toggle('scrolled', window.scrollY > 24);
+}
+
+updateHeaderState();
+window.addEventListener('scroll', updateHeaderState, { passive: true });
+
+// ---- Mobile quick-link menu ----
+const navbar = document.querySelector('.navbar');
+const navToggle = document.querySelector('.nav-toggle');
+const navMenu = document.getElementById('primaryMenu');
+
+function closeNav() {
+  if (!navbar || !navToggle) return;
+  navbar.classList.remove('open');
+  navToggle.setAttribute('aria-expanded', 'false');
+  navToggle.setAttribute('aria-label', 'Open menu');
+  const icon = navToggle.querySelector('i');
+  if (icon) icon.className = 'fa-solid fa-bars';
+}
+
+if (navbar && navToggle) {
+  navToggle.addEventListener('click', () => {
+    const open = navbar.classList.toggle('open');
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    const icon = navToggle.querySelector('i');
+    if (icon) icon.className = open ? 'fa-solid fa-xmark' : 'fa-solid fa-bars';
+  });
+
+  if (navMenu) {
+    navMenu.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', closeNav);
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeNav();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!navbar.contains(e.target)) closeNav();
+  });
+}

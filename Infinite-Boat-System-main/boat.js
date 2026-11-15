@@ -14,6 +14,21 @@ import { supabase, landingForRole } from './supabase.js';
   } catch (e) { /* non-fatal */ }
 })();
 
+// Close button: signed-in customers go back to their dashboard, while guests
+// return to the landing page instead of hitting the login wall.
+const closeBtn = document.getElementById("boatCloseBtn");
+if (closeBtn) {
+  closeBtn.addEventListener("click", async () => {
+    closeBtn.disabled = true;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      window.location.href = session?.user ? "home.html" : "index.html";
+    } catch {
+      window.location.href = "index.html";
+    }
+  });
+}
+
 const boatNames = getAllBoatNames();
 
 const slider = document.querySelector('.boat-slider');

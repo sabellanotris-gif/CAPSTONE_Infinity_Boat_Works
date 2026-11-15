@@ -16,20 +16,6 @@ window.handleLogout = async function () {
 let allApprovals = [];
 let activeFilter = 'all';
 
-function showToast(msg, type = 'success') {
-    let container = document.querySelector('.toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'toast-container';
-        document.body.appendChild(container);
-    }
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = msg;
-    container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
-
 function parseAmount(val) {
     if (typeof val === 'number') return val;
     if (!val) return 0;

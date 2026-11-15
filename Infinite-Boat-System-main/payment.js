@@ -60,7 +60,12 @@ JSON.parse(
   if (!auth) return;
 
   if (!savedOrder || !savedOrder.orderId) {
-    alert("No order selected. Redirecting to home page.");
+    await showToast({
+      title: "No order selected",
+      text: "Redirecting you to the home page.",
+      variant: "warning",
+      duration: 1400,
+    });
     window.location.href = "home.html";
     return;
   }
@@ -72,7 +77,12 @@ JSON.parse(
     .single();
 
   if (!dbOrder) {
-    alert("Your order could not be found. It may have been removed or is no longer available. Redirecting to home page.");
+    await showToast({
+      title: "Order not found",
+      text: "It may have been removed. Redirecting you home.",
+      variant: "danger",
+      duration: 1400,
+    });
     localStorage.removeItem("currentOrder");
     window.location.href = "home.html";
     return;

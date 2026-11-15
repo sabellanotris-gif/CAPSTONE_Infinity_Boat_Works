@@ -182,7 +182,11 @@ async function updateUserProfile() {
     newPasswordInput.value = "";
     confirmPasswordInput.value = "";
 
-    alert("Profile Updated Successfully");
+    showToast({
+      title: "Profile updated",
+      text: "Your changes have been saved.",
+      duration: 900,
+    });
 
     setTimeout(() => {
       window.location.reload();

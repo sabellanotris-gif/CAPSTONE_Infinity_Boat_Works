@@ -354,7 +354,20 @@ window.formatScheduleDateTime = formatScheduleDateTime;
    TOAST NOTIFICATION
    ============================================= */
 
+const sharedShowToast =
+    typeof window !== "undefined" && typeof window.showToast === "function"
+        ? window.showToast.bind(window)
+        : null;
+
 export function showToast(message, type = "info") {
+    // When toast.js is on the page (every app page), use the shared dark-glass
+    // toast so all notifications look the same. Fall back to the old inline
+    // toast for any page that loads this module without toast.js.
+    if (sharedShowToast) {
+        const variantMap = { success: "success", error: "danger", warning: "warning", info: "info" };
+        return sharedShowToast({ title: String(message ?? ""), variant: variantMap[type] || "info" });
+    }
+
     const existing = document.querySelector(".rt-toast");
     if (existing) existing.remove();
     const toast = document.createElement("div");
@@ -381,7 +394,8 @@ export function showToast(message, type = "info") {
     setTimeout(() => { toast.style.transform = "translateY(20px)"; toast.style.opacity = "0"; setTimeout(() => toast.remove(), 300); }, 5000);
 }
 
-window.showToast = showToast;
+// Do not clobber toast.js's implementation when it already exists.
+if (!window.showToast) window.showToast = showToast;
 
 /* =============================================
    REALTIME NOTIFICATION SOUND

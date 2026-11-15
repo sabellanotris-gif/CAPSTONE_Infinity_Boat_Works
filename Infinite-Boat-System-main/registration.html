@@ -155,7 +155,8 @@ class="container">
         <!-- REGISTER FORM -->
 
         <form
-        id="registerForm">
+        id="registerForm"
+        novalidate>
 
 
 
@@ -184,7 +185,13 @@ class="container">
                 name="fullname"
                 placeholder="John Doe"
                 autocomplete="name"
+                aria-describedby="fullnameError"
                 required>
+
+                <p
+                id="fullnameError"
+                class="field-error"
+                aria-live="polite"></p>
 
             </div>
 
@@ -214,8 +221,20 @@ class="container">
                 id="email"
                 name="email"
                 placeholder="john.doe@example.com"
-autocomplete="email"
+                autocomplete="email"
+                inputmode="email"
+                autocapitalize="none"
+                spellcheck="false"
+                maxlength="254"
+                pattern="[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
+                title="Enter a valid email address, e.g. john.doe@example.com"
+                aria-describedby="emailError"
                 required>
+
+                <p
+                id="emailError"
+                class="field-error"
+                aria-live="polite"></p>
 
             </div>
 
@@ -241,13 +260,31 @@ autocomplete="email"
 
                 </label>
 
-                <input
-                type="tel"
-                id="phone"
-                name="phone"
-                placeholder="0917 123 4567"
-                autocomplete="tel"
-                required>
+                <div
+                class="phone-wrap">
+
+                    <span
+                    class="phone-prefix"
+                    aria-hidden="true">+63</span>
+
+                    <input
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    placeholder="929 892 3897"
+                    autocomplete="tel-national"
+                    inputmode="numeric"
+                    maxlength="16"
+                    title="Enter your 10-digit mobile number, e.g. 929 892 3897"
+                    aria-describedby="phoneError"
+                    required>
+
+                </div>
+
+                <p
+                id="phoneError"
+                class="field-error"
+                aria-live="polite"></p>
 
             </div>
 
@@ -272,13 +309,49 @@ autocomplete="email"
 
                 </label>
 
-                <input
-                type="password"
-                id="password"
-                name="password"
-                placeholder="••••••••"
-                autocomplete="new-password"
-                required>
+                <div
+                class="password-wrap">
+
+                    <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                    aria-describedby="passwordError passwordStrength"
+                    required>
+
+                    <button
+                    type="button"
+                    class="toggle-pass"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                    onclick="togglePassword('password', this)">
+
+                        <i
+                        class="fa-solid fa-eye"
+                        aria-hidden="true"></i>
+
+                    </button>
+
+                </div>
+
+                <p
+                id="passwordError"
+                class="field-error"
+                aria-live="polite"></p>
+
+                <div
+                id="passwordStrength"
+                class="strength">
+
+                    <div class="strength-track">
+                        <span class="strength-fill"></span>
+                    </div>
+
+                    <span class="strength-label"></span>
+
+                </div>
 
             </div>
 
@@ -303,13 +376,37 @@ autocomplete="email"
 
                 </label>
 
-                <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                placeholder="••••••••"
-                autocomplete="new-password"
-                required>
+                <div
+                class="password-wrap">
+
+                    <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="••••••••"
+                    autocomplete="new-password"
+                    aria-describedby="confirmPasswordError"
+                    required>
+
+                    <button
+                    type="button"
+                    class="toggle-pass"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                    onclick="togglePassword('confirmPassword', this)">
+
+                        <i
+                        class="fa-solid fa-eye"
+                        aria-hidden="true"></i>
+
+                    </button>
+
+                </div>
+
+                <p
+                id="confirmPasswordError"
+                class="field-error"
+                aria-live="polite"></p>
 
             </div>
 
@@ -322,24 +419,7 @@ autocomplete="email"
 
 
 
-            <!-- SHOW PASSWORD -->
-
-            <div
-            id="checkboxContainer"
-            class="checkbox">
-
-                <input
-                type="checkbox"
-                id="showPasswordCheckbox"
-                onclick="showPass()">
-
-                <span id="showPasswordText">
-
-                    Show Password
-
-                </span>
-
-            </div>
+            <!-- Password visibility is handled by the eye button in each password field. -->
 
 
 
@@ -388,7 +468,11 @@ autocomplete="email"
             id="signupBtn"
             class="signup-btn">
 
-                Sign Up
+                <span>Create Account</span>
+
+                <i
+                class="fa-solid fa-arrow-right"
+                aria-hidden="true"></i>
 
             </button>
 
@@ -604,8 +688,9 @@ autocomplete="email"
 
 <!-- SCRIPT -->
 
+<script src="toast.js"></script>
 <script type="module"
-src="registration.js"></script>
+src="registration.js?v=5"></script>
 
 </body>
 </html>

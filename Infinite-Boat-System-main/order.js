@@ -461,7 +461,11 @@ async function loadRescheduleOrder(orderId) {
         .select("*")
         .eq("orderId", orderId)
         .single();
-    if (error || !data) { alert("Order not found."); window.location.href = "home.html"; return; }
+    if (error || !data) {
+        await showToast({ title: "Order not found", variant: "danger", duration: 1400 });
+        window.location.href = "home.html";
+        return;
+    }
 
     boatData = {
         name: data.boatName.replace(" (Custom)", ""),
@@ -543,7 +547,11 @@ async function submitOrder() {
         if (error) { alert("Failed to reschedule: " + error.message); return; }
         sendEmailNotification({ type: "status_changed", recipient: customerEmail, data: { orderId: rescheduleOrderId, customerName, customerEmail, status: "Pending Signing", orderPhase: "Schedule Resubmitted", progress: 5 } });
         sendEmailNotification({ type: "status_changed", recipient: ADMIN_EMAIL, data: { orderId: rescheduleOrderId, customerName, customerEmail, status: "Pending Signing", orderPhase: "Schedule Resubmitted", progress: 5 } });
-        alert("Schedule resubmitted! Please wait for the contract signing appointment.");
+        await showToast({
+            title: "Schedule resubmitted",
+            text: "Please wait for the contract signing appointment.",
+            duration: 1500,
+        });
         window.location.href = "home.html";
         return;
     }
@@ -567,7 +575,11 @@ async function submitOrder() {
             if (error) { alert("Failed to finalize order: " + error.message); return; }
             localStorage.setItem("lastSubmittedOrder", JSON.stringify(finalizingOrder));
             localStorage.removeItem("finalizingCustomOrder");
-            alert("Custom design finalized! Please wait for the contract signing appointment.");
+            await showToast({
+                title: "Design finalized",
+                text: "Please wait for the contract signing appointment.",
+                duration: 1500,
+            });
             window.location.href = "home.html";
             return;
         }
@@ -627,7 +639,11 @@ async function submitOrder() {
     sendEmailNotification({ type: "order_created", recipient: order.customerEmail, data: order });
     sendEmailNotification({ type: "order_created", recipient: ADMIN_EMAIL, data: order });
 
-    alert("Order submitted successfully! Please wait for the contract signing appointment.");
+    await showToast({
+        title: "Order submitted",
+        text: "Please wait for the contract signing appointment.",
+        duration: 1500,
+    });
     window.location.href = "home.html";
 }
 

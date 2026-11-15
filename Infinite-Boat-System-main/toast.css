@@ -1,0 +1,206 @@
+/* =========================================================
+   SHARED TOAST — modern dark-glass notification
+   Used across the app (admin, manager, worker, customer).
+   toast.js creates the element and toggles .show.
+========================================================= */
+
+.app-toast
+{
+    position:fixed;
+
+    top:24px;
+    left:50%;
+
+    /* Above modals/overlays so alerts fired inside a dialog stay visible. */
+    z-index:2147483000;
+
+    pointer-events:none;
+
+    display:flex;
+    align-items:center;
+    gap:14px;
+
+    width:min(420px, calc(100vw - 32px));
+
+    padding:14px 18px 16px;
+
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:18px;
+
+    background:rgba(11,23,42,0.82);
+    color:#f8fafc;
+
+    box-shadow:0 18px 50px rgba(2,8,23,0.45);
+
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+
+    opacity:0;
+    visibility:hidden;
+    transform:translate(-50%, -18px) scale(0.96);
+
+    transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.22s ease;
+}
+
+.app-toast.show
+{
+    opacity:1;
+    visibility:visible;
+    transform:translate(-50%, 0) scale(1);
+}
+
+.app-toast .toast-icon
+{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    flex-shrink:0;
+
+    width:38px;
+    height:38px;
+
+    border-radius:12px;
+
+    background:linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+    color:#fff;
+
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px rgba(21,128,61,0.35);
+}
+
+.app-toast .toast-icon svg
+{
+    width:18px;
+    height:18px;
+
+    display:block;
+}
+
+.app-toast[data-variant="warning"] .toast-icon
+{
+    background:linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
+
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px rgba(180,83,9,0.35);
+}
+
+.app-toast[data-variant="danger"] .toast-icon
+{
+    background:linear-gradient(135deg, #f87171 0%, #b91c1c 100%);
+
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px rgba(185,28,28,0.35);
+}
+
+.app-toast[data-variant="info"] .toast-icon
+{
+    background:linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%);
+
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px rgba(29,78,216,0.35);
+}
+
+.app-toast .toast-copy
+{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+
+    min-width:0;
+}
+
+.app-toast .toast-title
+{
+    font-family:'Poppins', 'Segoe UI', Arial, sans-serif;
+
+    font-size:14px;
+    font-weight:600;
+    line-height:1.4;
+    letter-spacing:0.2px;
+
+    color:#fff;
+
+    word-break:break-word;
+}
+
+.app-toast .toast-text
+{
+    font-family:'Poppins', 'Segoe UI', Arial, sans-serif;
+
+    font-size:12px;
+    line-height:1.5;
+
+    color:rgba(226,232,240,0.72);
+
+    word-break:break-word;
+}
+
+.app-toast .toast-progress
+{
+    position:absolute;
+
+    left:18px;
+    right:18px;
+    bottom:7px;
+
+    height:3px;
+
+    border-radius:999px;
+
+    background:linear-gradient(90deg, #22c55e 0%, #86efac 100%);
+
+    transform-origin:left center;
+
+    animation:app-toast-progress linear forwards;
+}
+
+.app-toast[data-variant="warning"] .toast-progress
+{
+    background:linear-gradient(90deg, #f59e0b 0%, #fcd34d 100%);
+}
+
+.app-toast[data-variant="danger"] .toast-progress
+{
+    background:linear-gradient(90deg, #f87171 0%, #fca5a5 100%);
+}
+
+.app-toast[data-variant="info"] .toast-progress
+{
+    background:linear-gradient(90deg, #38bdf8 0%, #93c5fd 100%);
+}
+
+@keyframes app-toast-progress
+{
+    from
+    {
+        transform:scaleX(1);
+    }
+
+    to
+    {
+        transform:scaleX(0);
+    }
+}
+
+@media(max-width:520px)
+{
+    .app-toast
+    {
+        /* Clears the close (×) button on small screens. */
+        top:70px;
+
+        padding:12px 14px 14px;
+    }
+}
+
+@media(prefers-reduced-motion:reduce)
+{
+    .app-toast
+    {
+        transition:none;
+    }
+
+    .app-toast .toast-progress
+    {
+        animation:none;
+
+        transform:scaleX(0);
+    }
+}

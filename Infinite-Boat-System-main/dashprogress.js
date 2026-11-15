@@ -503,6 +503,171 @@ function getPaymentGate(paymentStep) {
   return gates[paymentStep] || 0;
 }
 
+// What the customer still owes on this order, mirroring the server-side gate.
+function getRequiredPaymentInfo(order) {
+  const price = parseFloat(String(order.boatPrice || "0").replace(/[^0-9.]/g, "")) || 0;
+  const remaining = Number(order.remainingBalance || 0) || 0;
+  const step = Number(order.paymentStep || 0);
+  const gate = getPaymentGate(step);
+  const isFullPayment = String(order.paymentMethod || "").toLowerCase() === "full payment";
+
+  let due = null;
+  if (isFullPayment) {
+    if (step === 0) due = { label: "Full Payment", amount: remaining || price };
+  } else if (step === 0) {
+    due = { label: "Downpayment", amount: Math.round(price * 0.30) };
+  } else if (step === 1) {
+    due = { label: "Mid-Construction Payment", amount: Math.round(price * 0.40) };
+  } else if (step === 2) {
+    due = { label: "Final Payment", amount: Math.round(price * 0.30) };
+  } else if (remaining > 0) {
+    due = { label: "Final Payment", amount: remaining };
+  }
+
+  return { price, remaining, step, gate, isFullPayment, due, isDue: !!due && due.amount > 0 };
+}
+
+function renderPaymentGateCard(order) {
+  const card = document.getElementById("paymentGateCard");
+  const body = document.getElementById("paymentGateBody");
+  const btn = document.getElementById("sendPaymentReminderBtn");
+  if (!card || !body) return;
+
+  const active = order && (order.status === "Approved" || order.status === "Completed");
+  const info = order ? getRequiredPaymentInfo(order) : null;
+
+  if (!active || !info || !info.isDue) {
+    card.style.display = "none";
+    return;
+  }
+
+  card.style.display = "block";
+  const nextGate = info.step >= 3 ? 100 : [40, 75, 100][info.step];
+  const reminder = order.paymentReminder;
+  const reminderHtml = reminder && reminder.sentAt
+    ? '<div style="font-size:11px;color:#64748b;margin-top:4px;"><i class="fa-solid fa-clock-rotate-left"></i> Last reminder sent ' + new Date(reminder.sentAt).toLocaleString() + '</div>'
+    : "";
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#475569;">
+      <span>Milestones unlocked</span><strong>up to ${info.gate}%</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#475569;">
+      <span>Unlocked after payment</span><strong>up to ${nextGate}%</strong>
+    </div>
+    <div style="margin-top:4px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">
+      <span style="font-size:11px;color:#92400e;font-weight:600;"><i class="fa-solid fa-circle-exclamation"></i> Due now</span>
+      <strong style="display:block;font-size:13px;color:#0f172a;margin-top:2px;">${escapeAttr(info.due.label)}</strong>
+      <strong style="display:block;font-size:16px;color:#d97706;">₱${info.due.amount.toLocaleString()}</strong>
+    </div>
+    ${reminderHtml}
+  `;
+
+  if (btn) btn.style.display = canEdit() ? "block" : "none";
+}
+
+function openPaymentReminderModal() {
+  if (!canEdit()) return;
+  const order = getSelectedOrder();
+  if (!order) return;
+  const info = getRequiredPaymentInfo(order);
+  if (!info.isDue) { showToast("This order has no outstanding payment.", "warning"); return; }
+
+  const firstName = String(order.customerName || "Customer").trim().split(/\s+/)[0];
+  const summary = document.getElementById("paymentReminderSummary");
+  const textarea = document.getElementById("paymentReminderMessage");
+  const subtitle = document.getElementById("paymentReminderSubtitle");
+  if (subtitle) subtitle.textContent = "To: " + (order.customerName || "Customer") + " — " + (order.boatName || order.orderId);
+
+  if (summary) {
+    summary.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+          <span style="font-size:11px;color:#64748b;">Customer</span>
+          <strong style="display:block;font-size:13px;color:#0f172a;">${escapeAttr(order.customerName || "Unknown")}</strong>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+          <span style="font-size:11px;color:#64748b;">Boat</span>
+          <strong style="display:block;font-size:13px;color:#0f172a;">${escapeAttr(order.boatName || "—")}</strong>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;">
+          <span style="font-size:11px;color:#92400e;">Payment due</span>
+          <strong style="display:block;font-size:13px;color:#0f172a;">${escapeAttr(info.due.label)}</strong>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;">
+          <span style="font-size:11px;color:#92400e;">Amount due</span>
+          <strong style="display:block;font-size:13px;color:#b45309;">₱${info.due.amount.toLocaleString()}</strong>
+        </div>
+      </div>
+    `;
+  }
+
+  if (textarea) {
+    textarea.value = `Hi ${firstName}, our team is ready to proceed with the next milestone for ${order.boatName || "your boat"}, but the ${info.due.label} of ₱${info.due.amount.toLocaleString()} is still pending. Please settle the payment so we can continue the build. Thank you!`;
+  }
+
+  const modal = document.getElementById("paymentReminderModal");
+  if (modal) modal.classList.add("show");
+}
+
+function closePaymentReminderModal() {
+  const modal = document.getElementById("paymentReminderModal");
+  if (modal) modal.classList.remove("show");
+}
+
+async function sendPaymentReminder() {
+  if (!canEdit()) return;
+  const order = getSelectedOrder();
+  if (!order) return;
+
+  const textarea = document.getElementById("paymentReminderMessage");
+  const message = (textarea && textarea.value ? textarea.value : "").trim();
+  if (!message) { showToast("Please enter a message for the customer.", "warning"); return; }
+
+  const btn = document.getElementById("confirmPaymentReminderBtn");
+  const original = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...'; }
+
+  try {
+    const token = await ensureSession();
+    if (!token) { handleSessionExpired(); return; }
+
+    const res = await fetch(API_BASE + "/orders/" + encodeURIComponent(order.orderId) + "/payment-reminder", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {})
+      },
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data?.error || "Failed to send reminder.", "error");
+      return;
+    }
+
+    closePaymentReminderModal();
+    const channels = [data.inApp ? "in-app" : null, data.email ? "email" : null].filter(Boolean);
+    showToast("Payment reminder sent" + (channels.length ? " via " + channels.join(" + ") : "") + ".", "success");
+
+    // Refresh the order so the "last reminder sent" line appears.
+    const idx = parseInt(select.value);
+    const refreshed = await handleDbError(
+      supabase.from("boat_orders").select("*").eq("orderId", order.orderId).maybeSingle(),
+      "Refresh order"
+    );
+    if (refreshed && !refreshed.error && refreshed.data && !isNaN(idx)) {
+      orders[idx] = refreshed.data;
+      await renderDetail(getSelectedOrder());
+    }
+  } catch (e) {
+    console.error("Send payment reminder error:", e);
+    showToast("Failed to send reminder.", "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
 function getWorkerDueStatus(w) {
   if (!w || w.status !== "Active" || !w.endDate) return null;
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -568,6 +733,9 @@ async function approvePhase(phaseKey) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       showToast(data?.error || "Approval failed.", "error");
+      if (canEdit() && /payment/i.test(data?.error || "") && confirm("Payment required. Send a payment reminder to the client now?")) {
+        openPaymentReminderModal();
+      }
       return;
     }
     showToast("Phase approved successfully.", "success");
@@ -622,6 +790,9 @@ async function toggleMilestone(index) {
     if (m.percentage > maxProgress) {
       const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
       showToast("Required payment not completed yet. Complete " + needed + " first.", "warning");
+      if (canEdit() && confirm("Payment required. Send a payment reminder to the client now?")) {
+        openPaymentReminderModal();
+      }
       return;
     }
     if (m.percentage === 100 && Number(order.remainingBalance || 0) > 0) {
@@ -1426,6 +1597,7 @@ async function renderDetail(order) {
 
     renderWorkers(orderId);
     renderPendingApprovals(order, workers);
+    renderPaymentGateCard(order);
 
     const updateBtn = document.getElementById("updateProgressBtn");
     const progressInput = document.getElementById("progressInput");
@@ -1549,6 +1721,9 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
     if (progress > maxProgress) {
       const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
       showToast("Cannot advance beyond " + maxProgress + "%. Complete " + needed + " first.", "warning");
+      if (canEdit() && confirm("Payment required. Send a payment reminder to the client now?")) {
+        openPaymentReminderModal();
+      }
       input.value = order.progress || 0;
       return;
     }
@@ -2226,6 +2401,11 @@ window.removeWorkerByName = removeWorkerByName;
 window.toggleMsWorkers = toggleMsWorkers;
 window.updateTaskStatus = updateTaskStatus;
 window.deleteTask = deleteTask;
+
+// Payment reminder (manager → customer)
+window.closePaymentReminderModal = closePaymentReminderModal;
+document.getElementById("sendPaymentReminderBtn")?.addEventListener("click", openPaymentReminderModal);
+document.getElementById("confirmPaymentReminderBtn")?.addEventListener("click", sendPaymentReminder);
 
 document.getElementById("addTaskBtn")?.addEventListener("click", () => {
   const order = getSelectedOrder();

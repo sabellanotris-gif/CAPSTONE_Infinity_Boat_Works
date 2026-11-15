@@ -3,7 +3,7 @@
     margin:0;
     padding:0;
     box-sizing:border-box;
-    font-family:Arial, Helvetica, sans-serif;
+    font-family:'Poppins', Arial, Helvetica, sans-serif;
 }
 .close-btn
 {
@@ -54,7 +54,7 @@ body
     rgba(5,10,25,0.90)
     ),
 
-    url('./images/boat2.jpg');
+    url('./images/patrol (3).jpg');
 
     background-size:cover;
 
@@ -179,6 +179,25 @@ body
     color:#284062;
 
     margin-bottom:20px;
+}
+
+/* Section heading inside a card (e.g. General Specifications) */
+.boat-card h3
+{
+    font-size:22px;
+
+    color:#284062;
+
+    margin:6px 0 14px;
+
+    letter-spacing:0.2px;
+}
+
+.boat-card strong
+{
+    color:#1f3760;
+
+    font-weight:600;
 }
 
 
@@ -479,6 +498,11 @@ body
     .boat-card h2
     {
         font-size:24px;
+    }
+
+    .boat-card h3
+    {
+        font-size:18px;
     }
 
     .boat-card p
