@@ -1,4 +1,5 @@
 import { supabase, handleDbError, sendEmailNotification, API_BASE, ADMIN_EMAIL } from "./supabase.js";
+import { DELIVERY_TERMS } from "./delivery-terms.js";
 import {
   BOAT_SPECS,
   BOAT_MATERIALS,
@@ -24,7 +25,11 @@ function esc(str) {
   el.textContent = str ?? '';
   return el.innerHTML;
 }
+function escAttr(str) {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 let gOrders = [];
+let forceConfirmEdit = false;
 
 function getOrders() { return gOrders; }
 
@@ -1428,6 +1433,12 @@ window.addEventListener("DOMContentLoaded", async () => {
                 <div class="spec-item"><span>Delivery Confirmed</span><strong>${delivery.deliveryConfirmed ? 'Yes' : 'Pending'}</strong></div>
             </div>
 
+            ${renderDeliveryConfirmSection(order, idx)}
+
+            ${renderDeliverySnagSection(order, idx)}
+
+            ${renderDeliveryAckSection(order, idx)}
+
             ${delivery.delayDays > 0 ? `
             <div style="margin-top:16px;padding:16px;background:#fef2f2;border:1px solid #fca5a5;border-radius:14px;">
                 <h4 style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:8px;"><i class="fa-solid fa-exclamation-triangle"></i> Delivery Delay Notice</h4>
@@ -1466,11 +1477,145 @@ window.addEventListener("DOMContentLoaded", async () => {
             </div>
 
             ${delivery.deliveryConfirmed ? `
+            ${currentStatus === 'Delivered' ? `
             <div style="margin-top:14px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;">
                 <h4 style="font-size:14px;color:#16a34a;"><i class="fa-solid fa-check-circle"></i> Delivered Successfully</h4>
                 <p style="font-size:13px;color:#166534;margin-top:4px;">Your boat has been delivered. Thank you for choosing Infinite Work Boat!</p>
-            </div>
+            </div>` : `
+            <div style="margin-top:14px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;">
+                <h4 style="font-size:14px;color:#1d4ed8;"><i class="fa-solid fa-file-signature"></i> Delivery Terms Accepted</h4>
+                <p style="font-size:13px;color:#1e40af;margin-top:4px;">You've acknowledged the hand-over terms. The yard will mark the boat as Delivered once it is physically handed over.</p>
+            </div>`}
             ${renderRatingSection(order, idx)}` : ''}
+        </div>`;
+    }
+
+    function renderDeliverySnagSection(order, idx) {
+        const di = order.deliveryInfo || {};
+        const snags = Array.isArray(di.snagList) ? di.snagList : [];
+        const open = snags.filter(s => s.status !== 'closed').length;
+        return `
+        <div style="margin-top:16px;padding:16px;background:#fff7ed;border:1px solid #fdba74;border-radius:14px;">
+            <h4 style="font-size:14px;font-weight:700;color:#c2410c;margin-bottom:2px;"><i class="fa-solid fa-flag"></i> Snag List <span style="font-size:11px;color:#9a3412;font-weight:800;margin-left:6px;">${open > 0 ? open + ' open' : ''}</span></h4>
+            <p style="font-size:12px;color:#7c2d12;margin-bottom:10px;">Found something wrong at the sea trial? Report defects here — the yard fixes and closes them before hand-over.</p>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <input type="text" id="snagInput-${idx}" maxlength="200" placeholder="e.g. Port light leaks at speed, loose handrail..." style="flex:1;padding:9px 12px;border:2px solid #fed7aa;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;background:#fff;">
+                <button onclick="submitSnag(${idx})" style="padding:9px 14px;border:none;border-radius:10px;background:#ea580c;color:#fff;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;"><i class="fa-solid fa-plus"></i> Report</button>
+            </div>
+            <div id="snagList-${idx}" style="display:flex;flex-direction:column;gap:6px;">
+                ${snags.length === 0 ? '<div style="font-size:12px;color:#a8a29e;text-align:center;padding:8px 0;">No defects reported.</div>' : snags.map(s => {
+                    const meta = s.status === 'closed' ? 'background:#dcfce7;color:#15803d;' : s.status === 'progress' ? 'background:#fef9c3;color:#a16207;' : 'background:#fee2e2;color:#b91c1c;';
+                    const label = s.status === 'closed' ? 'CLOSED' : s.status === 'progress' ? 'IN PROGRESS' : 'OPEN';
+                    return `<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #fed7aa;border-radius:10px;padding:8px 10px;">
+                        <span style="border-radius:8px;padding:3px 8px;font-size:10px;font-weight:800;letter-spacing:.4px;${meta}">${label}</span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;color:#0f172a;">${esc(s.title)}</div>
+                            <div style="font-size:10px;color:#78716c;margin-top:2px;">${esc(s.addedName || 'You')} · ${new Date(s.addedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`;
+    }
+
+    function renderDeliveryConfirmSection(order, idx) {
+        const di = order.deliveryInfo || {};
+        const stage = di.deliveryStatus || "Preparing for Delivery";
+        const locked = stage !== "Preparing for Delivery";
+        const confirmed = di.customerConfirmed === true;
+
+        if (confirmed && !forceConfirmEdit) {
+            return `
+            <div style="margin-top:16px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;">
+                <h4 style="font-size:14px;font-weight:700;color:#1d4ed8;margin-bottom:4px;"><i class="fa-solid fa-clipboard-check"></i> Delivery Details Confirmed</h4>
+                <p style="font-size:12px;color:#1e40af;margin-bottom:8px;">The yard has your delivery details. They're now used to schedule the hand-over.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:#1e3a8a;">
+                    <div><strong>Delivery Location:</strong><br>${esc(di.confirmLocation || '—')}</div>
+                    <div><strong>Contact Person:</strong><br>${esc(di.confirmContact || '—')}</div>
+                    <div><strong>Preferred Date &amp; Time:</strong><br>${esc(di.confirmDate || 'Anytime')}${di.confirmTime ? ' · ' + esc(di.confirmTime) : ''}</div>
+                    <div><strong>Signed by:</strong><br><span style="font-family:'Brush Script MT',cursive;font-size:15px;">${esc(di.confirmName || di.confirmSignature || '—')}</span></div>
+                </div>
+                ${!locked
+                    ? `<button onclick="editDeliveryConfirmation(${idx})" style="margin-top:10px;border:none;background:#dbeafe;color:#1d4ed8;font-weight:700;font-size:12px;padding:8px 14px;border-radius:10px;cursor:pointer;"><i class="fa-solid fa-pen"></i> Update details</button>`
+                    : `<p style="font-size:11px;color:#64748b;margin-top:8px;"><i class="fa-solid fa-lock"></i> Locked once the delivery stage started.</p>`}
+            </div>`;
+        }
+
+        // Unconfirmed orders always see the form, even after the stage moves —
+        // the confirmation is mandatory before staff can hand over.
+        const registered = sessionStorage.getItem("customerName") || '';
+        const loc = di.confirmLocation || di.deliveryLocation || '';
+        const con = di.confirmContact || di.contactPerson || (order.customerName || '');
+        const dt = di.confirmDate || '';
+        const tm = di.confirmTime || '';
+        const timeOptions = (() => {
+            const opts = ['<option value="">— Anytime —</option>'];
+            for (let mins = 8 * 60; mins <= 17 * 60; mins += 30) {
+                const h24 = Math.floor(mins / 60), mm = mins % 60;
+                const ampm = h24 < 12 ? 'AM' : 'PM';
+                const h12 = (((h24 + 11) % 12) + 1);
+                const value = String(h24).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+                const label = h12 + ':' + String(mm).padStart(2, '0') + ' ' + ampm;
+                opts.push('<option value="' + value + '"' + (value === tm ? ' selected' : '') + '>' + label + '</option>');
+            }
+            return opts.join('');
+        })();
+        const inputStyle = "width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;box-sizing:border-box;background:#fff;";
+        return `
+        <div id="deliveryConfirm-${idx}" style="margin-top:16px;padding:16px;background:#f0fdf4;border:2px solid #86efac;border-radius:14px;">
+            <h4 style="font-size:14px;font-weight:700;color:#15803d;margin-bottom:2px;"><i class="fa-solid fa-clipboard-question"></i> Confirm Your Delivery Details</h4>
+            <p style="font-size:12px;color:#166534;margin-bottom:10px;">So the yard can set up the right schedule, confirm the address, the person authorized to receive the boat, and a preferred date.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <input type="text" id="confirmLocation-${idx}" placeholder="Delivery location (address or port)" value="${escAttr(loc)}" style="${inputStyle}" autocomplete="off">
+                <input type="text" id="confirmContact-${idx}" placeholder="Authorized contact person" value="${escAttr(con)}" style="${inputStyle}" autocomplete="off">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <input type="date" id="confirmDate-${idx}" value="${escAttr(dt)}" style="${inputStyle}">
+                <select id="confirmTime-${idx}" style="${inputStyle};cursor:pointer;">${timeOptions}</select>
+            </div>
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#0f172a;margin-bottom:10px;cursor:pointer;">
+                <input type="checkbox" id="confirmCheck-${idx}" style="margin-top:2px;">
+                <span>I confirm these delivery details are correct and authorize the yard to deliver the boat to this location.</span>
+            </label>
+            <input type="text" id="confirmSignature-${idx}" placeholder="Type your full name as signature" autocomplete="off" style="${inputStyle};margin-bottom:4px;">
+            ${registered ? `<p style="font-size:11px;color:#64748b;margin:2px 0 8px;">Signature must match your registered name: <strong>${esc(registered)}</strong></p>` : '<div style="height:8px;"></div>'}
+            <button id="confirmSubmit-${idx}" onclick="submitDeliveryConfirmation(${idx})" style="width:100%;padding:11px;border:none;border-radius:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-weight:700;font-size:13px;cursor:pointer;"><i class="fa-solid fa-check"></i> Confirm Delivery Details</button>
+        </div>`;
+    }
+
+    function renderDeliveryAckSection(order, idx) {
+        const di = order.deliveryInfo || {};
+        const signed = di.termsAcknowledgedAt;
+        if (signed) {
+            const sig = di.acknowledgmentSignature || '';
+            const sigTrim = String(sig).trim();
+            const sigHtml = /^(data:|https?:)/.test(sigTrim)
+                ? `<img src="${esc(sig)}" alt="Customer signature" style="margin-top:10px;max-width:220px;border:1px solid #bbf7d0;border-radius:8px;background:#fff;">`
+                : (sigTrim ? `<p style="font-family:'Brush Script MT',cursive;font-size:19px;color:#0f172a;margin-top:8px;">${esc(sig)}</p>` : '');
+            return `
+            <div style="margin-top:16px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;">
+                <h4 style="font-size:14px;font-weight:700;color:#16a34a;margin-bottom:6px;"><i class="fa-solid fa-file-signature"></i> Delivery Terms Accepted</h4>
+                <p style="font-size:13px;color:#166534;">Accepted by <strong>${esc(di.acknowledgmentName || 'Customer')}</strong> on ${new Date(signed).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}.</p>
+                ${sigHtml}
+            </div>`;
+        }
+        const status = di.deliveryStatus || "Preparing for Delivery";
+        if (status !== "In Transit" && status !== "Delivered") return '';
+        const registered = sessionStorage.getItem("customerName") || '';
+        return `
+        <div id="deliveryAck-${idx}" style="margin-top:16px;padding:16px;background:#f8fafc;border:2px solid #93c5fd;border-radius:14px;">
+            <h4 style="font-size:14px;font-weight:700;color:#1d4ed8;margin-bottom:4px;"><i class="fa-solid fa-file-signature"></i> Delivery Terms &amp; Conditions</h4>
+            <p style="font-size:12px;color:#334155;margin-bottom:10px;">Your boat is ready for hand-over. Please read the terms below, then sign to confirm delivery.</p>
+            <ol style="font-size:12px;color:#334155;padding-left:18px;line-height:1.6;margin:0 0 12px;">
+                ${DELIVERY_TERMS.map(t => `<li style="margin-bottom:4px;">${esc(t)}</li>`).join('')}
+            </ol>
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#0f172a;margin-bottom:10px;cursor:pointer;">
+                <input type="checkbox" id="deliveryAckCheck-${idx}" style="margin-top:2px;">
+                <span>I have read and agree to the Delivery Terms and Conditions above.</span>
+            </label>
+            <input type="text" id="deliveryAckSignature-${idx}" placeholder="Type your full name as signature" autocomplete="off" style="width:100%;padding:10px;border:2px solid #e2e8f0;border-radius:10px;font-family:'Poppins',sans-serif;font-size:13px;outline:none;box-sizing:border-box;">
+            ${registered ? `<p style="font-size:11px;color:#64748b;margin:6px 0 0;">Signature must match your registered name: <strong>${esc(registered)}</strong></p>` : ''}
+            <button onclick="signDeliveryTerms(${idx})" style="width:100%;margin-top:10px;padding:11px;border:none;border-radius:10px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-weight:700;font-size:13px;cursor:pointer;"><i class="fa-solid fa-pen"></i> Sign &amp; Confirm Delivery</button>
         </div>`;
     }
 
@@ -3092,6 +3237,180 @@ window.setRating = function(idx, val) {
             star.className = 'fa-regular fa-star';
             star.style.color = '#d1d5db';
         }
+    }
+};
+
+window.submitSnag = async function(idx) {
+    const input = document.getElementById('snagInput-' + idx);
+    const title = (input?.value || '').trim();
+    if (!title) { alert('Describe the defect.'); return; }
+    const order = gOrders[idx];
+    if (!order) return;
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/orders/" + encodeURIComponent(order.orderId) + "/snag", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            },
+            body: JSON.stringify({ title })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) { alert(body.error || 'Failed to report the defect.'); return; }
+        order.deliveryInfo = body.deliveryInfo || order.deliveryInfo;
+        showToast('Defect reported — the yard will close it before hand-over.', 'success');
+        const card = document.querySelector('#myOrdersGrid .project-card[data-order-id="' + CSS.escape(order.orderId) + '"]');
+        if (card && typeof switchProjectTab === 'function') switchProjectTab(card, "delivery", idx);
+    } catch (e) {
+        console.error('Snag report failed:', e);
+        alert('Failed to report the defect.');
+    }
+};
+
+window.submitDeliveryConfirmation = async function(idx) {
+    const locEl = document.getElementById('confirmLocation-' + idx);
+    const conEl = document.getElementById('confirmContact-' + idx);
+    const dateEl = document.getElementById('confirmDate-' + idx);
+    const timeEl = document.getElementById('confirmTime-' + idx);
+    const check = document.getElementById('confirmCheck-' + idx);
+    const sigEl = document.getElementById('confirmSignature-' + idx);
+    const location = (locEl?.value || '').trim();
+    const contact = (conEl?.value || '').trim();
+    const preferred = (dateEl?.value || '').trim();
+    const preferredTime = (timeEl?.value || '').trim();
+    const signature = (sigEl?.value || '').trim();
+    if (!location) { alert('Please enter the delivery location.'); return; }
+    if (!contact) { alert('Please enter the authorized contact person.'); return; }
+    if (!check || !check.checked) { alert('Please check the box to confirm the delivery details.'); return; }
+    if (!signature) { alert('Please type your full name as signature.'); return; }
+    if (signature.length < 2) { alert('Signature must be at least 2 characters.'); return; }
+    const registeredName = sessionStorage.getItem("customerName");
+    if (registeredName && signature !== registeredName) {
+        alert('Signature must match your registered name: "' + registeredName + '".');
+        return;
+    }
+    const order = gOrders[idx];
+    if (!order) return;
+
+    const btn = document.getElementById('confirmSubmit-' + idx);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; }
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/orders/" + encodeURIComponent(order.orderId) + "/customer-confirm", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            },
+            body: JSON.stringify({
+                confirmLocation: location,
+                confirmContact: contact,
+                confirmDate: preferred,
+                confirmTime: preferredTime,
+                acknowledgmentName: signature,
+                confirmSignature: signature
+            })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            alert(body.error || 'Failed to save. Please try again.');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Delivery Details'; }
+            return;
+        }
+        order.deliveryInfo = body.deliveryInfo || {
+            ...(order.deliveryInfo || {}),
+            customerConfirmed: true,
+            customerConfirmedAt: new Date().toISOString(),
+            confirmLocation: location,
+            confirmContact: contact,
+            confirmDate: preferred,
+            confirmTime: preferredTime,
+            confirmName: signature,
+            confirmSignature: signature
+        };
+        forceConfirmEdit = false;
+        showToast('Delivery details confirmed. The yard will now schedule your delivery.', 'success');
+        const card = document.querySelector('#myOrdersGrid .project-card[data-order-id="' + CSS.escape(order.orderId) + '"]');
+        if (card && typeof switchProjectTab === 'function') {
+            switchProjectTab(card, "delivery", idx);
+        }
+    } catch (e) {
+        console.error('Delivery confirmation failed:', e);
+        alert('Failed to save. Please try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Confirm Delivery Details'; }
+    }
+};
+
+window.editDeliveryConfirmation = function(idx) {
+    forceConfirmEdit = true;
+    const order = gOrders[idx];
+    if (!order) return;
+    const card = document.querySelector('#myOrdersGrid .project-card[data-order-id="' + CSS.escape(order.orderId) + '"]');
+    if (card && typeof switchProjectTab === 'function') switchProjectTab(card, "delivery", idx);
+};
+
+window.signDeliveryTerms = async function(idx) {
+    const checkbox = document.getElementById('deliveryAckCheck-' + idx);
+    if (!checkbox || !checkbox.checked) {
+        alert('Please check the box to confirm you agree to the delivery terms.');
+        return;
+    }
+    const signatureEl = document.getElementById('deliveryAckSignature-' + idx);
+    const signature = (signatureEl?.value || '').trim();
+    if (!signature) { alert('Please type your full name as signature.'); return; }
+    if (signature.length < 2) { alert('Signature must be at least 2 characters.'); return; }
+    const registeredName = sessionStorage.getItem("customerName");
+    if (registeredName && signature !== registeredName) {
+        alert('Signature must match your registered name: "' + registeredName + '".');
+        return;
+    }
+    const order = gOrders[idx];
+    if (!order) return;
+
+    const btn = document.querySelector('#deliveryAck-' + idx + ' button');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...'; }
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + "/orders/" + encodeURIComponent(order.orderId) + "/delivery-ack", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: "Bearer " + token } : {})
+            },
+            body: JSON.stringify({
+                acknowledgmentName: signature,
+                acknowledgmentSignature: signature
+            })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            alert(body.error || 'Failed to save your signature. Please try again.');
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-pen"></i> Sign &amp; Confirm Delivery'; }
+            return;
+        }
+        order.deliveryInfo = body.deliveryInfo || {
+            ...(order.deliveryInfo || {}),
+            termsAcknowledgedAt: new Date().toISOString(),
+            acknowledgmentName: signature,
+            acknowledgmentSignature: signature,
+            deliveryConfirmed: true
+        };
+        showToast('Delivery terms signed. Thank you!', 'success');
+        // Re-render the delivery tab from the server-fresh order: signed box + rating form.
+        const card = document.querySelector('#myOrdersGrid .project-card[data-order-id="' + CSS.escape(order.orderId) + '"]');
+        if (card && typeof switchProjectTab === 'function') {
+            switchProjectTab(card, "delivery", idx);
+        }
+    } catch (e) {
+        console.error('Delivery terms sign failed:', e);
+        alert('Failed to save your signature. Please try again.');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-pen"></i> Sign &amp; Confirm Delivery'; }
     }
 };
 

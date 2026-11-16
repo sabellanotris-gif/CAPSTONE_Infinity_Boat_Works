@@ -1,5 +1,5 @@
 import { supabase, supabaseUrl, handleDbError, API_BASE, ensureSession } from "./supabase.js";
-import { renderDeliveryCard } from "./delivery-shared.js";
+import { renderDeliveryCard } from "./delivery-shared.js?v=5";
 import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, getPendingPhaseApprovals, getPhaseSpecialties, isCountedExpense, sumCountedExpenses, sumPendingExpenses } from "./boatData.js";
 
 window.handleLogout = async function () {
@@ -78,7 +78,7 @@ function applyRoleLock() {
       banner.style.display = "none";
     } else {
       banner.style.display = "block";
-      banner.innerHTML = '<i class="fa-solid fa-eye"></i> <strong>Read-only view.</strong> You are monitoring this build. Only the Project Manager can change milestones, workers, tasks, and documents. Delivery details are managed by an Admin.';
+      banner.innerHTML = '<i class="fa-solid fa-eye"></i> <strong>Read-only view.</strong> You are monitoring this build. Only the Project Manager can change milestones, workers, tasks, and documents. Delivery details are managed from the Delivery page (admin and project manager).';
     }
   }
 
@@ -499,8 +499,10 @@ function toggleMsWorkers(btn) {
   if (key) { if (isOpen) expandedMsWorkers.delete(key); else expandedMsWorkers.add(key); }
 }
 
-function getPaymentGate(paymentStep) {
+function getPaymentGate(paymentStep, isFullPayment, remaining) {
   const gates = { 0: 0, 1: 40, 2: 75, 3: 100 };
+  // A fully-paid full-payment order unlocks the whole build (e.g. legacy rows at step 1).
+  if (isFullPayment && Number(remaining || 0) <= 0) return 100;
   return gates[paymentStep] || 0;
 }
 
@@ -509,8 +511,8 @@ function getRequiredPaymentInfo(order) {
   const price = parseFloat(String(order.boatPrice || "0").replace(/[^0-9.]/g, "")) || 0;
   const remaining = Number(order.remainingBalance || 0) || 0;
   const step = Number(order.paymentStep || 0);
-  const gate = getPaymentGate(step);
   const isFullPayment = String(order.paymentMethod || "").toLowerCase() === "full payment";
+  const gate = getPaymentGate(step, isFullPayment, remaining);
 
   let due = null;
   if (isFullPayment) {
@@ -543,7 +545,7 @@ function renderPaymentGateCard(order) {
   }
 
   card.style.display = "block";
-  const nextGate = info.step >= 3 ? 100 : [40, 75, 100][info.step];
+  const nextGate = ((info.isFullPayment && info.remaining <= 0) || info.step >= 3) ? 100 : [40, 75, 100][info.step];
   const reminder = order.paymentReminder;
   const reminderHtml = reminder && reminder.sentAt
     ? '<div style="font-size:11px;color:#64748b;margin-top:4px;"><i class="fa-solid fa-clock-rotate-left"></i> Last reminder sent ' + new Date(reminder.sentAt).toLocaleString() + '</div>'
@@ -787,7 +789,7 @@ async function toggleMilestone(index) {
       showToast("Complete previous milestones first.", "warning");
       return;
     }
-    const maxProgress = getPaymentGate(order.paymentStep || 0);
+    const maxProgress = getPaymentGate(order.paymentStep || 0, String(order.paymentMethod || '').toLowerCase() === 'full payment', order.remainingBalance);
     if (m.percentage > maxProgress) {
       const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
       showToast("Required payment not completed yet. Complete " + needed + " first.", "warning");
@@ -1725,7 +1727,7 @@ document.getElementById("updateProgressBtn").addEventListener("click", async fun
     if (isNaN(progress) || progress < 0) { alert("Enter a valid progress value."); return; }
     if (progress > 100) progress = 100;
 
-    const maxProgress = getPaymentGate(order.paymentStep || 0);
+    const maxProgress = getPaymentGate(order.paymentStep || 0, String(order.paymentMethod || '').toLowerCase() === 'full payment', order.remainingBalance);
     if (progress > maxProgress) {
       const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
       showToast("Cannot advance beyond " + maxProgress + "%. Complete " + needed + " first.", "warning");

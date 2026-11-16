@@ -1,17 +1,21 @@
 // ============ DELIVERY PIPELINE PAGE ============
-// Admin + Manager. Lists every order that has entered the delivery stage
-// (progress ≥ 70% or status Completed) with full management tools.
+// Admin + Manager. Lists every order admitted to delivery — i.e. the customer
+// has confirmed their delivery details, or staff already moved the delivery
+// ahead. Pending customer confirmation does not show here.
 
-import { supabase, handleDbError } from "./supabase.js";
+import { supabase } from "./supabase.js";
 import {
   DELIVERY_TERMS,
   getDeliveryStatus,
   isDelayed,
   calcDeliveryDelay,
   fmtDate,
+  fmtCurrency,
+  fmtTime,
   openDeliveryModal,
   canManageDelivery,
-} from "./delivery-shared.js";
+  registerDeliveryOrder,
+} from "./delivery-shared.js?v=5";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -33,12 +37,14 @@ function statusClass(status) {
     : "delivered";
 }
 
+// Option B: an order enters the admin/manager delivery pipeline only after the
+// customer confirms their delivery details (see customer-confirm). Staff-set
+// in-flight statuses (In Transit / Delivered / etc.) still show for backward
+// compatibility; a bare high-progress or Completed order does not.
 function isInDelivery(order) {
-  const status = getDeliveryStatus(order);
-  const progress = Number(order.progress) || 0;
-  return progress >= 70 || order.status === "Completed"
-    || (order.deliveryInfo && order.deliveryInfo.deliveryStatus)
-    || status !== "Preparing for Delivery";
+  const di = order.deliveryInfo || {};
+  return di.customerConfirmed === true
+    || (di.deliveryStatus && di.deliveryStatus !== "Preparing for Delivery");
 }
 
 function visibleOrders() {
@@ -67,6 +73,8 @@ function esc(v) {
 
 function cardHtml(order) {
   const di = order.deliveryInfo || {};
+  // Register the order so the shared manage modal can look it up.
+  registerDeliveryOrder(order);
   const status = getDeliveryStatus(order);
   const delayed = isDelayed(order);
   const progress = Number(di.deliveryProgress) || 0;
@@ -79,6 +87,7 @@ function cardHtml(order) {
       <span class="status-badge ${statusClass(status)}">${esc(status)}</span>
       ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ""}
       ${di.termsAcknowledgedAt ? `<span class="terms-signed-chip"><i class="fas fa-file-signature"></i> Signed</span>` : ""}
+      ${((Array.isArray(di.snagList) ? di.snagList : []).filter(s => s.status !== 'closed').length) > 0 ? `<span class="delay-badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;"><i class="fas fa-flag"></i> ${(Array.isArray(di.snagList) ? di.snagList : []).filter(s => s.status !== 'closed').length} snag${((Array.isArray(di.snagList) ? di.snagList : []).filter(s => s.status !== 'closed').length) > 1 ? 's' : ''}</span>` : ""}
     </div>
     <div>
       <div class="dd-boat">${esc(order.boatName)}</div>
@@ -87,6 +96,7 @@ function cardHtml(order) {
     </div>
     <div class="dd-meta">
       <span><i class="fa-solid fa-calendar-day"></i> Committed: <strong class="${late ? "late" : ""}">${esc(fmtDate(di.committedDeliveryDate))}</strong></span>
+      ${di.customerConfirmed && (di.confirmDate || di.confirmTime) ? `<span><i class="fa-solid fa-calendar-check"></i> Customer prefers: <strong>${esc(di.confirmDate || "Anytime")}${di.confirmTime ? " · " + esc(fmtTime(di.confirmTime)) : ""}</strong></span>` : ""}
       <span><i class="fa-solid fa-circle-check"></i> Actual: <strong>${esc(fmtDate(di.actualDeliveryDate))}</strong></span>
       <span><i class="fa-solid fa-location-dot"></i> ${esc(di.deliveryLocation || "Location TBC")}</span>
     </div>
@@ -96,13 +106,9 @@ function cardHtml(order) {
     </div>
     <div class="progress-text"><span>Delivery Progress</span><span style="font-weight:700;color:#071b47;">${progress}%</span></div>
     <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
-    ${delayed && delayInfo.penalty > 0 ? `<div class="penalty-line">Delay Penalty: ${fmtCurrencyPenalty(delayInfo.penalty)} (${delayInfo.percent}% of price)</div>` : ""}
+    ${delayed && delayInfo.penalty > 0 ? `<div class="penalty-line">Delay Penalty: ${fmtCurrency(delayInfo.penalty)} (${delayInfo.percent}% of price)</div>` : ""}
     ${canManageDelivery() ? `<button class="dd-manage-btn" onclick="openDeliveryModal('${esc(order.orderId)}')"><i class="fa-solid fa-pen-to-square"></i> Manage Delivery</button>` : ""}
   </article>`;
-}
-
-function fmtCurrencyPenalty(v) {
-  return "₱" + (parseInt(v, 10) || 0).toLocaleString("en-PH");
 }
 
 const COLUMN_IDS = {

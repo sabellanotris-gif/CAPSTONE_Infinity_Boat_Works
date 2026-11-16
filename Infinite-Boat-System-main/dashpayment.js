@@ -241,9 +241,11 @@ async function approvePayment(index) {
     }
     const order = ordersRes.data[0];
     const currentStep = order.paymentStep || 0;
-    const nextStep = currentStep + 1;
     const cleanPriceVal = parseAmount(order.boatPrice);
     const isFullPayment = (order.paymentMethod || '').toLowerCase() === 'full payment';
+    // Full payment settles the whole contract at once — jump straight to step 3
+    // (gate 100%) instead of stopping at step 1 (gate 40%).
+    const nextStep = isFullPayment ? 3 : currentStep + 1;
 
     const phaseAmounts = isFullPayment
         ? [cleanPriceVal, 0, 0]
@@ -268,7 +270,7 @@ async function approvePayment(index) {
         paymentHistory: paymentHistory
     };
 
-    if (currentStep === 0 && nextStep === 1) {
+    if (currentStep === 0) {
         updateData.progress = 10;
         updateData.orderPhase = 'Boat Construction Started';
     }
@@ -281,7 +283,7 @@ async function approvePayment(index) {
         console.error("Order update failed but payment was approved");
     }
 
-    if (currentStep === 0 && nextStep === 1) {
+    if (currentStep === 0) {
         const teamRes = await assignTeamForOrder(order.orderId);
         if (teamRes.ok) {
             const skippedBusy = (teamRes.skipped || []).length;

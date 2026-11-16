@@ -972,7 +972,12 @@ app.post("/api/worker/approve-phase", authenticate, requireAdminOrManager, async
     }
 
     const paymentGate = { 0: 0, 1: 40, 2: 75, 3: 100 };
-    const maxProgress = paymentGate[order.paymentStep || 0] || 0;
+    let maxProgress = paymentGate[order.paymentStep || 0] || 0;
+    // Full payment settles the whole contract at once: once it is paid in full,
+    // the build is no longer gated on installments at any payment step.
+    if (String(order.paymentMethod || '').toLowerCase() === 'full payment' && Number(order.remainingBalance || 0) <= 0) {
+      maxProgress = 100;
+    }
     if (target.percentage > maxProgress) {
       const needed = maxProgress === 0 ? "Downpayment" : maxProgress === 40 ? "Mid-Construction Payment" : "Final Payment";
       return res.status(400).json({ error: "Required payment not completed yet. Complete " + needed + " first." });
@@ -1202,6 +1207,8 @@ function getDuePaymentInfo(order) {
   const step = Number(order.paymentStep || 0);
   const isFullPayment = String(order.paymentMethod || "").toLowerCase() === "full payment";
   const gates = { 0: 0, 1: 40, 2: 75, 3: 100 };
+  // A fully-paid full-payment order is fully unlocked regardless of the stored step.
+  const gate = isFullPayment && remaining <= 0 ? 100 : (gates[step] ?? 0);
 
   let due = null;
   if (isFullPayment) {
@@ -1216,7 +1223,7 @@ function getDuePaymentInfo(order) {
     due = { label: "Final Payment", amount: remaining };
   }
 
-  return { step, gate: gates[step] ?? 0, price, remaining, isFullPayment, due };
+  return { step, gate, price, remaining, isFullPayment, due };
 }
 
 // Manager/admin sends a payment reminder to the customer: in-app notification
@@ -1321,13 +1328,14 @@ function calculateDelayPenalty(boatPrice, delayDays) {
   return { penalty, percent };
 }
 
-app.put("/api/orders/:orderId/delivery", authenticate, requireAdmin, async (req, res) => {
+app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { orderId } = req.params;
     const {
       deliveryStatus, committedDeliveryDate, actualDeliveryDate,
       deliveryLocation, contactPerson, seaTrialResults,
-      deliveryProgress, deliveryConfirmed, delayReason, deliveryNotes
+      deliveryProgress, deliveryConfirmed, delayReason, deliveryNotes,
+      checklist
     } = req.body;
 
     const { data: existing, error: fetchErr } = await supabase
@@ -1351,6 +1359,13 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdmin, async (req,
     if (deliveryConfirmed !== undefined) newInfo.deliveryConfirmed = deliveryConfirmed;
     if (delayReason !== undefined) newInfo.delayReason = delayReason;
     if (deliveryNotes !== undefined) newInfo.deliveryNotes = deliveryNotes;
+    if (checklist !== undefined && checklist && typeof checklist === 'object' && !Array.isArray(checklist)) {
+      const clean = {};
+      for (const [k, v] of Object.entries(checklist)) {
+        if (typeof k === 'string' && k.length <= 64) clean[k] = !!v;
+      }
+      newInfo.checklist = clean;
+    }
 
     // Auto-calculate delay penalty
     if (actualDeliveryDate && committedDeliveryDate) {
@@ -1410,6 +1425,371 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdmin, async (req,
     }
 
     res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============ CUSTOMER DELIVERY CONFIRMATION ============ */
+
+// Pre-delivery step (Option B): the customer confirms the delivery location,
+// authorized contact person, and preferred date BEFORE the order is admitted
+// to the admin/manager delivery pipeline. Only the order owner may submit,
+// and only once the build reaches 70%. Once staff move the deliveryStatus
+// past "Preparing for Delivery", the answers are locked.
+app.post("/api/orders/:orderId/customer-confirm", authenticate, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const location = String((req.body && req.body.confirmLocation) || "").trim();
+    const contact = String((req.body && req.body.confirmContact) || "").trim();
+    const date = String((req.body && req.body.confirmDate) || "").trim();
+    const time = String((req.body && req.body.confirmTime) || "").trim();
+    const signature = String((req.body && req.body.confirmSignature) || "").trim();
+    const name = String((req.body && (req.body.acknowledgmentName || signature)) || "").trim();
+
+    if (!location) return res.status(400).json({ error: "Please confirm the delivery location." });
+    if (!contact) return res.status(400).json({ error: "Please confirm the authorized contact person." });
+    if (!signature || signature.length < 2) {
+      return res.status(400).json({ error: "Please type your full name as signature." });
+    }
+    if ([location, contact, name, signature].some(v => v.length > 300)) {
+      return res.status(400).json({ error: "One of the fields is too long." });
+    }
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "Invalid date format." });
+    }
+    if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      return res.status(400).json({ error: "Invalid time format." });
+    }
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .single();
+
+    if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ error: "Not authorized to confirm delivery for this order" });
+    }
+
+    const progress = Number(existing.progress) || 0;
+    if (progress < 70 && existing.status !== "Completed") {
+      return res.status(400).json({ error: "Delivery confirmation unlocks at 70% build progress." });
+    }
+
+    const oldInfo = existing.deliveryInfo || {};
+    const status = oldInfo.deliveryStatus || "Preparing for Delivery";
+    // Lock only once the customer already confirmed AND staff started the stage.
+    // A customer who never confirmed must always be able to fill the form,
+    // even if staff moved the delivery ahead (grandfathered orders).
+    if (oldInfo.customerConfirmed && status !== "Preparing for Delivery") {
+      return res.status(400).json({ error: "Delivery details are locked once the delivery stage has started." });
+    }
+
+    const now = new Date().toISOString();
+    const newInfo = {
+      ...oldInfo,
+      customerConfirmed: true,
+      customerConfirmedAt: now,
+      confirmLocation: location,
+      confirmContact: contact,
+      confirmDate: date || "",
+      confirmTime: time || "",
+      confirmName: name,
+      confirmSignature: signature,
+    };
+
+    const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
+    activity.push({
+      title: "Delivery details confirmed",
+      description: `Customer confirmed the delivery address (${location}), authorized contact (${contact})${date ? ` and preferred date ${date}${time ? ` at ${time}` : ""}` : ""}.`,
+      date: now,
+      personnel: name,
+      role: "Customer",
+    });
+
+    const { data, error } = await adminDb
+      .from("boat_orders")
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now })
+      .eq("orderId", orderId)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Notify admin + manager(s); best-effort, never blocks the customer.
+    try {
+      const { data: staff } = await adminDb.from("profiles").select("id").in("role", ["admin", "manager"]);
+      const staffList = Array.isArray(staff) ? staff : [];
+      if (staffList.length) {
+        const notifs = staffList.map(p => ({
+          userId: p.id,
+          title: "Customer confirmed delivery details",
+          message: `${name} confirmed delivery for ${orderId} (${existing.boatName || "boat"}): ${location}${date ? `, ${date}` : ""}${time ? ` at ${time}` : ""}.`,
+          type: "delivery_confirm",
+          orderId,
+        }));
+        const { error: notifErr } = await adminDb.from("notifications").insert(notifs);
+        if (notifErr) console.error("[CUSTOMER-CONFIRM] Notification insert failed:", notifErr.message);
+      }
+    } catch (e) {
+      console.error("[CUSTOMER-CONFIRM] Notify failed:", e);
+    }
+    try {
+      Promise.resolve(sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `Customer confirmed delivery details — ${orderId}`,
+        html: `<p><strong>${escHtml(name)}</strong> confirmed the delivery details for order <strong>${escHtml(orderId)}</strong>${existing.boatName ? ` (${escHtml(existing.boatName)})` : ""}.</p><p><strong>Location:</strong> ${escHtml(location)}<br><strong>Contact:</strong> ${escHtml(contact)}<br><strong>Preferred:</strong> ${escHtml(date || "Anytime")}${time ? ` at ${escHtml(time)}` : ""}</p>`,
+      })).catch(e => console.error("[CUSTOMER-CONFIRM] Email failed:", e?.message || e));
+    } catch (mailErr) {
+      console.error("[CUSTOMER-CONFIRM] Email failed:", mailErr);
+    }
+
+    res.json(data && data[0] ? data[0] : { ...existing, deliveryInfo: newInfo, activityLog: activity });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============ SNAG LIST (acceptance defects) ============ */
+
+// Acceptance / snag list: the customer reports defects found at sea trial or
+// hand-over; admin/manager triage (open → in progress → closed) and close them.
+// Stored in deliveryInfo.snagList; writes go through the server because the
+// DB field-guard restricts deliveryInfo to admin/service-role.
+
+function getActorName(req) {
+  return (req.profile && req.profile.name)
+    || (req.user && req.user.user_metadata && req.user.user_metadata.name)
+    || (req.user && req.user.email)
+    || "User";
+}
+
+app.post("/api/orders/:orderId/snag", authenticate, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const title = String((req.body && req.body.title) || "").trim();
+    if (!title) return res.status(400).json({ error: "Describe the defect." });
+    if (title.length > 200) return res.status(400).json({ error: "Keep the description under 200 characters." });
+
+    const trusted = isAdminOrManager(req);
+    const { data: existing, error: fetchErr } = await supabase
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .single();
+
+    if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
+    if (!trusted && existing.userId !== req.user.id) {
+      return res.status(403).json({ error: "Not authorized to add snags for this order" });
+    }
+    if (!trusted) {
+      const progress = Number(existing.progress) || 0;
+      if (progress < 70 && existing.status !== "Completed") {
+        return res.status(400).json({ error: "Snag reporting unlocks at 70% build progress." });
+      }
+    }
+
+    const actorName = getActorName(req);
+    const now = new Date().toISOString();
+    const snag = {
+      id: "sn-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+      title,
+      status: "open",
+      addedBy: trusted ? "staff" : "customer",
+      addedName: actorName,
+      addedAt: now,
+      closedAt: null,
+      closedBy: null,
+    };
+
+    const oldInfo = existing.deliveryInfo || {};
+    const list = Array.isArray(oldInfo.snagList) ? [...oldInfo.snagList] : [];
+    list.push(snag);
+    const newInfo = { ...oldInfo, snagList: list };
+
+    const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
+    activity.push({ title: "Snag reported", description: title, date: now, personnel: actorName, role: trusted ? "Staff" : "Customer" });
+
+    const { data, error } = await adminDb
+      .from("boat_orders")
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now })
+      .eq("orderId", orderId)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data && data[0] ? data[0] : { ...existing, deliveryInfo: newInfo, activityLog: activity });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/orders/:orderId/snag/:id", authenticate, requireAdminOrManager, async (req, res) => {
+  try {
+    const { orderId, id } = req.params;
+    const status = String((req.body && req.body.status) || "").toLowerCase();
+    if (!["open", "progress", "closed"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status. Use open, progress or closed." });
+    }
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .single();
+
+    if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
+
+    const oldInfo = existing.deliveryInfo || {};
+    const list = Array.isArray(oldInfo.snagList) ? [...oldInfo.snagList] : [];
+    const idx = list.findIndex(s => s.id === id);
+    if (idx === -1) return res.status(404).json({ error: "Snag not found" });
+
+    const actorName = getActorName(req);
+    const now = new Date().toISOString();
+    const prev = list[idx];
+    list[idx] = {
+      ...prev,
+      status,
+      closedAt: status === "closed" ? now : null,
+      closedBy: status === "closed" ? actorName : null,
+    };
+
+    const newInfo = { ...oldInfo, snagList: list };
+    const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
+    const label = status === "closed" ? "Snag closed" : status === "progress" ? "Snag moved to in progress" : "Snag reopened";
+    activity.push({ title: label, description: prev.title, date: now, personnel: actorName, role: "Staff" });
+
+    const { data, error } = await adminDb
+      .from("boat_orders")
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now })
+      .eq("orderId", orderId)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data && data[0] ? data[0] : { ...existing, deliveryInfo: newInfo, activityLog: activity });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/orders/:orderId/snag/:id", authenticate, requireAdminOrManager, async (req, res) => {
+  try {
+    const { orderId, id } = req.params;
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .single();
+
+    if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
+
+    const oldInfo = existing.deliveryInfo || {};
+    const list = Array.isArray(oldInfo.snagList) ? oldInfo.snagList : [];
+    const remaining = list.filter(s => s.id !== id);
+    if (remaining.length === list.length) return res.status(404).json({ error: "Snag not found" });
+
+    const actorName = getActorName(req);
+    const now = new Date().toISOString();
+    const newInfo = { ...oldInfo, snagList: remaining };
+
+    const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
+    activity.push({ title: "Snag removed", description: "A snag entry was removed by staff.", date: now, personnel: actorName, role: "Staff" });
+
+    const { data, error } = await adminDb
+      .from("boat_orders")
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now })
+      .eq("orderId", orderId)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data && data[0] ? data[0] : { ...existing, deliveryInfo: newInfo, activityLog: activity });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ============ DELIVERY ACK (customer signature) ============ */
+
+// The customer signs the delivery terms and conditions at hand-over. Only the
+// order owner may sign, and only once the boat is In Transit or Delivered.
+// deliveryInfo is admin/service-role only at the database layer, so this
+// merge must go through the server (adminDb) instead of the client.
+app.post("/api/orders/:orderId/delivery-ack", authenticate, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const signature = String((req.body && req.body.acknowledgmentSignature) || "").trim();
+    const name = String((req.body && (req.body.acknowledgmentName || signature)) || "").trim();
+
+    if (!signature || signature.length < 2) {
+      return res.status(400).json({ error: "Please type your full name as signature." });
+    }
+    if (signature.length > 200 || name.length > 200) {
+      return res.status(400).json({ error: "Signature is too long." });
+    }
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from("boat_orders")
+      .select("*")
+      .eq("orderId", orderId)
+      .single();
+
+    if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
+    if (existing.userId !== req.user.id) {
+      return res.status(403).json({ error: "Not authorized to acknowledge delivery for this order" });
+    }
+
+    const oldInfo = existing.deliveryInfo || {};
+
+    // Idempotent: a repeat submission just returns the current order.
+    if (oldInfo.termsAcknowledgedAt) {
+      return res.json(existing);
+    }
+
+    const status = oldInfo.deliveryStatus || "Preparing for Delivery";
+    if (status !== "In Transit" && status !== "Delivered") {
+      return res.status(400).json({ error: "Delivery terms can only be signed once the boat is In Transit or Delivered." });
+    }
+
+    const now = new Date().toISOString();
+    const newInfo = {
+      ...oldInfo,
+      termsAcknowledgedAt: now,
+      acknowledgmentName: name,
+      acknowledgmentSignature: signature,
+      deliveryConfirmed: true,
+    };
+
+    const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
+    activity.push({
+      title: "Delivery terms signed",
+      description: "Customer accepted the delivery terms and conditions at hand-over.",
+      date: now,
+      personnel: name,
+      role: "Customer",
+    });
+
+    const { data, error } = await adminDb
+      .from("boat_orders")
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now })
+      .eq("orderId", orderId)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    // Best-effort heads-up for the team; failures must not block the customer.
+    try {
+      Promise.resolve(sendEmail({
+        to: ADMIN_EMAIL,
+        subject: `Delivery terms signed — ${orderId} (${existing.boatName || "Boat"})`,
+        html: `<p><strong>${name}</strong> signed the delivery terms and conditions for order <strong>${orderId}</strong>${existing.boatName ? ` (${existing.boatName})` : ""} on ${new Date(now).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}.</p><p>Delivery is now confirmed for this order.</p>`,
+      })).catch(mailErr => console.error("[DELIVERY ACK] Notification email failed:", mailErr));
+    } catch (mailErr) {
+      console.error("[DELIVERY ACK] Notification email failed:", mailErr);
+    }
+
+    res.json(data && data[0] ? data[0] : { ...existing, deliveryInfo: newInfo, activityLog: activity });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

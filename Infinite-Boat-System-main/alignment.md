@@ -15,7 +15,7 @@
 | **Customer Project View** | ✅ Done | 6-tab panel: Progress, Activity, Materials, Timeline, Delivery, Payments |
 | **Boat Progress Tracking** | ✅ Done | Circular gauge, build stages, milestones, activity log, timeline steps |
 | **Cancellation Flow** | ✅ Done | Request → Approve/Reject → Cancelled or returned to previous status |
-| **Role-Based Access Control** | ✅ Done | 4 roles: admin, manager, worker, customer. Client role normalized to `customer`; delivery management and AI Video are admin-only; writes hardened via an API field whitelist + DB field-guard trigger |
+| **Role-Based Access Control** | ✅ Done | 4 roles: admin, manager, worker, customer. Client role normalized to `customer`; AI Video is admin-only; delivery management is admin + manager (writes go through the service-role API); writes hardened via an API field whitelist + DB field-guard trigger |
 | | | |
 
 ---
@@ -101,4 +101,4 @@ CREATE TABLE public.project_tasks (
 
 ---
 
-*Last updated: October 2026*
+*Last updated: November 2026*
