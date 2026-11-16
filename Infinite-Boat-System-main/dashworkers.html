@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,11 +10,8 @@
 <link rel="stylesheet" href="sidebar.css">
 <link rel="stylesheet" href="admin-type.css">
 </head>
-
 <body>
-
 <div class="dashboard-layout">
-
 <aside class="sidebar">
     <div>
         <h1 class="logo">BoatShop</h1>
@@ -29,11 +25,21 @@
     <div class="topbar">
         <div>
             <h1>Workers</h1>
-            <p>View and manage all registered workers, their build team assignments, and account status.</p>
+            <p class="lg-sub">Every worker on your roster — who's busy, who's free, who needs your sign-off.</p>
+        </div>
+        <div class="topbar-actions">
+            <button class="btn-secondary" id="quickAddBtn"><i class="fa-solid fa-plus"></i> Quick Add to Roster</button>
+            <button class="btn-primary" id="createAccountBtn"><i class="fa-solid fa-user-plus"></i> Create Worker Account</button>
         </div>
     </div>
 
-    <!-- Tabs -->
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fa-solid fa-users"></i></div><div class="stat-info"><h3 id="statTotal">0</h3><p>Total Workers</p></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-circle-check"></i></div><div class="stat-info"><h3 id="statActive">0</h3><p>Active Roster</p></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#fef3c7;color:#d97706;"><i class="fa-solid fa-spinner"></i></div><div class="stat-info"><h3 id="statBusy">0</h3><p>Currently On Project</p></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#dbeafe;color:#2563eb;"><i class="fa-solid fa-clock"></i></div><div class="stat-info"><h3 id="statAvailable">0</h3><p>Ready to Assign</p></div></div>
+    </div>
+
     <div class="ww-tabs">
         <button class="ww-tab active" data-tab="all" onclick="switchTab('all')">
             <i class="fa-solid fa-users"></i> All Workers
@@ -44,31 +50,14 @@
         </button>
     </div>
 
-    <!-- ======= ALL WORKERS TAB ======= -->
+    <!-- ======== ALL WORKERS TAB ======== -->
     <div id="tabAll">
-
-        <div class="workers-stats">
-            <div class="workers-stat-card">
-                <div class="stat-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fa-solid fa-users"></i></div>
-                <div class="stat-info"><h3 id="statTotal">0</h3><p>Total Workers</p></div>
+        <div class="controls-bar">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="searchInput" placeholder="Search name, email, phone, specialty..." autocomplete="off">
             </div>
-            <div class="workers-stat-card">
-                <div class="stat-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-link"></i></div>
-                <div class="stat-info"><h3 id="statLinked">0</h3><p>With Account</p></div>
-            </div>
-            <div class="workers-stat-card">
-                <div class="stat-icon" style="background:#dbeafe;color:#2563eb;"><i class="fa-solid fa-circle-check"></i></div>
-                <div class="stat-info"><h3 id="statActive">0</h3><p>Active</p></div>
-            </div>
-            <div class="workers-stat-card">
-                <div class="stat-icon" style="background:#fef3c7;color:#d97706;"><i class="fa-solid fa-spinner"></i></div>
-                <div class="stat-info"><h3 id="statBusy">0</h3><p>Busy / Assigned</p></div>
-            </div>
-        </div>
-
-        <div class="workers-filter-bar">
-            <input type="text" id="searchInput" placeholder="Search by name, email, or phone...">
-            <select id="specialtyFilter">
+            <select id="specialtyFilter" class="sort-select">
                 <option value="">All Specialties</option>
                 <option value="Builder">Builder</option>
                 <option value="Welder">Welder</option>
@@ -79,115 +68,159 @@
                 <option value="Painter">Painter</option>
                 <option value="Fiberglass Specialist">Fiberglass Specialist</option>
             </select>
-            <select id="statusFilter">
+            <select id="statusFilter" class="sort-select">
                 <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="active">Active Roster</option>
+                <option value="inactive">Deactivated</option>
+                <option value="busy">Busy / On Project</option>
+                <option value="available">Ready / Available</option>
                 <option value="linked">Has Account</option>
-                <option value="unlinked">No Account</option>
-                <option value="busy">Busy / Assigned</option>
-                <option value="available">Available</option>
+                <option value="unlinked">Registry Only</option>
             </select>
         </div>
 
-        <div id="workersGrid" class="workers-grid">
-            <div class="worker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading workers...</div>
+        <div id="workersGrid" class="workers-grid"></div>
+        <div id="workersEmpty" class="empty-state" style="display:none;">
+            <i class="fa-solid fa-users-slash"></i>
+            <h3>No workers match that filter</h3>
+            <p>Clear the search or choose a different filter.</p>
         </div>
     </div>
 
-    <!-- ======= REGISTRATIONS TAB ======= -->
+    <!-- ======== REGISTRATIONS TAB ======== -->
     <div id="tabRegistrations" style="display:none;">
-
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <div class="ww-reg-stats">
-                <span class="ww-reg-stat" style="background:#fef3c7;color:#d97706;"><i class="fa-solid fa-clock"></i> <strong id="regPendingCount">0</strong> Pending</span>
-                <span class="ww-reg-stat" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-check"></i> <strong id="regApprovedCount">0</strong> Approved</span>
-                <span class="ww-reg-stat" style="background:#fee2e2;color:#ef4444;"><i class="fa-solid fa-xmark"></i> <strong id="regRejectedCount">0</strong> Rejected</span>
+        <div class="reg-topbar">
+            <div class="reg-stats">
+                <span class="reg-stat" style="background:#fef3c7;color:#b45309;"><i class="fa-solid fa-clock"></i> <strong id="regPendingCount">0</strong> Pending</span>
+                <span class="reg-stat" style="background:#dcfce7;color:#15803d;"><i class="fa-solid fa-check"></i> <strong id="regApprovedCount">0</strong> Approved</span>
+                <span class="reg-stat" style="background:#fee2e2;color:#b91c1c;"><i class="fa-solid fa-xmark"></i> <strong id="regRejectedCount">0</strong> Rejected</span>
             </div>
-            <button class="ww-btn-primary" onclick="openRegisterModal()"><i class="fa-solid fa-plus"></i> Register New Worker</button>
         </div>
-
-        <div class="ww-reg-filter-bar">
-            <input type="text" id="regSearchInput" placeholder="Search by name or email...">
-            <select id="regStatusFilter">
+        <div class="controls-bar">
+            <div class="search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="regSearchInput" placeholder="Search name or email..." autocomplete="off">
+            </div>
+            <select id="regStatusFilter" class="sort-select">
                 <option value="">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
             </select>
         </div>
-
-        <div id="registrationsGrid" class="workers-grid">
-            <div class="worker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Loading registrations...</div>
-        </div>
+        <div id="registrationsGrid" class="workers-grid"></div>
     </div>
-
 </main>
-
 </div>
 
-<!-- Register Worker Modal -->
-<div id="registerModal" class="ww-modal-overlay" style="display:none;">
-    <div class="ww-modal">
-        <div class="ww-modal-header">
-            <h2><i class="fa-solid fa-user-plus"></i> Register New Worker</h2>
-            <button class="ww-modal-close" onclick="closeRegisterModal()">&times;</button>
-        </div>
-        <form id="registerForm" onsubmit="submitRegisterWorker(event)">
-            <div class="ww-form-body">
-                <div class="ww-form-group">
-                    <label>Full Name <span style="color:#ef4444;">*</span></label>
-                    <input type="text" id="regName" placeholder="e.g. Juan dela Cruz" required>
-                </div>
-                <div class="ww-form-row">
-                    <div class="ww-form-group">
-                        <label>Email Address <span style="color:#ef4444;">*</span></label>
-                        <input type="email" id="regEmail" placeholder="worker@email.com" required>
-                    </div>
-                    <div class="ww-form-group">
-                        <label>Phone Number</label>
-                        <input type="tel" id="regPhone" placeholder="09XXXXXXXXX">
-                    </div>
-                </div>
-                <div class="ww-form-row">
-                    <div class="ww-form-group">
-                        <label>Specialty <span style="color:#ef4444;">*</span></label>
-                        <select id="regSpecialty" required>
-                            <option value="">— Select —</option>
-                            <option value="Builder">Builder</option>
-                            <option value="Welder">Welder</option>
-                            <option value="Engineer">Engineer</option>
-                            <option value="Electrician">Electrician</option>
-                            <option value="Mechanic">Mechanic</option>
-                            <option value="Quality Inspector">Quality Inspector</option>
-                            <option value="Painter">Painter</option>
-                            <option value="Fiberglass Specialist">Fiberglass Specialist</option>
+<!-- Edit / Quick Add Modal shared -->
+<div class="view-modal" id="workerEditModal">
+    <div class="modal-content">
+        <button class="close-modal" onclick="closeWorkerModal('workerEditModal')">×</button>
+        <h2 id="workerEditTitle"><i class="fa-solid fa-user-pen"></i> Edit Worker</h2>
+        <form id="workerEditForm" autocomplete="off">
+            <div class="modal-body">
+                <input type="hidden" id="editWorkerId">
+                <div class="form-row two">
+                    <div class="form-group"><label>Full Name *</label><input type="text" id="editName" required placeholder="e.g. Juan dela Cruz"></div>
+                    <div class="form-group"><label>Specialty *</label>
+                        <select id="editSpecialty" required>
+                            <option value="Builder">Builder</option><option value="Welder">Welder</option><option value="Engineer">Engineer</option><option value="Electrician">Electrician</option><option value="Mechanic">Mechanic</option><option value="Quality Inspector">Quality Inspector</option><option value="Painter">Painter</option><option value="Fiberglass Specialist">Fiberglass Specialist</option>
                         </select>
                     </div>
-                    <div class="ww-form-group">
-                        <label>Password <span style="color:#ef4444;">*</span></label>
-                        <input type="password" id="regPassword" placeholder="Min 8 characters" required minlength="8">
-                    </div>
                 </div>
-                <div class="ww-form-group">
-                    <label>Confirm Password <span style="color:#ef4444;">*</span></label>
-                    <input type="password" id="regConfirmPassword" placeholder="Re-enter password" required minlength="8">
-                </div>
-                <div class="ww-form-note">
-                    <i class="fa-solid fa-circle-info"></i>
-                    The worker will receive a welcome message with their login details via email once registered.
+                <div class="form-row two">
+                    <div class="form-group"><label>Phone</label><input type="tel" id="editPhone" placeholder="09XXXXXXXXX"></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="editEmail" placeholder="worker@email.com"></div>
                 </div>
             </div>
-            <div class="ww-form-actions">
-                <button type="button" class="ww-btn-secondary" onclick="closeRegisterModal()">Cancel</button>
-                <button type="submit" class="ww-btn-primary" id="regSubmitBtn"><i class="fa-solid fa-user-plus"></i> Register Worker</button>
+            <div class="modal-actions">
+                <button type="button" class="qa-btn ghost" onclick="closeWorkerModal('workerEditModal')">Cancel</button>
+                <button type="submit" class="qa-btn" id="workerEditSubmit"><i class="fa-solid fa-floppy-disk"></i> Save</button>
             </div>
         </form>
     </div>
 </div>
 
-<script src="toast.js"></script>
-<script type="module" src="dashworkers.js"></script>
+<!-- Quick Add Modal (registry only) -->
+<div class="view-modal" id="quickAddModal">
+    <div class="modal-content">
+        <button class="close-modal" onclick="closeWorkerModal('quickAddModal')">×</button>
+        <h2><i class="fa-solid fa-user-plus"></i> Quick Add to Roster</h2>
+        <p class="modal-sub">Add a name to your worker roster for dispatching to projects — no login required. Create a full account from the button at the top for workers who need the app.</p>
+        <form id="quickAddForm" autocomplete="off">
+            <div class="modal-body">
+                <div class="form-row two">
+                    <div class="form-group"><label>Full Name *</label><input type="text" id="quickName" required placeholder="e.g. Juan dela Cruz"></div>
+                    <div class="form-group"><label>Specialty *</label>
+                        <select id="quickSpecialty" required>
+                            <option value="Builder">Builder</option><option value="Welder">Welder</option><option value="Engineer">Engineer</option><option value="Electrician">Electrician</option><option value="Mechanic">Mechanic</option><option value="Quality Inspector">Quality Inspector</option><option value="Painter">Painter</option><option value="Fiberglass Specialist">Fiberglass Specialist</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;"><label>Phone</label><input type="tel" id="quickPhone" placeholder="09XXXXXXXXX"></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="qa-btn ghost" onclick="closeWorkerModal('quickAddModal')">Cancel</button>
+                <button type="submit" class="qa-btn" id="quickAddSubmit"><i class="fa-solid fa-floppy-disk"></i> Add to Roster</button>
+            </div>
+        </form>
+    </div>
+</div>
 
+<!-- Create Worker Account modal -->
+<div class="view-modal" id="createAccountModal">
+    <div class="modal-content">
+        <button class="close-modal" onclick="closeWorkerModal('createAccountModal')">×</button>
+        <h2><i class="fa-solid fa-user-plus"></i> Create Worker Account</h2>
+        <p class="modal-sub">Creates a full login for the worker — sends credentials via email and subscribes them to the next open project phase.</p>
+        <form id="createAccountForm" autocomplete="off">
+            <div class="modal-body">
+                <div class="form-row two">
+                    <div class="form-group"><label>Full Name *</label><input type="text" id="caName" required placeholder="e.g. Juan dela Cruz"></div>
+                    <div class="form-group"><label>Specialty *</label>
+                        <select id="caSpecialty" required>
+                            <option value="Builder">Builder</option><option value="Welder">Welder</option><option value="Engineer">Engineer</option><option value="Electrician">Electrician</option><option value="Mechanic">Mechanic</option><option value="Quality Inspector">Quality Inspector</option><option value="Painter">Painter</option><option value="Fiberglass Specialist">Fiberglass Specialist</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row two">
+                    <div class="form-group"><label>Email *</label><input type="email" id="caEmail" required placeholder="worker@email.com"></div>
+                    <div class="form-group"><label>Phone</label><input type="tel" id="caPhone" placeholder="09XXXXXXXXX"></div>
+                </div>
+                <div class="form-row two">
+                    <div class="form-group"><label>Password *</label><input type="password" id="caPassword" required minlength="8" placeholder="Min 8 characters"></div>
+                    <div class="form-group"><label>Confirm Password *</label><input type="password" id="caConfirmPassword" required minlength="8"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="qa-btn ghost" onclick="closeWorkerModal('createAccountModal')">Cancel</button>
+                <button type="submit" class="qa-btn" id="createAccountSubmit"><i class="fa-solid fa-paper-plane"></i> Create &amp; Send Credentials</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="view-modal" id="deleteModal">
+    <div class="modal-content delete-modal-content">
+        <button class="close-modal" onclick="closeWorkerModal('deleteModal')">×</button>
+        <div class="delete-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <h2>Delete worker permanently?</h2>
+        <p class="delete-warn">This removes <strong><span id="deleteWorkerName"></span></strong> from the roster and (if any) their account, assignments and notifications. <strong>This cannot be undone.</strong></p>
+        <div id="deleteBlockedBox" class="delete-order-warn" style="display:none;"></div>
+        <div id="deleteConfirmGroup">
+            <p class="delete-prompt">Type the worker's full name to confirm:</p>
+            <input type="text" id="deleteTypedName" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="modal-actions">
+            <button class="qa-btn ghost" onclick="closeWorkerModal('deleteModal')">Cancel</button>
+            <button class="qa-btn danger" id="workerDeleteConfirmBtn" disabled><i class="fa-solid fa-trash-can"></i> Delete Forever</button>
+        </div>
+    </div>
+</div>
+
+<script src="toast.js"></script>
+<script type="module" src="dashworkers.js?v=2"></script>
 </body>
 </html>

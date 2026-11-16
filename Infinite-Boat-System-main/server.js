@@ -2394,24 +2394,106 @@ app.delete("/api/workers/:id", authenticate, requireAdminOrManager, async (req, 
   }
 });
 
+// POST: admin adds a registry worker (name, specialty, phone). No account.
 app.post("/api/workers/master", authenticate, requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await adminDb.from("workers").insert(req.body).select();
+    const specialty = String((req.body && req.body.specialty) || "").trim();
+    const allowed = new Set(["Builder","Welder","Engineer","Electrician","Mechanic","Quality Inspector","Painter","Fiberglass Specialist"]);
+    if (!specialty) return res.status(400).json({ error: "Specialty is required." });
+    if (!allowed.has(specialty)) return res.status(400).json({ error: "Invalid specialty." });
+    const name = String((req.body && req.body.name) || "").trim();
+    if (!name) return res.status(400).json({ error: "Name is required." });
+    const { data, error } = await adminDb.from("workers").insert({
+      name,
+      specialty,
+      phone: String((req.body && req.body.phone) || "").trim() || null,
+      status: "Active",
+    }).select();
     if (error) return res.status(500).json({ error: error.message });
+    if (!data || data.length === 0) return res.status(500).json({ error: "Insert returned no rows." });
     res.status(201).json(data[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// PATCH: admin edits a registry worker — name, phone, specialty (validated).
+app.patch("/api/workers/master/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const allowedSpecialties = new Set([
+      "Builder", "Welder", "Engineer", "Electrician", "Mechanic",
+      "Quality Inspector", "Painter", "Fiberglass Specialist"
+    ]);
+    const body = req.body || {};
+    const patch = {};
+    if (body.name !== undefined) {
+      const n = String(body.name).trim();
+      if (!n) return res.status(400).json({ error: "Name is required." });
+      patch.name = n;
+    }
+    if (body.phone !== undefined) patch.phone = String(body.phone || "").trim() || null;
+    if (body.email !== undefined) patch.email = String(body.email || "").trim() || null;
+    if (body.specialty !== undefined) {
+      const sp = String(body.specialty).trim();
+      if (!allowedSpecialties.has(sp)) return res.status(400).json({ error: "Invalid specialty." });
+      patch.specialty = sp;
+    }
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Nothing to update." });
+    const { data, error } = await adminDb.from("workers").update(patch).eq("id", id).select();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data || data.length === 0) return res.status(404).json({ error: "Worker not found" });
+    res.json(data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Toggle Active <-> Inactive. Deactivating also bans the linked auth account
+// (if any). Refuses to deactivate someone who is currently assigned to a project.
+app.post("/api/workers/master/:id/toggle-active", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { data: row, error: fetchErr } = await adminDb.from("workers").select("*").eq("id", id).single();
+    if (fetchErr || !row) return res.status(404).json({ error: "Worker not found" });
+
+    const next = row.status === "Active" ? "Inactive" : "Active";
+    if (next === "Inactive") {
+      const { data: activeJobs } = await adminDb
+        .from("project_workers").select("id").eq("name", row.name).eq("status", "Active").limit(1);
+      if (Array.isArray(activeJobs) && activeJobs.length) {
+        return res.status(409).json({ error: "Worker is actively assigned to a project. Release them first." });
+      }
+    }
+    const { data, error } = await adminDb.from("workers").update({ status: next }).eq("id", id).select();
+    if (error) return res.status(500).json({ error: error.message });
+
+    if (row.userId && supabaseServiceRole) {
+      try {
+        const banned_until = next === "Inactive" ? "2099-12-31T23:59:59Z" : "1970-01-01T00:00:00Z";
+        const { error: banErr } = await supabaseServiceRole.auth.admin.updateUserById(row.userId, { banned_until });
+        if (banErr) console.error("[TOGGLE-WORKER] auth update failed:", banErr.message);
+      } catch (e) {
+        console.error("[TOGGLE-WORKER] auth ban/unban failed:", e?.message || e);
+      }
+    }
+    res.json(data[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE: admin-only — refuses to delete a worker actively assigned to a project.
 app.delete("/api/workers/master/:id", authenticate, requireAdmin, async (req, res) => {
   try {
-    const { error } = await adminDb.from("workers").delete().eq("id", req.params.id);
+    const id = req.params.id;
+    const { data: row } = await adminDb.from("workers").select("*").eq("id", id).single();
+    if (!row) return res.status(404).json({ error: "Worker not found" });
+    const { data: activeJobs } = await adminDb
+      .from("project_workers").select("orderId").eq("name", row.name).eq("status", "Active").limit(1);
+    if (Array.isArray(activeJobs) && activeJobs.length) {
+      return res.status(409).json({ error: `Refused: worker is actively assigned to ${activeJobs[0].orderId}. Release them before deleting.` });
+    }
+    const { error } = await adminDb.from("workers").delete().eq("id", id);
     if (error) return res.status(500).json({ error: error.message });
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get("/api/admin/workers-detail", authenticate, requireAdminOrManager, async (req, res) => {
