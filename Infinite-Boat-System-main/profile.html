@@ -134,16 +134,24 @@ onclick="window.location.href='home.html'">
 
                 </label>
 
-                <div class="input-box">
-
-                    <i class="fa-solid fa-lock"></i>
+                <div class="input-box password-wrap">
 
                     <input
                     type="password"
                     id="newPassword"
-                    placeholder="Enter new password">
+                    placeholder="Enter new password"
+                    autocomplete="new-password"
+                    aria-describedby="newPasswordError profilePwStrength profilePwStrengthLabel">
 
+                    <button type="button" class="toggle-pass" aria-label="Show password" aria-pressed="false" onclick="togglePasswordLocal('newPassword', this)"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+
+                </div><!-- /input-box -->
+
+                <div class="strength-bar" id="profilePwStrength" aria-hidden="true">
+                    <div class="strength-fill"></div>
                 </div>
+                <p class="strength-label" id="profilePwStrengthLabel" aria-live="polite"></p>
+                <p class="field-error" id="newPasswordError" role="alert"></p>
 
             </div>
 
@@ -156,16 +164,20 @@ onclick="window.location.href='home.html'">
 
                 </label>
 
-                <div class="input-box">
-
-                    <i class="fa-solid fa-shield-halved"></i>
+                <div class="input-box password-wrap">
 
                     <input
                     type="password"
                     id="confirmPassword"
-                    placeholder="Confirm password">
+                    placeholder="Confirm password"
+                    autocomplete="new-password"
+                    aria-describedby="confirmPasswordError">
 
-                </div>
+                    <button type="button" class="toggle-pass" aria-label="Show password" aria-pressed="false" onclick="togglePasswordLocal('confirmPassword', this)"><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
+
+                </div><!-- /input-box -->
+
+                <p class="field-error" id="confirmPasswordError" role="alert"></p>
 
             </div>
 
@@ -296,7 +308,7 @@ onclick="window.location.href='home.html'">
 <script src="toast.js"></script>
 <script
 type="module"
-src="profile.js"></script>
+src="profile.js?v=2"></script>
 
 </body>
 

@@ -11,6 +11,65 @@ const nameInput = document.getElementById("nameInput");
 const newPasswordInput = document.getElementById("newPassword");
 const confirmPasswordInput = document.getElementById("confirmPassword");
 
+window.togglePasswordLocal = function(inputId, btn) {
+  var input = document.getElementById(inputId);
+  if (!input) return;
+  var show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  if (btn) {
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    var icon = btn.querySelector('i');
+    if (icon) icon.className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+  }
+};
+
+function getPasswordStrength(value) {
+  var score = 0;
+  if (value.length >= 8) score += 1;
+  if (value.length >= 12) score += 1;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+  if (/\d/.test(value)) score += 1;
+  if (/[^A-Za-z0-9]/.test(value)) score += 1;
+  if (value.length < 8 || score <= 1) return { level: 'weak', label: 'Weak' };
+  if (score <= 3) return { level: 'fair', label: 'Fair' };
+  return { level: 'strong', label: 'Strong' };
+}
+function updateProfileStrengthMeter() {
+  var v = newPasswordInput.value;
+  var bar = document.getElementById('profilePwStrength');
+  var label = document.getElementById('profilePwStrengthLabel');
+  if (!bar || !label) return;
+  if (v === '') { bar.classList.remove('show'); label.textContent = ''; label.className = 'strength-label'; return; }
+  var sm = getPasswordStrength(v);
+  bar.classList.add('show');
+  var fill = bar.querySelector('.strength-fill');
+  if (fill) fill.className = 'strength-fill ' + sm.level;
+  label.className = 'strength-label ' + sm.level;
+  label.textContent = 'Strength: ' + sm.label;
+}
+document.addEventListener('DOMContentLoaded', function() {
+  if (newPasswordInput) newPasswordInput.addEventListener('input', function() {
+    updateProfileStrengthMeter();
+    validateProfilePw();
+  });
+  if (confirmPasswordInput) confirmPasswordInput.addEventListener('input', validateProfilePw);
+});
+function setProfileError(id, msg) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = msg || '';
+}
+function validateProfilePw() {
+  var v = newPasswordInput.value;
+  var barMsg = '';
+  if (v !== '' && v.length < 8) barMsg = 'Password must be at least 8 characters.';
+  else if (v !== '' && !/[A-Za-z]/.test(v) || v !== '' && !/\d/.test(v)) barMsg = 'Use letters and at least one number.';
+  setProfileError('newPasswordError', barMsg);
+  var c = confirmPasswordInput.value;
+  var confirmMsg = (c !== '' && c !== v) ? 'Passwords do not match.' : '';
+  setProfileError('confirmPasswordError', confirmMsg);
+  return !barMsg && !confirmMsg;
+}
+
 async function checkAuth() {
   const auth = await window.requireRole(["customer", "user", "admin", "manager"]);
   if (!auth) return;
@@ -134,13 +193,7 @@ async function updateUserProfile() {
     return;
   }
 
-  if (newPassword !== "" && newPassword.length < 6) {
-    alert("Password must be at least 6 characters.");
-    return;
-  }
-
-  if (newPassword !== confirmPassword) {
-    alert("Passwords do not match.");
+  if (!validateProfilePw() && newPassword !== "") {
     return;
   }
 

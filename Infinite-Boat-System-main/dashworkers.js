@@ -41,6 +41,126 @@ function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] ? w[0].toUpperCase() : '').join('');
 }
 
+// ============ FORM VALIDATION ============
+const EMAIL_RE = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+const PHONE_RE = /^09\d{2}-?\d{3}-?\d{4}$/;
+
+function normalizePhone(value) {
+  var digits = String(value || '').replace(/\D/g, '');
+  if (digits.length >= 11 && digits.startsWith('63')) {
+    digits = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+  return digits.slice(0, 10);
+}
+function toStoredPhone(value) {
+  var national = normalizePhone(value);
+  return national ? '0' + national : '';
+}
+function isValidEmail(email) {
+  email = String(email || '').trim();
+  if (!email || email.length > 254) return false;
+  var at = email.indexOf('@');
+  if (at <= 0 || at !== email.lastIndexOf('@')) return false;
+  var local = email.slice(0, at);
+  var domain = email.slice(at + 1);
+  if (local.startsWith('.') || local.endsWith('.')) return false;
+  if (domain.startsWith('.') || domain.endsWith('.')) return false;
+  if (email.indexOf('..') !== -1) return false;
+  return EMAIL_RE.test(email);
+}
+function getPasswordStrength(value) {
+  var score = 0;
+  if (value.length >= 8) score += 1;
+  if (value.length >= 12) score += 1;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+  if (/\d/.test(value)) score += 1;
+  if (/[^A-Za-z0-9]/.test(value)) score += 1;
+  if (value.length < 8 || score <= 1) return { level: 'weak', label: 'Weak' };
+  if (score <= 3) return { level: 'fair', label: 'Fair' };
+  return { level: 'strong', label: 'Strong' };
+}
+function getValue(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function setFieldError(id, msg) {
+  var el = document.getElementById(id + 'Error') || document.getElementById(id + 'Msg');
+  if (el) { el.textContent = msg || ''; el.classList.toggle('show', !!msg); }
+}
+function validateRegName() {
+  var v = getValue('regName');
+  var msg = v === '' ? "Enter the worker's full name." : '';
+  setFieldError('regName', msg);
+  return !msg;
+}
+function validateRegEmail() {
+  var v = getValue('regEmail');
+  var msg = '';
+  if (v === '') msg = 'Email address is required.';
+  else if (!isValidEmail(v)) msg = 'Enter a valid email address (e.g. juan@example.com).';
+  setFieldError('regEmail', msg);
+  return !msg;
+}
+function validateRegPhone() {
+  var v = getValue('regPhone');
+  var national = normalizePhone(v);
+  var msg = '';
+  if (v === '') msg = 'Phone number is required.';
+  else if (national === '' || !/^09\d{9}$/.test('0' + national)) msg = 'Enter a Philippine mobile number (e.g. 0917-123-4567).';
+  setFieldError('regPhone', msg);
+  return !msg;
+}
+function validateRegPassword() {
+  var v = document.getElementById('regPassword').value;
+  var msg = '';
+  if (v.length === 0) msg = 'Password is required.';
+  else if (v.length < 8) msg = 'Password must be at least 8 characters.';
+  else if (!/[A-Za-z]/.test(v) || !/\d/.test(v)) msg = 'Use letters and at least one number.';
+  setFieldError('regPassword', msg);
+  // strength meter
+  var bar = document.getElementById('regStrength');
+  var label = document.getElementById('regStrengthLabel');
+  if (bar && label) {
+    if (v === '') { bar.classList.remove('show'); label.textContent = ''; label.className = 'strength-label'; }
+    else {
+      var s = getPasswordStrength(v);
+      bar.classList.add('show');
+      var fill = bar.querySelector('.strength-fill');
+      if (fill) fill.className = 'strength-fill ' + s.level;
+      label.className = 'strength-label ' + s.level;
+      label.textContent = 'Strength: ' + s.label;
+    }
+  }
+  return !msg;
+}
+function validateRegConfirm() {
+  var p = document.getElementById('regPassword').value;
+  var c = document.getElementById('regConfirmPassword').value;
+  var msg = c !== p ? 'Passwords do not match.' : '';
+  setFieldError('regConfirmPassword', msg);
+  return !msg;
+}
+function validateRegAll() {
+  var ok = true;
+  ok &= validateRegName();
+  ok &= validateRegEmail();
+  ok &= validateRegPhone();
+  ok &= validateRegPassword();
+  ok &= validateRegConfirm();
+  return ok;
+}
+window.togglePassword = function(inputId, btn) {
+  var input = document.getElementById(inputId);
+  if (!input) return;
+  var show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  if (btn) {
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    var icon = btn.querySelector('i');
+    if (icon) icon.className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+  }
+};
+
 /* ============ AUTH + INIT ============ */
 (async function init() {
   var auth = await window.requireRole(["admin", "manager"]);
@@ -60,6 +180,13 @@ function initials(name) {
 })();
 
 function wireButtons() {
+  ['regName','regEmail','regPhone','regPassword','regConfirmPassword'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var handlers = { regName:validateRegName, regEmail:validateRegEmail, regPhone:validateRegPhone, regPassword:validateRegPassword, regConfirmPassword:validateRegConfirm };
+    el.addEventListener('input', handlers[id]);
+    el.addEventListener('blur', handlers[id]);
+  });
   var regBtn = document.getElementById('registerNewWorkerBtn');
   if (regBtn) regBtn.addEventListener('click', function() {
     if (!isAdmin()) return;
@@ -77,12 +204,11 @@ function wireButtons() {
     try {
       var fullname = document.getElementById('regName').value.trim();
       var email = document.getElementById('regEmail').value.trim();
-      var phone = document.getElementById('regPhone').value.trim();
+      var phone = toStoredPhone(document.getElementById('regPhone').value);
       var specialty = document.getElementById('regSpecialty').value;
       var password = document.getElementById('regPassword').value;
       var confirm = document.getElementById('regConfirmPassword').value;
-      if (password.length < 8) { alert('Password must be at least 8 characters.'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Register Worker'; return; }
-      if (password !== confirm) { alert('Passwords do not match.'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Register Worker'; return; }
+      if (!validateRegAll()) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Register Worker'; return; }
       var token = await getToken();
       var res = await fetch(API_BASE + '/admin/create-worker', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },

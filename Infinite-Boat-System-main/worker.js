@@ -192,6 +192,11 @@ window.markInProgress = async function (id) {
   }
 };
 
+document.addEventListener('DOMContentLoaded', function() {
+  var input = document.getElementById('editPassword');
+  if (input) input.addEventListener('input', updateWorkerStrengthMeter);
+});
+
 window.markComplete = async function (id) {
   if (!confirm("Mark this task as completed?")) return;
   try {
@@ -503,6 +508,44 @@ function statusClass(status) {
   if (s === "active") return "active";
   if (s === "completed") return "completed";
   return "pending";
+}
+
+window.togglePasswordLocal = function(inputId, btn) {
+  var input = document.getElementById(inputId);
+  if (!input) return;
+  var show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  if (btn) {
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+    var icon = btn.querySelector('i');
+    if (icon) icon.className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+  }
+};
+
+function getPasswordStrength(value) {
+  var score = 0;
+  if (value.length >= 8) score += 1;
+  if (value.length >= 12) score += 1;
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+  if (/\d/.test(value)) score += 1;
+  if (/[^A-Za-z0-9]/.test(value)) score += 1;
+  if (value.length < 8 || score <= 1) return { level: 'weak', label: 'Weak' };
+  if (score <= 3) return { level: 'fair', label: 'Fair' };
+  return { level: 'strong', label: 'Strong' };
+}
+function updateWorkerStrengthMeter() {
+  var input = document.getElementById('editPassword');
+  var bar = document.getElementById('workerPwStrength');
+  var label = document.getElementById('workerPwStrengthLabel');
+  if (!input || !bar || !label) return;
+  var v = input.value;
+  if (v === '') { bar.classList.remove('show'); label.textContent = ''; label.className = 'strength-label'; return; }
+  var s = getPasswordStrength(v);
+  bar.classList.add('show');
+  var fill = bar.querySelector('.strength-fill');
+  if (fill) fill.className = 'strength-fill ' + s.level;
+  label.className = 'strength-label ' + s.level;
+  label.textContent = 'Strength: ' + s.label;
 }
 
 function clamp(n, min, max) {

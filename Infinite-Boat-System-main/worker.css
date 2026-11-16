@@ -1047,3 +1047,19 @@ html, body {
     .filter-tabs { width: 100%; }
     .filter-tab { flex: 1; }
 }
+
+
+.password-wrap { position: relative; }
+.password-wrap input { padding-right: 46px; padding-left: 12px; }
+.toggle-pass { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 38px; height: 38px; border: none; background: transparent; color: #64748b; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all .2s; }
+.toggle-pass:hover { background: #eff6ff; color: #2563eb; }
+.strength-bar { width: 100%; height: 4px; background: #e2e8f0; border-radius: 999px; overflow: hidden; margin-top: 6px; display: none; }
+.strength-bar.show { display: block; }
+.strength-fill { display: block; width: 0; height: 100%; border-radius: 999px; transition: width .25s ease, background .25s ease; }
+.strength-fill.weak { width: 33%; background: #dc2626; }
+.strength-fill.fair { width: 66%; background: #f59e0b; }
+.strength-fill.strong { width: 100%; background: #22c55e; }
+.strength-label { font-size: 11px; font-weight: 600; margin-top: 4px; color: #64748b; min-height: 16px; }
+.strength-label.weak { color: #dc2626; }
+.strength-label.fair { color: #b45309; }
+.strength-label.strong { color: #15803d; }
