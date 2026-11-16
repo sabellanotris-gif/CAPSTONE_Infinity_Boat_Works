@@ -1,5 +1,5 @@
 import { supabase, supabaseUrl, handleDbError, API_BASE, ensureSession } from "./supabase.js";
-import { renderDeliveryCard } from "./delivery-shared.js?v=5";
+import { renderDeliveryCard } from "./delivery-shared.js?v=6";
 import { BOAT_MILESTONES, BOAT_TIMELINE, SPECIALTY_PHASES, MILESTONE_KEY_LABELS, getPendingPhaseApprovals, getPhaseSpecialties, isCountedExpense, sumCountedExpenses, sumPendingExpenses } from "./boatData.js";
 
 window.handleLogout = async function () {
@@ -57,7 +57,10 @@ const MANAGER_ONLY_BTN_IDS = [
 ];
 
 const MONEY_INPUT_IDS = [
-  "budgetTotalInput", "expenseCategoryInput", "expenseDescInput", "expenseAmountInput"
+  "budgetTotalInput",
+];
+const EXPENSE_INPUT_IDS = [
+  "expenseCategoryInput", "expenseDescInput", "expenseAmountInput"
 ];
 
 function applyRoleLock() {
@@ -69,8 +72,14 @@ function applyRoleLock() {
   document.getElementById("setBudgetBtn").style.display = canManageMoney() ? "" : "none";
   MONEY_INPUT_IDS.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.display = "";
+    if (el) el.style.display = canManageMoney() ? "" : "none";
   });
+  EXPENSE_INPUT_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = canEdit() ? "" : "none";
+  });
+  const addExpenseBtn = document.getElementById("addExpenseBtn");
+  if (addExpenseBtn) addExpenseBtn.style.display = canEdit() ? "" : "none";
 
   const banner = document.getElementById("readonlyBanner");
   if (banner) {

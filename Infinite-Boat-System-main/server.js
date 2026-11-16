@@ -553,7 +553,7 @@ app.put("/api/worker-registrations/:id/approve", authenticate, requireAdmin, asy
               Login Now
             </a>
           </p>
-          <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+          <p style="color:#888;font-size:12px">Infinity Boat Works · Accounts</p>
         </div>`
     }).catch(err => console.error("[APPROVE WORKER] Email failed:", err));
 
@@ -695,7 +695,7 @@ app.post("/api/admin/create-worker", authenticate, requireAdmin, async (req, res
               Login Now
             </a>
           </p>
-          <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+          <p style="color:#888;font-size:12px">Infinity Boat Works · Accounts</p>
         </div>`
     }).catch(err => console.error("[CREATE WORKER] Welcome email failed:", err));
 
@@ -1335,8 +1335,21 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, as
       deliveryStatus, committedDeliveryDate, actualDeliveryDate,
       deliveryLocation, contactPerson, seaTrialResults,
       deliveryProgress, deliveryConfirmed, delayReason, deliveryNotes,
-      checklist
+      checklist, waivePenalty
     } = req.body;
+
+    const actorName = (req.profile && req.profile.name)
+      || (req.user && req.user.user_metadata && req.user.user_metadata.name)
+      || (req.user && req.user.email)
+      || "Staff";
+    const actorRole = (req.profile && req.profile.role)
+      || (req.user && req.user.user_metadata && req.user.user_metadata.role)
+      || "admin";
+    const isAdmin = actorRole === "admin";
+
+    if (waivePenalty && !isAdmin) {
+      return res.status(403).json({ error: "Only the admin may waive a delay penalty." });
+    }
 
     const { data: existing, error: fetchErr } = await supabase
       .from("boat_orders")
@@ -1367,8 +1380,14 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, as
       newInfo.checklist = clean;
     }
 
-    // Auto-calculate delay penalty
-    if (actualDeliveryDate && committedDeliveryDate) {
+    // Auto-calculate delay penalty (skipped when the penalty is waived or already waived)
+    const waiverActive = !!waivePenalty || !!oldInfo.delayPenaltyWaived;
+    if (!!waivePenalty) {
+      newInfo.delayPenaltyWaived = true;
+      newInfo.delayPenalty = 0;
+      newInfo.delayPenaltyPercent = 0;
+    }
+    if (!waiverActive && actualDeliveryDate && committedDeliveryDate) {
       const actual = new Date(actualDeliveryDate);
       const committed = new Date(committedDeliveryDate);
       if (actual > committed) {
@@ -1390,16 +1409,59 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, as
       newInfo.deliveryProgress = 100;
     }
 
+    const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
+    const nowIso = new Date().toISOString();
+    if (!!waivePenalty && !oldInfo.delayPenaltyWaived) {
+      activity.push({
+        title: "Delay penalty waived",
+        description: `Delay penalty of ${oldInfo.delayPenaltyPercent || 0}% (PHP ${Number(oldInfo.delayPenalty || 0).toLocaleString()}) waived by ${actorName}.`,
+        date: nowIso,
+        personnel: actorName,
+        role: "Admin"
+      });
+    }
+    const jumpedStatus = (newInfo.deliveryStatus || "") !== (oldInfo.deliveryStatus || "");
+    if (jumpedStatus && (newInfo.deliveryStatus === "In Transit" || newInfo.deliveryStatus === "Delivered")) {
+      activity.push({
+        title: `Delivery status: ${newInfo.deliveryStatus}`,
+        description: `${actorName} marked ${orderId} as ${newInfo.deliveryStatus}.`,
+        date: nowIso,
+        personnel: actorName,
+        role: actorRole === "manager" ? "Manager" : "Admin"
+      });
+    }
+
     const { data, error } = await adminDb
       .from("boat_orders")
-      .update({ deliveryInfo: newInfo, updatedAt: new Date().toISOString() })
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: nowIso })
       .eq("orderId", orderId)
       .select();
 
     if (error) return res.status(500).json({ error: error.message });
 
+    // Notify admin + manager on In Transit / Delivered status transition
+    if (jumpedStatus && (newInfo.deliveryStatus === "In Transit" || newInfo.deliveryStatus === "Delivered")) {
+      try {
+        const { data: staff } = await adminDb.from("profiles").select("id").in("role", ["admin", "manager"]);
+        const staffList = Array.isArray(staff) ? staff : [];
+        if (staffList.length) {
+          const notifs = staffList.map(p => ({
+            userId: p.id,
+            title: `${newInfo.deliveryStatus}: ${orderId}`,
+            message: `${actorName} marked the ${existing.boatName || "boat"} (${orderId}) as ${newInfo.deliveryStatus}.`,
+            type: "delivery_status",
+            orderId,
+          }));
+          const { error: notifErr } = await adminDb.from("notifications").insert(notifs);
+          if (notifErr) console.error("[DELIVERY] Notification insert failed:", notifErr.message);
+        }
+      } catch (e) {
+        console.error("[DELIVERY] Notify failed:", e);
+      }
+    }
+
     // Send delay notification email if delay detected and not yet notified
-    if (newInfo.delayDays > 0 && !oldInfo.delayNotified && newInfo.actualDeliveryDate) {
+    if (newInfo.delayDays > 0 && !oldInfo.delayNotified && newInfo.actualDeliveryDate && !newInfo.delayPenaltyWaived) {
       try {
         sendEmail({
           to: existing.customerEmail,
@@ -2541,7 +2603,7 @@ const EMAIL_TEMPLATES = {
           <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Date</strong></td><td style="padding:8px;border:1px solid #ddd">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</td></tr>
         </table>
         <p><strong>Next Step:</strong> ${data.buildType === "custom" ? "Our engineering team will review your custom design. We'll notify you once it's approved." : "Please check your account to sign the contract schedule and proceed with the down payment."}</p>
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Project Management</p>
       </div>`
   }),
 
@@ -2561,7 +2623,7 @@ const EMAIL_TEMPLATES = {
         </table>
         ${data.reviewFeedback ? `<p><strong>Feedback:</strong> ${escHtml(data.reviewFeedback)}</p>` : ""}
         <p>Log in to your account to view the full details.</p>
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Project Management</p>
       </div>`
   }),
 
@@ -2581,7 +2643,7 @@ const EMAIL_TEMPLATES = {
           <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Phase</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.phase || "—")}</td></tr>
         </table>
         <p>Please review and approve/reject this payment in the dashboard.</p>
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Accounts</p>
       </div>`
   }),
 
@@ -2603,7 +2665,7 @@ const EMAIL_TEMPLATES = {
         </table>
         ${data.cancelMaterials && data.cancelMaterials.length > 0 ? `<p><strong>Materials Allocated:</strong></p><ul style="margin:8px 0;padding-left:20px;">${data.cancelMaterials.map(m => '<li style="padding:2px 0;">' + escHtml(m) + '</li>').join('')}</ul>` : ""}
         ${data.cancelFee > 0 ? `<p style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin:16px 0;"><strong>⚠️ Action Required:</strong> The customer will be redirected to pay the cancellation fee. You can approve or reject this cancellation from the Orders dashboard.</p>` : `<p style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin:16px 0;">This order has been <strong>auto-cancelled</strong> (no cancellation fee applies). No admin action needed.</p>`}
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Accounts</p>
       </div>`
   }),
 
@@ -2620,7 +2682,7 @@ const EMAIL_TEMPLATES = {
           <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Phase</strong></td><td style="padding:8px;border:1px solid #ddd">${escHtml(data.phase || "—")}</td></tr>
         </table>
         <p>Thank you for your payment!</p>
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Accounts</p>
       </div>`
   }),
 
@@ -2636,7 +2698,7 @@ const EMAIL_TEMPLATES = {
           <tr><td style="padding:8px;border:1px solid #ddd;background:#f8f9fa"><strong>Amount</strong></td><td style="padding:8px;border:1px solid #ddd">₱${Number(data.amount || 0).toLocaleString()}</td></tr>
         </table>
         <p>Please resubmit your payment with the correct details. Contact us if you need assistance.</p>
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Accounts</p>
       </div>`
   }),
 
@@ -2655,7 +2717,7 @@ const EMAIL_TEMPLATES = {
         </table>
         ${data.message ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin:16px 0;"><p style="margin:0;font-size:14px;color:#78350f;">${escHtml(data.message)}</p></div>` : ""}
         <p><strong>Next Step:</strong> Log in to your account to complete the payment so the build team can continue.</p>
-        <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+        <p style="color:#888;font-size:12px">Infinity Boat Works · Project Management</p>
       </div>`
   }),
 };
@@ -2694,7 +2756,7 @@ function DELAY_NOTICE_TEMPLATE(data) {
         <p style="font-size:14px;color:#166534;">As compensation for the delay, a discount of <strong>${data.delayPenaltyPercent}% (₱${Number(data.delayPenalty).toLocaleString()})</strong> has been applied to your order. This will be reflected in your final billing.</p>
       </div>` : ''}
       <p style="color:#64748b;font-size:13px;">We value your patience and understanding. If you have any questions, please don't hesitate to contact us.</p>
-      <p style="color:#888;font-size:12px">Infinity Boat Works · Smart Digital Boat System</p>
+      <p style="color:#888;font-size:12px">Infinity Boat Works · Project Management</p>
     </div>`;
 }
 

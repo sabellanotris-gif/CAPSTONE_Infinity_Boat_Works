@@ -15,7 +15,7 @@
 | **Customer Project View** | ✅ Done | 6-tab panel: Progress, Activity, Materials, Timeline, Delivery, Payments |
 | **Boat Progress Tracking** | ✅ Done | Circular gauge, build stages, milestones, activity log, timeline steps |
 | **Cancellation Flow** | ✅ Done | Request → Approve/Reject → Cancelled or returned to previous status |
-| **Role-Based Access Control** | ✅ Done | 4 roles: admin, manager, worker, customer. Client role normalized to `customer`; AI Video is admin-only; delivery management is admin + manager (writes go through the service-role API); writes hardened via an API field whitelist + DB field-guard trigger |
+| **Role-Based Access Control** | ✅ Done | 4 roles: admin, manager, worker, customer. Client role normalized to `customer`; AI Video is admin-only; delivery management is manager (operational) + admin (monitors and waives delay penalty) (writes go through the service-role API); writes hardened via an API field whitelist + DB field-guard trigger. Department split: yard/operation messages signed "Infinity Boat Works · Project Management"; money & authority decisions signed "Infinity Boat Works · Accounts". Admin = Monitor (read-only build execution, sees every page) + Approve/Decline (orders, payments, worker registrations, expenses) + Delete (users/orders/workers, audited in activityLog) + unbudgeted override for emergencies (logged). Manager = runs the yard: milestones, Gantt, progress %, worker assignment, tasks, budget/expense logging, delivery scheduling, customer communication as the yard's voice |
 | | | |
 
 ---

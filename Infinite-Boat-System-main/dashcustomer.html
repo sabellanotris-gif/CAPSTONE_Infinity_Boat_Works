@@ -1,237 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0">
-
-<title>
-Customers Dashboard
-</title>
-
-<link rel="stylesheet"
-href="dashcustomer.css">
-
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
-rel="stylesheet">
-
-<link rel="stylesheet"
-href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customers — Infinity Boat Works</title>
+<link rel="stylesheet" href="dashcustomer.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link rel="stylesheet" href="sidebar.css">
 <link rel="stylesheet" href="admin-type.css">
 </head>
-
 <body>
-
-
 <div class="dashboard-layout">
 
-
-
 <aside class="sidebar">
-
     <div>
-
-        <h1 class="logo">
-
-            BoatShop
-
-        </h1>
-
+        <h1 class="logo">BoatShop</h1>
         <nav class="sidebar-menu"></nav>
         <script src="sidebarNav.js"></script>
-
-
     </div>
-
-
-<button class="logout-btn" onclick="handleLogout();">
-
-        Logout
-
-</button>
-
+    <button class="logout-btn" onclick="handleLogout();">Logout</button>
 </aside>
 
-
 <main class="main-content">
-
     <div class="topbar">
-
         <div>
-
-            <h1>
-
-                Customers
-
-            </h1>
-
-            <p class="lg-sub">
-
-                Manage customer accounts,
-                orders, and verification.
-
-            </p>
-
+            <h1>Customers</h1>
+            <p class="lg-sub">Every account, every order, every peso — all in one place.</p>
         </div>
-
     </div>
 
-
-
     <div class="stats-grid">
-
         <div class="stat-card">
-
-            <h3>
-
-                Total Customers
-
-            </h3>
-
-            <h2>
-
-                --
-
-            </h2>
-
+            <div class="stat-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fa-solid fa-users"></i></div>
+            <div class="stat-info"><h3 id="statTotal">--</h3><p>Total Customers</p></div>
         </div>
-
         <div class="stat-card">
-
-            <h3>
-
-                Verified Accounts
-
-            </h3>
-
-            <h2>
-
-                --
-
-            </h2>
-
+            <div class="stat-icon" style="background:#dbeafe;color:#2563eb;"><i class="fa-solid fa-ship"></i></div>
+            <div class="stat-info"><h3 id="statActive">--</h3><p>Active Builds</p></div>
         </div>
-
         <div class="stat-card">
-
-            <h3>
-
-                Pending Verification
-
-            </h3>
-
-            <h2>
-
-                --
-
-            </h2>
-
+            <div class="stat-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="stat-info"><h3 id="statCompleted">--</h3><p>Completed Orders</p></div>
         </div>
-
+        <div class="stat-card">
+            <div class="stat-icon" style="background:#fef3c7;color:#d97706;"><i class="fa-solid fa-money-bill-wave"></i></div>
+            <div class="stat-info"><h3 id="statRevenue" class="green">--</h3><p>Total Revenue</p></div>
+        </div>
     </div>
 
     <div class="table-card">
-
         <div class="table-header">
+            <div>
+                <h2>Customer List</h2>
+                <p class="table-sub">Open any customer to view their full profile, orders and payments — or delete the account entirely.</p>
+            </div>
+            <div class="table-controls">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchInput" placeholder="Search name, email, phone, boat...">
+                </div>
+                <select id="sortSelect" class="sort-select">
+                    <option value="revenue">Sort: Revenue (high → low)</option>
+                    <option value="name">Sort: Name A → Z</option>
+                    <option value="recent">Sort: Recently joined</option>
+                </select>
+            </div>
+        </div>
 
-            <h2>
-
-                Customer List
-
-            </h2>
-
-            <input type="text"
-            placeholder="Search customer..."
-            id="searchInput">
-
+        <div class="filter-chips" id="filterChips">
+            <button class="chip active" data-filter="all"><i class="fa-solid fa-users"></i> All</button>
+            <button class="chip" data-filter="active"><i class="fa-solid fa-ship"></i> Active builds</button>
+            <button class="chip" data-filter="completed"><i class="fa-solid fa-circle-check"></i> Completed</button>
+            <button class="chip" data-filter="none"><i class="fa-solid fa-ban"></i> No orders</button>
         </div>
 
         <div class="table-wrapper">
-
             <table>
-
                 <thead>
-
                     <tr>
-
-                        <th>
-
-                            Customer
-
-                        </th>
-
-                        <th>
-
-                            Phone
-
-                        </th>
-
-                        <th>
-
-                            Boat Ordered
-
-                        </th>
-
-                        <th>
-
-                            Status
-
-                        </th>
-
-                        <th>
-
-                            Action
-
-                        </th>
-
+                        <th>Customer</th>
+                        <th>Orders</th>
+                        <th>Revenue</th>
+                        <th>Last Order</th>
+                        <th>Status</th>
+                        <th>Action</th>
                     </tr>
-
                 </thead>
-
-                <tbody id="customerTable">
-
-                </tbody>
-
+                <tbody id="customerTable"></tbody>
             </table>
-
+            <div id="customerEmpty" class="empty-state" style="display:none;">
+                <i class="fa-solid fa-user-slash"></i>
+                <h3>No customers match that filter</h3>
+                <p>Try clearing the search or switching the filter chip.</p>
+            </div>
         </div>
-
     </div>
 
 </main>
+</div>
 
-<div class="view-modal" id="customerModal">
-    <div class="modal-content">
-        <button class="close-modal" onclick="document.getElementById('customerModal').classList.remove('show')">×</button>
-        <h2>Customer Details</h2>
-        <div class="modal-body" id="customerModalBody"></div>
+<!-- Customer view modal -->
+<div class="view-modal" id="customerViewModal">
+    <div class="modal-content modal-lg">
+        <button class="close-modal" onclick="closeCustomerModal()">×</button>
+        <div class="modal-profile">
+            <div class="avatar-ring">
+                <img id="viewPhoto" src="./images/user.png" alt="" onerror="this.src='./images/user.png'">
+            </div>
+            <h2 id="viewName">—</h2>
+            <p id="viewEmail" class="muted-text">—</p>
+            <div class="profile-badges">
+                <span id="viewAccountBadge" class="badge-active"><i class="fa-solid fa-circle-check"></i> Active account</span>
+            </div>
+            <div class="quick-actions">
+                <a id="callBtn" class="qa-btn" href="#" title="Call customer"><i class="fa-solid fa-phone"></i> Call</a>
+                <a id="emailBtn" class="qa-btn" href="#" title="Email customer"><i class="fa-solid fa-envelope"></i> Email</a>
+                <button id="copyPhoneBtn" class="qa-btn ghost" title="Copy phone number"><i class="fa-solid fa-copy"></i> Copy phone</button>
+                <button id="copyEmailBtn" class="qa-btn ghost" title="Copy email"><i class="fa-solid fa-copy"></i> Copy email</button>
+            </div>
+            <div class="contact-block">
+                <div class="contact-row"><i class="fa-solid fa-phone"></i><div><span>Phone</span><strong id="viewPhone">—</strong></div></div>
+                <div class="contact-row"><i class="fa-solid fa-envelope"></i><div><span>Email</span><strong id="viewEmail2">—</strong></div></div>
+                <div class="contact-row"><i class="fa-solid fa-calendar-plus"></i><div><span>Joined</span><strong id="viewJoined">—</strong></div></div>
+            </div>
+            <button id="deleteCustomerBtn" class="delete-full"><i class="fa-solid fa-trash-can"></i> Delete Customer Account</button>
+        </div>
+        <div class="modal-orders">
+            <div class="modal-section-title"><i class="fa-solid fa-ship"></i> Orders <span id="orderCount" class="count-pill">0</span></div>
+            <div id="ordersList" class="orders-list"></div>
+            <div class="modal-section-title" style="margin-top:20px;"><i class="fa-solid fa-money-bill-wave"></i> Payment History <span id="paymentsCount" class="count-pill">0</span></div>
+            <div id="paymentsList" class="payments-list"></div>
+        </div>
     </div>
 </div>
 
-<script>
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-function viewCustomerModal(name, email, phone, boat) {
-    document.getElementById('customerModalBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div><strong>Full Name</strong><p>${escapeHtml(name)}</p></div>
-        <div><strong>Email</strong><p>${escapeHtml(email)}</p></div>
-        <div><strong>Phone</strong><p>${escapeHtml(phone)}</p></div>
-        <div><strong>Boat Ordered</strong><p>${escapeHtml(boat)}</p></div>
-    </div>`;
-    document.getElementById('customerModal').classList.add('show');
-}
-</script>
-<script type="module" src="dashcustomer.js?v=1"></script>
+<!-- Delete confirmation modal -->
+<div class="view-modal" id="deleteCustomerModal">
+    <div class="modal-content delete-modal-content">
+        <button class="close-modal" onclick="closeDeleteModal()">×</button>
+        <div class="delete-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <h2>Delete customer permanently?</h2>
+        <p class="delete-warn">This removes the account, <strong>every order, every payment and all assignment history</strong>. It cannot be undone.</p>
+        <div class="delete-order-warn">
+            <strong>Customer:</strong> <span id="deleteNameDisplay"></span>
+        </div>
+        <p class="delete-prompt">Type the customer's full name to confirm:</p>
+        <input type="text" id="typedNameInput" autocomplete="off" spellcheck="false">
+        <div class="delete-actions">
+            <button id="cancelDeleteBtn" class="qa-btn ghost">Cancel</button>
+            <button id="confirmDeleteBtn" class="qa-btn danger" disabled>Delete Forever</button>
+        </div>
+    </div>
+</div>
 
+<script src="toast.js"></script>
+<script type="module" src="dashcustomer.js?v=2"></script>
 </body>
-
 </html>

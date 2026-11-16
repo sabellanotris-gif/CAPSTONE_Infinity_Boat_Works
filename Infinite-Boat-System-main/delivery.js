@@ -15,7 +15,8 @@ import {
   openDeliveryModal,
   canManageDelivery,
   registerDeliveryOrder,
-} from "./delivery-shared.js?v=5";
+  canViewDelivery,
+} from "./delivery-shared.js?v=6";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -107,7 +108,7 @@ function cardHtml(order) {
     <div class="progress-text"><span>Delivery Progress</span><span style="font-weight:700;color:#071b47;">${progress}%</span></div>
     <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
     ${delayed && delayInfo.penalty > 0 ? `<div class="penalty-line">Delay Penalty: ${fmtCurrency(delayInfo.penalty)} (${delayInfo.percent}% of price)</div>` : ""}
-    ${canManageDelivery() ? `<button class="dd-manage-btn" onclick="openDeliveryModal('${esc(order.orderId)}')"><i class="fa-solid fa-pen-to-square"></i> Manage Delivery</button>` : ""}
+    ${canViewDelivery() ? `<button class="dd-manage-btn" onclick="openDeliveryModal('${esc(order.orderId)}')"><i class="fa-solid ${window.currentRole === 'admin' ? 'fa-eye' : 'fa-pen-to-square'}"></i> ${window.currentRole === 'admin' ? 'View Delivery' : 'Manage Delivery'}</button>` : ""}
   </article>`;
 }
 

@@ -149,11 +149,18 @@ function updatePdiCounter() {
   }
 }
 
-// Both admins and managers can manage deliveries. Writes go through the
-// Express API (service-role), because the DB field-guard trigger restricts
-// deliveryInfo to admin/service-role writers — direct client writes by
-// managers would be silently discarded.
+// Manager drives the delivery — sets dates, sea trial, snag list, PDI,
+// waives delay penalties for them to pay. The admin monitors read-only;
+// only admin can waive a delay penalty (delivery authority), but cannot edit
+// operational data. Writes go through the Express API (service-role),
+// because the DB field-guard trigger restricts deliveryInfo to
+// admin/service-role writers — direct client writes by managers would be
+// silently discarded.
 export function canManageDelivery() {
+  return window.currentRole === "manager";
+}
+
+export function canViewDelivery() {
   return window.currentRole === "admin" || window.currentRole === "manager";
 }
 
@@ -235,7 +242,7 @@ export function renderDeliveryCard(order) {
                 ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
                 ${di.termsAcknowledgedAt ? `<span class="delay-badge" style="background:#f0fdf4;color:#15803d;"><i class="fas fa-file-signature"></i> Terms signed</span>` : ''}
             </div>
-            ${canManageDelivery() ? `<button class="manage-btn" onclick="openDeliveryModal('${order.orderId}')" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:#356cff;color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-edit"></i> Manage</button>` : ''}
+            ${canViewDelivery() ? `<button class="manage-btn" onclick="openDeliveryModal('${order.orderId}')" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:${window.currentRole === 'admin' ? '#475569' : '#356cff'};color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-${window.currentRole === 'admin' ? 'eye' : 'edit'}"></i> ${window.currentRole === 'admin' ? 'View' : 'Manage'}</button>` : ''}
         </div>
         <div class="card-details" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
             <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
@@ -275,10 +282,36 @@ export function renderDeliveryCard(order) {
     </div>`;
 }
 
+export function applyDeliveryReadOnly(body) {
+  if (window.currentRole !== "admin" || !body) return;
+  // banner
+  var banner = document.createElement('div');
+  banner.className = 'penalty-preview penalty-none';
+  banner.style.cssText = 'margin-bottom:16px;border-color:#bfdbfe;background:#eff6ff;color:#1e40af;';
+  banner.innerHTML = '<h5 style="color:#1d4ed8;"><i class="fas fa-eye"></i> Admin Monitoring View (Read-only)</h5><div style="font-size:13px;">You are monitoring this delivery. Only the Project Manager can change dates, status, sea trial, snags, and checklist. Admin may still waive a delay penalty.</div>';
+  body.insertBefore(banner, body.firstChild);
+  // disable every form control except the waive button and close button
+  body.querySelectorAll('input, select, textarea').forEach(function(el) {
+    if (el.id === 'saveDeliveryBtn') { el.style.display = 'none'; return; }
+    el.disabled = true;
+  });
+  // hide operational buttons (waiver + any close-modal keep)
+  ['waiverBtn', 'saveDeliveryBtn', 'snagInput'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && id !== 'waiverBtn') el.style.display = 'none';
+  });
+  // hide snag add button (any element with staffAddSnag onclick)
+  body.querySelectorAll('[onclick="staffAddSnag()"]').forEach(function(el) { el.style.display = 'none'; });
+  body.querySelectorAll('button[onclick^="staffCycleSnag"]').forEach(function(el) { el.style.display = 'none'; });
+  body.querySelectorAll('i[onclick^="staffDeleteSnag"]').forEach(function(el) { el.style.display = 'none'; });
+  // also disable checklist checkboxes explicitly (they are inputs so covered above) and progress slider
+  body.querySelectorAll('input[type="range"], input[type="checkbox"], input[type="date"]').forEach(function(el) { el.disabled = true; });
+}
+
 let currentDeliveryOrder = null;
 
 export function openDeliveryModal(orderOrId) {
-    if (!canManageDelivery()) return;
+    if (!canViewDelivery()) return;
     let order = null;
     if (orderOrId && typeof orderOrId === 'string') order = getDeliveryOrder(orderOrId);
     else if (orderOrId && typeof orderOrId === 'object') order = orderOrId;
@@ -364,6 +397,16 @@ export function openDeliveryModal(orderOrId) {
             </div>
         </div>
         <div id="penaltyPreview"></div>
+        ${di.delayPenaltyWaived ? `
+        <div class="penalty-preview penalty-none" style="margin-bottom:0;background:#f0fdf4;border-color:#bbf7d0;">
+            <h5 style="color:#15803d;"><i class="fas fa-stamp"></i> Delay Penalty Waived by Admin</h5>
+            <div style="font-size:13px;color:#166534;">This delay penalty was waived by an admin. It will not be reapplied automatically.</div>
+        </div>` : (window.currentRole === "admin" && (Number(di.delayPenalty) || 0) > 0 ? `
+        <div class="penalty-preview" style="margin-bottom:0;background:#ecfeff;border-color:#a5f3fc;">
+            <h5 style="color:#155e75;"><i class="fas fa-stamp"></i> Delay Penalty Waiver (Admin Only)</h5>
+            <div style="font-size:13px;color:#164e63;margin-bottom:10px;">The delay penalty of ${fmtCurrency(di.delayPenalty)} (${di.delayPenaltyPercent || 0}% of the boat price) is normally deducted from the remaining balance. As admin you can waive it if the customer should not be billed.</div>
+            <button class="save-btn" id="waiverBtn" onclick="waiveDelayPenalty()" style="background:linear-gradient(135deg,#0f766e,#115e59);margin:0;"><i class="fas fa-stamp"></i> Waive Delay Penalty</button>
+        </div>` : '')}
     </div>
     <div class="modal-section">
         <h4><i class="fas fa-location-dot"></i> Delivery Details</h4>
@@ -402,6 +445,7 @@ export function openDeliveryModal(orderOrId) {
         <div style="font-size:13px;">The customer will be asked to sign the Delivery Terms in their project page once the boat is In Transit or Delivered.</div>
     </div>`}
     <button class="save-btn" id="saveDeliveryBtn" onclick="saveDelivery()"><i class="fas fa-save"></i> Save Delivery Details</button>`;
+    applyDeliveryReadOnly(body);
     document.getElementById('deliveryModal').classList.add('show');
     renderSnagListRows();
     renderChecklistInto(di);
@@ -441,7 +485,7 @@ export function previewPenalty() {
 }
 
 export async function saveDelivery() {
-    if (!canManageDelivery()) return;
+    if (!canManageDelivery()) { showToast('Admin View is read-only. The project manager performs this action.', 'warning'); return; }
     const order = currentDeliveryOrder;
     if (!order) return;
     // Soft guards: warn when handing over with open defects or an unchecked
@@ -510,6 +554,56 @@ export async function saveDelivery() {
     btn.innerHTML = '<i class="fas fa-save"></i> Save Delivery Details';
 }
 
+export async function waiveDelayPenalty() {
+    if (window.currentRole !== 'admin') { showToast('Only an admin may waive the delay penalty.', 'error'); return; }
+    const order = currentDeliveryOrder;
+    if (!order) return;
+    const di = order.deliveryInfo || {};
+    const amount = di.delayPenalty || 0;
+    if (!amount) { showToast('No delay penalty to waive.', 'warning'); return; }
+    if (!confirm('Waive the delay penalty of ' + fmtCurrency(amount) + '? This cannot be undone automatically.')) return;
+    const data = {
+        waivePenalty: true,
+        deliveryStatus: document.getElementById('modalStatus').value,
+        seaTrialResults: document.getElementById('modalSeaTrial').value,
+        deliveryProgress: parseInt(document.getElementById('modalProgress').value) || 0,
+        committedDeliveryDate: document.getElementById('modalCommittedDate').value || '',
+        actualDeliveryDate: document.getElementById('modalActualDate').value || '',
+        deliveryLocation: document.getElementById('modalLocation').value || '',
+        contactPerson: document.getElementById('modalContact').value || '',
+        delayReason: document.getElementById('modalDelayReason').value || '',
+        deliveryNotes: document.getElementById('modalNotes').value || ''
+    };
+    const checklist = {};
+    document.querySelectorAll('#pdiList input[data-pdi]').forEach(cb => { checklist[cb.dataset.pdi] = cb.checked; });
+    data.checklist = checklist;
+    const btn = document.getElementById('waiverBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiving...'; }
+    let updated = null;
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(API_BASE + '/orders/' + encodeURIComponent(order.orderId) + '/delivery', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+            body: JSON.stringify(data)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || ('Waive failed (HTTP ' + res.status + ')'));
+        updated = Array.isArray(body) ? body[0] : body;
+    } catch (err) {
+        showToast('Error waiving penalty: ' + err.message, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-stamp"></i> Waive Delay Penalty'; }
+        return;
+    }
+    const newInfo = (updated && updated.deliveryInfo) || { ...di, delayPenalty: 0, delayPenaltyPercent: 0, delayPenaltyWaived: true };
+    order.deliveryInfo = newInfo;
+    registerDeliveryOrder(order);
+    showToast('Delay penalty waived. It will not be reapplied automatically.', 'success');
+    closeDeliveryModal();
+    window.dispatchEvent(new CustomEvent('delivery:saved', { detail: { orderId: order.orderId, order, deliveryInfo: newInfo } }));
+}
+
 export function closeDeliveryModal() {
     document.getElementById('deliveryModal').classList.remove('show');
     currentDeliveryOrder = null;
@@ -520,4 +614,5 @@ window.openDeliveryModal = openDeliveryModal;
 window.updateActualDateMin = updateActualDateMin;
 window.previewPenalty = previewPenalty;
 window.saveDelivery = saveDelivery;
+window.waiveDelayPenalty = waiveDelayPenalty;
 window.closeDeliveryModal = closeDeliveryModal;
