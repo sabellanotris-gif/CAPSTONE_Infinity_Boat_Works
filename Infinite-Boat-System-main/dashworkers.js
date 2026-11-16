@@ -1,8 +1,7 @@
-/* =========================================================
-   Workers v2 — Admin authority view
-   Roster + availability + register/create + deactivate/delete.
-   Manager sees this page in read-only mode (no create/edit/delete).
-   ========================================================= */
+/* =========================================
+   WORKERS v2 — Minimal admin roster
+   Manager view: no action buttons, clean profile read-only.
+   ========================================= */
 import { supabase, API_BASE } from "./supabase.js";
 
 window.handleLogout = async function () {
@@ -15,15 +14,13 @@ window.handleLogout = async function () {
 let allWorkers = [];
 let allRegistrations = [];
 let currentRole = 'admin';
-let detailDeleteId = null;
+let detailWorker = null;
 let detailDeleteWorker = null;
 
 function escHtml(s) {
-  try { return window.escapeHtml ? window.escapeHtml(s || '') : String(s || ''); } catch { return String(s || ''); }
+  try { return window.escapeHtml ? window.escapeHtml(String(s ?? '')) : String(s ?? ''); } catch { return String(s ?? ''); }
 }
-function escAttr(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-}
+function escAttr(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 function fmtDate(s) {
   if (!s) return '—';
   const d = new Date(s);
@@ -36,10 +33,9 @@ function getToken() {
 function isAdmin() { return currentRole === 'admin'; }
 
 function colorForName(name) {
-  var hash = 0;
-  for (var i = 0; i < (name || '?').length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  var h = 0; for (var i = 0; i < (name || '?').length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   var palette = ['#7c3aed','#2563eb','#0891b2','#059669','#d97706','#dc2626','#4f46e5','#0d9488'];
-  return palette[hash % palette.length];
+  return palette[h % palette.length];
 }
 function initials(name) {
   return String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] ? w[0].toUpperCase() : '').join('');
@@ -51,13 +47,9 @@ function initials(name) {
   if (!auth) return;
   currentRole = auth.profile.role || 'admin';
 
-  // Manager role: hide admin-only tabs and actions (read-only roster view)
   if (currentRole === 'manager') {
     document.getElementById('tabRegistrations').style.display = 'none';
-    document.querySelectorAll('.ww-tab').forEach(function(t) {
-      var tab = t.getAttribute('data-tab');
-      if (tab === 'registrations') t.style.display = 'none';
-    });
+    document.querySelector('.ww-tab[data-tab="registrations"]').style.display = 'none';
     document.getElementById('quickAddBtn').style.display = 'none';
     document.getElementById('createAccountBtn').style.display = 'none';
   }
@@ -70,9 +62,7 @@ function initials(name) {
 
 function wireButtons() {
   document.getElementById('quickAddBtn')?.addEventListener('click', function() {
-    document.getElementById('quickName').value = '';
-    document.getElementById('quickSpecialty').value = 'Builder';
-    document.getElementById('quickPhone').value = '';
+    document.getElementById('quickAddForm').reset();
     openWorkerModal('quickAddModal');
   });
   document.getElementById('createAccountBtn')?.addEventListener('click', function() {
@@ -83,6 +73,7 @@ function wireButtons() {
 
   document.getElementById('quickAddForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    if (!isAdmin()) return;
     var btn = document.getElementById('quickAddSubmit');
     btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
     try {
@@ -105,6 +96,7 @@ function wireButtons() {
 
   document.getElementById('createAccountForm')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    if (!isAdmin()) return;
     var btn = document.getElementById('createAccountSubmit');
     btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating...';
     try {
@@ -151,11 +143,16 @@ function wireButtons() {
       showToast('Worker updated', 'success');
       closeWorkerModal('workerEditModal');
       await loadWorkers();
+      // Refresh the profile modal with the updated record if open
+      if (detailWorker) {
+        var fresh = allWorkers.find(function(w) { return w.id === id; });
+        if (fresh) openWorkerProfile(fresh);
+      }
     } catch (err) { alert(err.message); }
     finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save'; }
   });
 
-  // Delete confirm modal typing check
+  // Delete modal typing check
   document.getElementById('deleteTypedName')?.addEventListener('input', function() {
     var target = (detailDeleteWorker && detailDeleteWorker.name || '').trim().toLowerCase();
     document.getElementById('workerDeleteConfirmBtn').disabled = this.value.trim().toLowerCase() !== target;
@@ -173,153 +170,89 @@ function wireButtons() {
       if (!res.ok) throw new Error(body.error || 'Delete failed (HTTP ' + res.status + ')');
       showToast('Worker permanently deleted', 'success');
       closeWorkerModal('deleteModal');
+      closeWorkerModal('workerViewModal');
+      detailWorker = null;
+      detailDeleteWorker = null;
       await loadWorkers();
     } catch (err) { alert(err.message); }
     finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Delete Forever'; }
   });
-}
-window.openWorkerModal = function(id) {
-  document.getElementById(id).classList.add('show');
-};
-window.closeWorkerModal = function(id) {
-  document.getElementById(id).classList.remove('show');
-};
 
-/* ============ STATS + RENDER ============ */
+  // Profile modal admin action buttons
+  document.getElementById('profileEditBtn')?.addEventListener('click', function() {
+    if (!detailWorker) return;
+    document.getElementById('editWorkerId').value = detailWorker.id;
+    document.getElementById('editName').value = detailWorker.name || '';
+    document.getElementById('editPhone').value = detailWorker.phone || '';
+    document.getElementById('editEmail').value = detailWorker.email || '';
+    document.getElementById('editSpecialty').value = detailWorker.specialty || 'Builder';
+    openWorkerModal('workerEditModal');
+  });
+  document.getElementById('profileToggleBtn')?.addEventListener('click', async function() {
+    if (!detailWorker) return;
+    var w = detailWorker;
+    var next = w.status === 'Active' ? 'Deactivate' : 'Reactivate';
+    if (w.status === 'Active' && !confirm('Deactivate ' + w.name + '? They will not get new jobs and cannot log in until reactivated.')) return;
+    if (w.status === 'Inactive' && !confirm('Reactivate ' + w.name + '? They will be available again.')) return;
+    try {
+      var token = await getToken();
+      var res = await fetch(API_BASE + '/workers/master/' + encodeURIComponent(w.id) + '/toggle-active', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }
+      });
+      var body = await res.json().catch(function(){ return {}; });
+      if (!res.ok) throw new Error(body.error || 'Toggle failed');
+      showToast(w.name + ' ' + (body.status === 'Active' ? 'reactivated' : 'deactivated'), 'success');
+      await loadWorkers();
+    } catch (err) { alert(err.message); }
+  });
+  document.getElementById('profileDeleteBtn')?.addEventListener('click', function() {
+    if (!detailWorker) return;
+    openDeleteModal(detailWorker);
+  });
+}
+
+/* ============ MODAL HELPERS ============ */
+window.openWorkerModal = function(id) { document.getElementById(id).classList.add('show'); };
+window.closeWorkerModal = function(id) { document.getElementById(id).classList.remove('show'); };
+
+function openDeleteModal(w) {
+  detailDeleteWorker = w;
+  document.getElementById('deleteWorkerName').textContent = w.name;
+  document.getElementById('deleteTypedName').value = '';
+  document.getElementById('workerDeleteConfirmBtn').disabled = true;
+  var blocked = w.currentOrderId ? '<strong>Currently assigned:</strong> ' + escHtml(w.currentOrderId) + ' — ' + escHtml(w.currentPhase || '—') + '. Release the assignment before deleting.' : '';
+  document.getElementById('deleteBlockedBox').innerHTML = blocked
+    ? '<div><i class="fa-solid fa-triangle-exclamation"></i> <strong>Blocked:</strong> ' + blocked + '</div>'
+    : '';
+  document.getElementById('deleteBlockedBox').style.display = blocked ? 'block' : 'none';
+  document.getElementById('deleteConfirmGroup').style.display = blocked ? 'none' : 'block';
+  document.getElementById('workerDeleteConfirmBtn').style.display = blocked ? 'none' : 'inline-flex';
+  document.getElementById('deleteModal').classList.add('show');
+}
+
+/* ============ LOAD + RENDER ============ */
 async function loadWorkers() {
-  var grid = document.getElementById("workersGrid");
-  grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading workers...</p></div>';
+  var tableBody = document.getElementById("workersTableBody");
+  tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px 10px;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i></td></tr>';
   try {
     var token = await getToken();
     var res = await fetch(API_BASE + "/admin/workers-detail", { headers: { Authorization: "Bearer " + token } });
     if (!res.ok) throw new Error("HTTP " + res.status);
     allWorkers = await res.json();
-    renderAllStats();
-    renderWorkers(allWorkers);
+    renderStats();
+    applyFilter();
   } catch (e) {
-    grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-exclamation"></i><h3>Failed to load workers</h3><p>Try refreshing the page.</p></div>';
+    document.getElementById("workersTableBody").innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#dc2626;">Failed to load workers</td></tr>';
   }
 }
-function renderAllStats() {
+
+function renderStats() {
   document.getElementById("statTotal").textContent = allWorkers.length;
   document.getElementById("statActive").textContent = allWorkers.filter(w => w.status === "Active").length;
   document.getElementById("statBusy").textContent = allWorkers.filter(w => !w.available).length;
   document.getElementById("statAvailable").textContent = allWorkers.filter(w => w.available && w.status === "Active").length;
 }
 
-function renderWorkers(workers) {
-  var grid = document.getElementById("workersGrid");
-  var empty = document.getElementById("workersEmpty");
-  if (!workers.length) { grid.innerHTML = ''; empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
-
-  grid.innerHTML = workers.map(function(w) {
-    var roleCanEdit = isAdmin();
-    var badgeClass = w.status === 'Active' ? 'wc-badge active' : 'wc-badge inactive';
-    var badgeText = w.status === 'Active' ? 'ACTIVE' : 'INACTIVE';
-    var accountChip = w.hasAccount
-      ? '<span class="wc-chip linked"><i class="fa-solid fa-link"></i> Linked Account</span>'
-      : '<span class="wc-chip roster"><i class="fa-solid fa-clipboard"></i> Roster Only</span>';
-    var availableChip = w.available
-      ? '<span class="wc-chip available"><i class="fa-solid fa-circle-check"></i> Ready</span>'
-      : '<span class="wc-chip busy"><i class="fa-solid fa-spinner"></i> Busy</span>';
-    var assignmentLine = w.currentOrderId
-      ? '<div class="wc-assignment"><i class="fa-solid fa-clipboard-list"></i> <span>Assigned to <strong>' + escHtml(w.currentOrderId) + '</strong>' + (w.currentPhase ? ' — ' + escHtml(w.currentPhase) : '') + '</span></div>'
-      : '';
-    var detailRole = roleCanEdit
-      ? ('<div class="wc-actions">'
-        + '<button class="wc-btn edit" data-edit="' + w.id + '"><i class="fa-solid fa-pen-to-square"></i> Edit</button>'
-        + '<button class="wc-btn ' + (w.status === 'Active' ? 'toggle' : 'activate') + '" data-toggle="' + w.id + '">' + (w.status === 'Active' ? '<i class="fa-solid fa-power-off"></i> Deactivate' : '<i class="fa-solid fa-circle-check"></i> Activate') + '</button>'
-        + '<button class="wc-btn delete" data-delete="' + w.id + '"><i class="fa-solid fa-trash-can"></i> Delete</button>'
-        + '</div>')
-      : '';
-
-    return '<div class="worker-card">'
-      + '<div class="wc-header">'
-      +   '<div class="wc-avatar" style="background:linear-gradient(135deg,' + colorForName(w.name) + ',#0c2b6d);">' + escHtml(initials(w.name)) + '</div>'
-      +   '<div class="wc-meta"><h4>' + escHtml(w.name) + '</h4><p>' + escHtml(w.phone || 'No phone') + ' · ' + escHtml(w.email || 'No email') + '</p></div>'
-      +   '<span class="' + badgeClass + '">' + badgeText + '</span>'
-      + '</div>'
-      + '<div class="wc-body">'
-      +   '<span class="wc-chip specialty"><i class="fa-solid fa-helmet-safety"></i> ' + escHtml(w.specialty) + '</span>'
-      +   accountChip
-      +   availableChip
-      + '</div>'
-      + assignmentLine
-      + detailRole
-      + '</div>';
-  }).join('');
-
-  grid.querySelectorAll('[data-edit]').forEach(function(b) {
-    b.addEventListener('click', function() {
-      var w = allWorkers.find(x => x.id === b.getAttribute('data-edit'));
-      if (!w) return;
-      document.getElementById('editWorkerId').value = w.id;
-      document.getElementById('editName').value = w.name || '';
-      document.getElementById('editPhone').value = w.phone || '';
-      document.getElementById('editEmail').value = w.email || '';
-      document.getElementById('editSpecialty').value = w.specialty || 'Builder';
-      openWorkerModal('workerEditModal');
-    });
-  });
-  grid.querySelectorAll('[data-toggle]').forEach(function(b) {
-    b.addEventListener('click', function() {
-      var w = allWorkers.find(x => x.id === b.getAttribute('data-toggle'));
-      if (!w) return;
-      if (w.status === 'Active') {
-        if (!confirm('Deactivate ' + w.name + '? They will not receive new assignments and cannot log in until reactivated.')) return;
-      } else {
-        if (!confirm('Reactivate ' + w.name + '?')) return;
-      }
-      toggleWorkerActive(w.id, w.name);
-    });
-  });
-  grid.querySelectorAll('[data-delete]').forEach(function(b) {
-    b.addEventListener('click', function() {
-      var w = allWorkers.find(x => x.id === b.getAttribute('data-delete'));
-      if (!w) return;
-      openDeleteModal(w);
-    });
-  });
-}
-
-async function toggleWorkerActive(id, name) {
-  try {
-    var token = await getToken();
-    var res = await fetch(API_BASE + '/workers/master/' + encodeURIComponent(id) + '/toggle-active', {
-      method: 'POST', headers: { Authorization: 'Bearer ' + token }
-    });
-    var body = await res.json().catch(function(){ return {}; });
-    if (!res.ok) throw new Error(body.error || 'Toggle failed');
-    showToast(name + ' ' + (body.status === 'Active' ? 'reactivated' : 'deactivated'), 'success');
-    await loadWorkers();
-  } catch (e) { alert(e.message); }
-}
-
-function openDeleteModal(w) {
-  detailDeleteWorker = w;
-  detailDeleteId = w.id;
-  document.getElementById('deleteWorkerName').textContent = w.name;
-  document.getElementById('deleteTypedName').value = '';
-  document.getElementById('workerDeleteConfirmBtn').disabled = true;
-  var blocked = w.currentOrderId ? '<strong>Currently assigned:</strong> ' + escHtml(w.orderPatientId || w.currentOrderId) + (w.currentPhase ? ' — ' + escHtml(w.currentPhase) : '') + '. Release the assignment before deleting.' : '';
-  var warn = w.currentOrderId ? ('<div class="delete-order-warn"><i class="fa-solid fa-triangle-exclamation"></i> ' + escHtml(w.currentOrderId) + (w.currentPhase ? ' — ' + escHtml(w.currentPhase) : '') + '. This worker is actively assigned — release them first.</div>') : '';
-  document.getElementById('deleteBlockedBox').innerHTML = warn;
-  document.getElementById('deleteBlockedBox').style.display = warn ? 'block' : 'none';
-  document.getElementById('deleteConfirmGroup').style.display = w.currentOrderId ? 'none' : 'block';
-  document.getElementById('workerDeleteConfirmBtn').style.display = w.currentOrderId ? 'none' : 'inline-flex';
-  document.getElementById('deleteModal').classList.add('show');
-}
-
-window.switchTab = function (tab) {
-  document.querySelectorAll('.ww-tab').forEach(function(b) { b.classList.remove('active'); });
-  var tabBtn = document.querySelector('.ww-tab[data-tab="' + tab + '"]');
-  if (tabBtn) tabBtn.classList.add('active');
-  document.getElementById('tabAll').style.display = tab === 'all' ? 'block' : 'none';
-  document.getElementById('tabRegistrations').style.display = tab === 'registrations' ? 'block' : 'none';
-};
-
-/* ============ SEARCH / FILTER ============ */
 function applyFilter() {
   var search = (document.getElementById('searchInput').value || '').toLowerCase();
   var s = document.getElementById('specialtyFilter').value;
@@ -338,16 +271,90 @@ function applyFilter() {
            (w.phone || '').toLowerCase().includes(search) ||
            (w.specialty || '').toLowerCase().includes(search);
   });
-  renderWorkers(filtered);
+  renderTable(filtered);
 }
+
+function renderTable(workers) {
+  var tbody = document.getElementById("workersTableBody");
+  var empty = document.getElementById("workersEmpty");
+  if (!workers.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  tbody.innerHTML = workers.map(function(w) {
+    return '<tr>'
+      + '<td>'
+      +   '<div class="worker-cell">'
+      +     '<div class="worker-avatar" style="background:linear-gradient(135deg,' + colorForName(w.name) + ',#0c2b6d);">' + escHtml(initials(w.name)) + '</div>'
+      +     '<div class="worker-meta"><h4>' + escHtml(w.name) + '</h4><p>' + escHtml(w.email || (w.phone ? w.phone : 'No contact')) + '</p></div>'
+      +   '</div>'
+      + '</td>'
+      + '<td><span class="specialty-tag">' + escHtml(w.specialty) + '</span></td>'
+      + '<td>' + escHtml(w.phone || '—') + '</td>'
+      + '<td><span class="status-pill ' + (w.status === 'Active' ? 'active' : 'inactive') + '">' + (w.status === 'Active' ? 'Active' : 'Deactivated') + '</span></td>'
+      + '<td><span class="avail-tag ' + (w.available ? 'available' : 'busy') + '">' + (w.available ? 'Ready' : 'Busy') + '</span></td>'
+      + '<td class="col-actions"><button class="view-btn" data-view="' + w.id + '">View</button></td>'
+      + '</tr>';
+  }).join('');
+  tbody.querySelectorAll('[data-view]').forEach(function(b) {
+    b.addEventListener('click', function() {
+      var w = allWorkers.find(x => x.id === b.getAttribute('data-view'));
+      if (w) openWorkerProfile(w);
+    });
+  });
+}
+
 document.getElementById('searchInput')?.addEventListener('input', applyFilter);
 document.getElementById('specialtyFilter')?.addEventListener('change', applyFilter);
 document.getElementById('statusFilter')?.addEventListener('change', applyFilter);
 
+function openWorkerProfile(w) {
+  detailWorker = w;
+  document.getElementById('profileAvatar').textContent = initials(w.name);
+  document.getElementById('profileAvatar').style.background = 'linear-gradient(135deg,' + colorForName(w.name) + ',#0c2b6d)';
+  document.getElementById('profileName').textContent = w.name;
+  document.getElementById('profileSpecialty').textContent = w.specialty;
+  document.getElementById('profileSpecialty2').textContent = w.specialty;
+  document.getElementById('profilePhone').textContent = w.phone || '—';
+  document.getElementById('profileEmail').textContent = w.email || '—';
+  document.getElementById('profileStatus').textContent = w.status === 'Active' ? 'Active' : 'Deactivated';
+  document.getElementById('profileAccount').textContent = w.hasAccount ? 'Linked Account' : 'Roster Only';
+  document.getElementById('profileAvail').textContent = w.available ? 'Ready' : 'Busy';
+  document.getElementById('profileJoined').textContent = fmtDate(w.createdAt);
+  document.getElementById('profileStatusBadge').className = 'badge-' + (w.status === 'Active' ? 'active' : 'red');
+  document.getElementById('profileStatusBadge').textContent = w.status === 'Active' ? 'Active' : 'Deactivated';
+  document.getElementById('profileAccountBadge').className = 'badge-' + (w.hasAccount ? 'blue' : 'neutral');
+  document.getElementById('profileAccountBadge').textContent = w.hasAccount ? 'Account' : 'Roster';
+  document.getElementById('profileAvailBadge').className = 'badge-' + (w.available ? 'blue' : 'amber');
+  document.getElementById('profileAvailBadge').textContent = w.available ? 'Available' : 'Busy';
+  document.getElementById('profileChip').style.display = 'none';
+  var assignBox = document.getElementById('profileAssignment');
+  if (w.currentOrderId) {
+    assignBox.innerHTML = '<div class="assignment-banner"><i class="fa-solid fa-person-digging"></i><div><strong>ORD-' + escHtml((w.currentOrderId || '').replace(/^ORD-?/i, '')) + '</strong> — ' + escHtml(w.currentPhase || 'assigned') + '</div></div>';
+    assignBox.classList.remove('profile-empty');
+  } else {
+    assignBox.innerHTML = '<div class="avail-banner"><i class="fa-solid fa-circle-check"></i><span><strong>Available</strong> — no active assignment right now.</span></div>';
+    assignBox.classList.remove('profile-empty');
+  }
+  // Admin-only actions
+  var adminActions = document.getElementById('profileAdminActions');
+  var mgrNote = document.getElementById('profileManagerNote');
+  if (isAdmin()) {
+    adminActions.style.display = 'grid';
+    mgrNote.style.display = 'none';
+    document.getElementById('profileToggleBtn').innerHTML = w.status === 'Active'
+      ? '<i class="fa-solid fa-power-off"></i> Deactivate'
+      : '<i class="fa-solid fa-circle-check"></i> Activate';
+    document.getElementById('profileToggleBtn').className = 'qa-btn ' + (w.status === 'Active' ? 'ghost' : 'ghost');
+  } else {
+    adminActions.style.display = 'none';
+    mgrNote.style.display = 'inline-flex';
+  }
+  document.getElementById('workerViewModal').classList.add('show');
+}
+
 /* ============ REGISTRATIONS ============ */
 async function loadRegistrations() {
-  var container = document.getElementById('registrationsGrid');
-  container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading registrations...</p></div>';
+  var grid = document.getElementById('registrationsGrid');
+  grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading registrations...</p></div>';
   try {
     var token = await getToken();
     var res = await fetch(API_BASE + '/worker-registrations', { headers: { Authorization: 'Bearer ' + token } });
@@ -356,7 +363,7 @@ async function loadRegistrations() {
     updateRegStats();
     renderRegistrations(allRegistrations);
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-exclamation"></i><p>Failed to load registrations</p></div>';
+    grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-exclamation"></i><h3>Failed to load registrations</h3><p>Try refreshing the page.</p></div>';
   }
 }
 function updateRegStats() {
@@ -370,39 +377,37 @@ function updateRegStats() {
   if (pending > 0) { badge.textContent = pending; badge.style.display = 'inline-block'; } else { badge.style.display = 'none'; }
 }
 function renderRegistrations(regs) {
-  var container = document.getElementById('registrationsGrid');
-  if (!regs.length) { container.innerHTML = '<div class="empty-state"><i class="fa-solid fa-clipboard-list"></i><h3>No registrations yet</h3><p>Worker applications will appear here for your approval.</p></div>'; return; }
+  var grid = document.getElementById('registrationsGrid');
+  if (!regs.length) { grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-clipboard-list"></i><h3>No registrations yet</h3><p>Worker applications will appear here for your approval.</p></div>'; return; }
   var statusColors = { pending: '#b45309', approved: '#15803d', rejected: '#b91c1c' };
   var statusBg     = { pending: '#fef3c7', approved: '#dcfce7', rejected: '#fee2e2' };
   var statusLabel  = { pending: 'PENDING', approved: 'APPROVED', rejected: 'REJECTED' };
-  container.innerHTML = regs.map(function(r) {
+  grid.innerHTML = regs.map(function(r) {
     var actionsHtml = '';
     if (r.status === 'pending') {
-      actionsHtml = '<div class="wc-actions"><button class="wc-btn activate" data-approve="' + r.id + '"><i class="fa-solid fa-check"></i> Approve</button>'
-                  + '<button class="wc-btn delete" data-reject="' + r.id + '"><i class="fa-solid fa-xmark"></i> Reject</button></div>';
+      actionsHtml = '<div class="reg-actions">'
+        + '<button class="reg-btn approve" data-approve="' + r.id + '"><i class="fa-solid fa-check"></i> Approve</button>'
+        + '<button class="reg-btn reject" data-reject="' + r.id + '"><i class="fa-solid fa-xmark"></i> Reject</button>'
+        + '</div>';
     } else {
-      actionsHtml = '<div class="wc-actions"><button class="wc-btn edit" disabled style="opacity:.6;cursor:default;"><i class="fa-solid fa-circle-check"></i> ' + statusLabel[r.status] + '</button></div>';
+      actionsHtml = '<div class="reg-actions"><button class="reg-btn" disabled style="background:#e2e8f0;color:#94a3b8;cursor:default;"><i class="fa-solid fa-circle-check"></i> ' + statusLabel[r.status] + '</button></div>';
     }
-    return '<div class="worker-card">' +
-      '<div class="wc-header">' +
-        '<div class="wc-avatar" style="background:linear-gradient(135deg,' + colorForName(r.name) + ',#0c2b6d);">' + escHtml(initials(r.name)) + '</div>' +
-        '<div class="wc-meta"><h4>' + escHtml(r.name) + '</h4><p>' + escHtml(r.email) + '</p></div>' +
-        '<span class="wc-badge" style="background:' + statusBg[r.status] + ';color:' + statusColors[r.status] + ';">' + statusLabel[r.status] + '</span>' +
-      '</div>' +
-      '<div class="wc-body">' +
-        '<span class="wc-chip specialty"><i class="fa-solid fa-helmet-safety"></i> ' + escHtml(r.specialty) + '</span>' +
-        '<span class="wc-chip available"><i class="fa-solid fa-phone"></i> ' + escHtml(r.phone || 'No phone') + '</span>' +
-      '</div>' +
-      '<div class="wc-assignment"><i class="fa-solid fa-calendar"></i> <span><strong>Registered:</strong> ' + fmtDate(r.createdAt) + (r.reviewedAt ? ' · Reviewed ' + fmtDate(r.reviewedAt) : '') + '</span></div>' +
-      actionsHtml + '</div>';
+    return '<div class="reg-card">'
+      +   '<div class="reg-card-header">'
+      +     '<div class="reg-avatar" style="background:linear-gradient(135deg,' + colorForName(r.name) + ',#0c2b6d);">' + escHtml(initials(r.name)) + '</div>'
+      +     '<div class="reg-meta"><h4>' + escHtml(r.name) + '</h4><p>' + escHtml(r.email || '—') + '</p></div>'
+      +     '<span class="status-pill ' + (r.status === 'pending' ? 'active' : (r.status === 'approved' ? 'completed' : 'inactive')) + '">' + statusLabel[r.status] + '</span>'
+      +   '</div>'
+      +   '<div class="reg-row">'
+      +     '<span class="reg-chip"><i class="fa-solid fa-helmet-safety"></i> ' + escHtml(r.specialty || '—') + '</span>'
+      +     '<span class="reg-chipPhone"><i class="fa-solid fa-phone"></i> ' + escHtml(r.phone || '—') + '</span>'
+      +   '</div>'
+      +   '<div class="list-card-sub"><i class="fa-solid fa-calendar"></i> Registered: ' + fmtDate(r.createdAt) + (r.reviewedAt ? ' · Reviewed ' + fmtDate(r.reviewedAt) : '') + '</div>'
+      +   actionsHtml
+      + '</div>';
   }).join('');
-
-  container.querySelectorAll('[data-approve]').forEach(function(b) {
-    b.addEventListener('click', function() { approveReg(b.getAttribute('data-approve')); });
-  });
-  container.querySelectorAll('[data-reject]').forEach(function(b) {
-    b.addEventListener('click', function() { rejectReg(b.getAttribute('data-reject')); });
-  });
+  grid.querySelectorAll('[data-approve]').forEach(function(b) { b.addEventListener('click', function() { approveReg(b.getAttribute('data-approve')); }); });
+  grid.querySelectorAll('[data-reject]').forEach(function(b) { b.addEventListener('click', function() { rejectReg(b.getAttribute('data-reject')); }); });
 }
 function applyRegFilter() {
   var q = (document.getElementById('regSearchInput').value || '').toLowerCase();
@@ -436,10 +441,19 @@ async function rejectReg(id) {
     var token = await getToken();
     var res = await fetch(API_BASE + '/worker-registrations/' + id + '/reject', {
       method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ reason: reason })
+      body: JSON.stringify({ reason })
     });
     var body = await res.json();
     if (res.ok) { showToast('Registration rejected', 'info'); await loadRegistrations(); }
     else { alert(body.error || 'Reject failed'); }
   } catch (err) { alert('Connection error'); }
 }
+
+/* ============ TABS ============ */
+window.switchTab = function (tab) {
+  document.querySelectorAll('.ww-tab').forEach(function(b) { b.classList.remove('active'); });
+  var tabBtn = document.querySelector('.ww-tab[data-tab="' + tab + '"]');
+  if (tabBtn) tabBtn.classList.add('active');
+  document.getElementById('tabAll').style.display = tab === 'all' ? 'block' : 'none';
+  document.getElementById('tabRegistrations').style.display = tab === 'registrations' ? 'block' : 'none';
+};

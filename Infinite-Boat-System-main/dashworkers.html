@@ -12,6 +12,7 @@
 </head>
 <body>
 <div class="dashboard-layout">
+
 <aside class="sidebar">
     <div>
         <h1 class="logo">BoatShop</h1>
@@ -25,19 +26,19 @@
     <div class="topbar">
         <div>
             <h1>Workers</h1>
-            <p class="lg-sub">Every worker on your roster — who's busy, who's free, who needs your sign-off.</p>
+            <p class="lg-sub">Your team roster — every hand on deck, every skill on the yard.</p>
         </div>
         <div class="topbar-actions">
-            <button class="btn-secondary" id="quickAddBtn"><i class="fa-solid fa-plus"></i> Quick Add to Roster</button>
-            <button class="btn-primary" id="createAccountBtn"><i class="fa-solid fa-user-plus"></i> Create Worker Account</button>
+            <button class="btn-secondary" id="quickAddBtn"><i class="fa-solid fa-plus"></i> Quick Add</button>
+            <button class="btn-primary" id="createAccountBtn"><i class="fa-solid fa-user-plus"></i> New Account</button>
         </div>
     </div>
 
     <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fa-solid fa-users"></i></div><div class="stat-info"><h3 id="statTotal">0</h3><p>Total Workers</p></div></div>
-        <div class="stat-card"><div class="stat-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-circle-check"></i></div><div class="stat-info"><h3 id="statActive">0</h3><p>Active Roster</p></div></div>
-        <div class="stat-card"><div class="stat-icon" style="background:#fef3c7;color:#d97706;"><i class="fa-solid fa-spinner"></i></div><div class="stat-info"><h3 id="statBusy">0</h3><p>Currently On Project</p></div></div>
-        <div class="stat-card"><div class="stat-icon" style="background:#dbeafe;color:#2563eb;"><i class="fa-solid fa-clock"></i></div><div class="stat-info"><h3 id="statAvailable">0</h3><p>Ready to Assign</p></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#dcfce7;color:#16a34a;"><i class="fa-solid fa-circle-check"></i></div><div class="stat-info"><h3 id="statActive">0</h3><p>Active</p></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#fef3c7;color:#d97706;"><i class="fa-solid fa-spinner"></i></div><div class="stat-info"><h3 id="statBusy">0</h3><p>Busy</p></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#dbeafe;color:#2563eb;"><i class="fa-solid fa-clock"></i></div><div class="stat-info"><h3 id="statAvailable">0</h3><p>Ready</p></div></div>
     </div>
 
     <div class="ww-tabs">
@@ -55,7 +56,7 @@
         <div class="controls-bar">
             <div class="search-box">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="searchInput" placeholder="Search name, email, phone, specialty..." autocomplete="off">
+                <input type="text" id="searchInput" placeholder="Search name, specialty, phone..." autocomplete="off">
             </div>
             <select id="specialtyFilter" class="sort-select">
                 <option value="">All Specialties</option>
@@ -69,21 +70,37 @@
                 <option value="Fiberglass Specialist">Fiberglass Specialist</option>
             </select>
             <select id="statusFilter" class="sort-select">
-                <option value="">All Status</option>
-                <option value="active">Active Roster</option>
+                <option value="">All</option>
+                <option value="active">Active</option>
                 <option value="inactive">Deactivated</option>
-                <option value="busy">Busy / On Project</option>
-                <option value="available">Ready / Available</option>
+                <option value="busy">Busy</option>
+                <option value="available">Available</option>
                 <option value="linked">Has Account</option>
                 <option value="unlinked">Registry Only</option>
             </select>
         </div>
 
-        <div id="workersGrid" class="workers-grid"></div>
-        <div id="workersEmpty" class="empty-state" style="display:none;">
-            <i class="fa-solid fa-users-slash"></i>
-            <h3>No workers match that filter</h3>
-            <p>Clear the search or choose a different filter.</p>
+        <div class="table-card">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Worker</th>
+                            <th>Specialty</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th>Availability</th>
+                            <th class="col-actions">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workersTableBody"></tbody>
+                </table>
+                <div id="workersEmpty" class="empty-state" style="display:none;">
+                    <i class="fa-solid fa-user-slash"></i>
+                    <h3>No workers match that filter</h3>
+                    <p>Clear the search or choose another filter.</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -108,16 +125,62 @@
                 <option value="rejected">Rejected</option>
             </select>
         </div>
-        <div id="registrationsGrid" class="workers-grid"></div>
+        <div id="registrationsGrid" class="registrations-grid"></div>
     </div>
 </main>
+</div>
+
+<!-- Worker Profile Modal -->
+<div class="view-modal" id="workerViewModal">
+    <div class="modal-content modal-lg">
+        <button class="close-modal" onclick="closeWorkerModal('workerViewModal')">×</button>
+        <div class="profile-summary">
+            <div class="avatar-ring">
+                <div class="avatar-large" id="profileAvatar">?</div>
+            </div>
+            <h2 id="profileName">—</h2>
+            <p id="profileSpecialty" class="muted-text">—</p>
+            <div class="profile-badges">
+                <span id="profileStatusBadge" class="badge-active">Active</span>
+                <span id="profileAccountBadge" class="badge-neutral">Account</span>
+                <span id="profileAvailBadge" class="badge-blue">Available</span>
+            </div>
+            <div id="profileChip" class="profile-chip" style="display:none;"></div>
+            <div class="contact-rows">
+                <div class="contact-row"><i class="fa-solid fa-helmet-safety"></i><div><span>Specialty</span><strong id="profileSpecialty2">—</strong></div></div>
+                <div class="contact-row"><i class="fa-solid fa-phone"></i><div><span>Phone</span><strong id="profilePhone">—</strong></div></div>
+                <div class="contact-row"><i class="fa-solid fa-envelope"></i><div><span>Email</span><strong id="profileEmail">—</strong></div></div>
+            </div>
+            <div class="admin-actions" id="profileAdminActions">
+                <button class="qa-btn ghost" id="profileEditBtn"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+                <button class="qa-btn ghost" id="profileToggleBtn"><i class="fa-solid fa-power-off"></i> Deactivate</button>
+                <button class="qa-btn danger" id="profileDeleteBtn"><i class="fa-solid fa-trash-can"></i> Delete</button>
+            </div>
+            <div class="role-note" id="profileManagerNote" style="display:none;"><i class="fa-solid fa-eye"></i> Manager view — read-only</div>
+        </div>
+        <div class="profile-detail">
+            <div class="profile-section">
+                <div class="profile-section-title"><i class="fa-solid fa-clipboard-list"></i> Current Assignment</div>
+                <div id="profileAssignment" class="profile-empty">Not currently assigned to a project.</div>
+            </div>
+            <div class="profile-section">
+                <div class="profile-section-title"><i class="fa-solid fa-id-badge"></i> Roster</div>
+                <div class="roster-grid">
+                    <div><span>Status</span><strong id="profileStatus">—</strong></div>
+                    <div><span>Account</span><strong id="profileAccount">—</strong></div>
+                    <div><span>Available</span><strong id="profileAvail">—</strong></div>
+                    <div><span>Joined</span><strong id="profileJoined">—</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Edit / Quick Add Modal shared -->
 <div class="view-modal" id="workerEditModal">
     <div class="modal-content">
         <button class="close-modal" onclick="closeWorkerModal('workerEditModal')">×</button>
-        <h2 id="workerEditTitle"><i class="fa-solid fa-user-pen"></i> Edit Worker</h2>
+        <h2><i class="fa-solid fa-user-pen"></i> Edit Worker</h2>
         <form id="workerEditForm" autocomplete="off">
             <div class="modal-body">
                 <input type="hidden" id="editWorkerId">
@@ -147,7 +210,7 @@
     <div class="modal-content">
         <button class="close-modal" onclick="closeWorkerModal('quickAddModal')">×</button>
         <h2><i class="fa-solid fa-user-plus"></i> Quick Add to Roster</h2>
-        <p class="modal-sub">Add a name to your worker roster for dispatching to projects — no login required. Create a full account from the button at the top for workers who need the app.</p>
+        <p class="modal-sub">Add a name for dispatch — no login required. Create a full account via the button above when the worker needs the app themselves.</p>
         <form id="quickAddForm" autocomplete="off">
             <div class="modal-body">
                 <div class="form-row two">
@@ -173,7 +236,7 @@
     <div class="modal-content">
         <button class="close-modal" onclick="closeWorkerModal('createAccountModal')">×</button>
         <h2><i class="fa-solid fa-user-plus"></i> Create Worker Account</h2>
-        <p class="modal-sub">Creates a full login for the worker — sends credentials via email and subscribes them to the next open project phase.</p>
+        <p class="modal-sub">Full login + access to the worker portal, with credentials emailed to the worker.</p>
         <form id="createAccountForm" autocomplete="off">
             <div class="modal-body">
                 <div class="form-row two">
@@ -207,7 +270,7 @@
         <button class="close-modal" onclick="closeWorkerModal('deleteModal')">×</button>
         <div class="delete-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
         <h2>Delete worker permanently?</h2>
-        <p class="delete-warn">This removes <strong><span id="deleteWorkerName"></span></strong> from the roster and (if any) their account, assignments and notifications. <strong>This cannot be undone.</strong></p>
+        <p class="delete-warn">This removes <strong><span id="deleteWorkerName"></span></strong> from the roster (and their account, assignments, and notifications). <strong>This cannot be undone.</strong></p>
         <div id="deleteBlockedBox" class="delete-order-warn" style="display:none;"></div>
         <div id="deleteConfirmGroup">
             <p class="delete-prompt">Type the worker's full name to confirm:</p>
@@ -221,6 +284,6 @@
 </div>
 
 <script src="toast.js"></script>
-<script type="module" src="dashworkers.js?v=2"></script>
+<script type="module" src="dashworkers.js?v=4"></script>
 </body>
 </html>
