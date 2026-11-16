@@ -50,8 +50,7 @@ function initials(name) {
   if (currentRole === 'manager') {
     document.getElementById('tabRegistrations').style.display = 'none';
     document.querySelector('.ww-tab[data-tab="registrations"]').style.display = 'none';
-    document.getElementById('quickAddBtn').style.display = 'none';
-    document.getElementById('createAccountBtn').style.display = 'none';
+    document.getElementById('registerNewWorkerBtn').style.display = 'none';
   }
 
   await loadWorkers();
@@ -61,65 +60,42 @@ function initials(name) {
 })();
 
 function wireButtons() {
-  document.getElementById('quickAddBtn')?.addEventListener('click', function() {
-    document.getElementById('quickAddForm').reset();
-    openWorkerModal('quickAddModal');
-  });
-  document.getElementById('createAccountBtn')?.addEventListener('click', function() {
-    document.getElementById('createAccountForm').reset();
-    document.getElementById('caSpecialty').value = 'Builder';
-    openWorkerModal('createAccountModal');
+  var regBtn = document.getElementById('registerNewWorkerBtn');
+  if (regBtn) regBtn.addEventListener('click', function() {
+    if (!isAdmin()) return;
+    document.getElementById('registerForm').reset();
+    document.getElementById('regSpecialty').value = 'Builder';
+    openWorkerModal('registerModal');
   });
 
-  document.getElementById('quickAddForm')?.addEventListener('submit', async function(e) {
+  var regForm = document.getElementById('registerForm');
+  if (regForm) regForm.addEventListener('submit', async function(e) {
     e.preventDefault();
     if (!isAdmin()) return;
-    var btn = document.getElementById('quickAddSubmit');
-    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Adding...';
+    var btn = document.getElementById('regSubmitBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Registering...';
     try {
-      var name = document.getElementById('quickName').value.trim();
-      var phone = document.getElementById('quickPhone').value.trim();
-      var specialty = document.getElementById('quickSpecialty').value;
-      var token = await getToken();
-      var res = await fetch(API_BASE + '/workers/master', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ name, specialty, phone })
-      });
-      var body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Add failed');
-      showToast('Worker added to roster', 'success');
-      closeWorkerModal('quickAddModal');
-      await loadWorkers();
-    } catch (err) { alert(err.message); }
-    finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Add to Roster'; }
-  });
-
-  document.getElementById('createAccountForm')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    if (!isAdmin()) return;
-    var btn = document.getElementById('createAccountSubmit');
-    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating...';
-    try {
-      var name = document.getElementById('caName').value.trim();
-      var email = document.getElementById('caEmail').value.trim();
-      var phone = document.getElementById('caPhone').value.trim();
-      var specialty = document.getElementById('caSpecialty').value;
-      var password = document.getElementById('caPassword').value;
-      var confirmPassword = document.getElementById('caConfirmPassword').value;
-      if (password !== confirmPassword) { alert('Passwords do not match.'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Create &amp; Send Credentials'; return; }
+      var fullname = document.getElementById('regName').value.trim();
+      var email = document.getElementById('regEmail').value.trim();
+      var phone = document.getElementById('regPhone').value.trim();
+      var specialty = document.getElementById('regSpecialty').value;
+      var password = document.getElementById('regPassword').value;
+      var confirm = document.getElementById('regConfirmPassword').value;
+      if (password.length < 8) { alert('Password must be at least 8 characters.'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Register Worker'; return; }
+      if (password !== confirm) { alert('Passwords do not match.'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Register Worker'; return; }
       var token = await getToken();
       var res = await fetch(API_BASE + '/admin/create-worker', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ fullname: name, email, phone, specialty, password })
+        body: JSON.stringify({ fullname, email, phone, specialty, password })
       });
       var body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'Create failed');
-      showToast('Worker account created — credentials emailed to ' + email, 'success');
-      closeWorkerModal('createAccountModal');
+      if (!res.ok) throw new Error(body.error || 'Unable to register worker');
+      showToast('Worker registered — credentials emailed to ' + email, 'success');
+      closeWorkerModal('registerModal');
       await loadWorkers();
       if (isAdmin()) await loadRegistrations();
     } catch (err) { alert(err.message); }
-    finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Create &amp; Send Credentials'; }
+    finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Register Worker'; }
   });
 
   document.getElementById('workerEditForm')?.addEventListener('submit', async function(e) {

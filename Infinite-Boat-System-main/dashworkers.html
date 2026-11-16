@@ -28,10 +28,7 @@
             <h1>Workers</h1>
             <p class="lg-sub">Your team roster — every hand on deck, every skill on the yard.</p>
         </div>
-        <div class="topbar-actions">
-            <button class="btn-secondary" id="quickAddBtn"><i class="fa-solid fa-plus"></i> Quick Add</button>
-            <button class="btn-primary" id="createAccountBtn"><i class="fa-solid fa-user-plus"></i> New Account</button>
-        </div>
+        <button class="btn-primary btn-lg" id="registerNewWorkerBtn"><i class="fa-solid fa-user-plus"></i> Register New Worker</button>
     </div>
 
     <div class="stats-grid">
@@ -205,60 +202,37 @@
     </div>
 </div>
 
-<!-- Quick Add Modal (registry only) -->
-<div class="view-modal" id="quickAddModal">
+<!-- Register New Worker Modal -->
+<div class="view-modal" id="registerModal">
     <div class="modal-content">
-        <button class="close-modal" onclick="closeWorkerModal('quickAddModal')">×</button>
-        <h2><i class="fa-solid fa-user-plus"></i> Quick Add to Roster</h2>
-        <p class="modal-sub">Add a name for dispatch — no login required. Create a full account via the button above when the worker needs the app themselves.</p>
-        <form id="quickAddForm" autocomplete="off">
+        <button class="close-modal" onclick="closeWorkerModal('registerModal')">×</button>
+        <h2><i class="fa-solid fa-user-plus"></i> Register New Worker</h2>
+        <p class="modal-sub">Creates a worker account — the worker receives a welcome email with their login details right after registration.</p>
+        <form id="registerForm" autocomplete="off">
             <div class="modal-body">
                 <div class="form-row two">
-                    <div class="form-group"><label>Full Name *</label><input type="text" id="quickName" required placeholder="e.g. Juan dela Cruz"></div>
+                    <div class="form-group"><label>Full Name *</label><input type="text" id="regName" required placeholder="e.g. Juan dela Cruz"></div>
                     <div class="form-group"><label>Specialty *</label>
-                        <select id="quickSpecialty" required>
-                            <option value="Builder">Builder</option><option value="Welder">Welder</option><option value="Engineer">Engineer</option><option value="Electrician">Electrician</option><option value="Mechanic">Mechanic</option><option value="Quality Inspector">Quality Inspector</option><option value="Painter">Painter</option><option value="Fiberglass Specialist">Fiberglass Specialist</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom:0;"><label>Phone</label><input type="tel" id="quickPhone" placeholder="09XXXXXXXXX"></div>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="qa-btn ghost" onclick="closeWorkerModal('quickAddModal')">Cancel</button>
-                <button type="submit" class="qa-btn" id="quickAddSubmit"><i class="fa-solid fa-floppy-disk"></i> Add to Roster</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Create Worker Account modal -->
-<div class="view-modal" id="createAccountModal">
-    <div class="modal-content">
-        <button class="close-modal" onclick="closeWorkerModal('createAccountModal')">×</button>
-        <h2><i class="fa-solid fa-user-plus"></i> Create Worker Account</h2>
-        <p class="modal-sub">Full login + access to the worker portal, with credentials emailed to the worker.</p>
-        <form id="createAccountForm" autocomplete="off">
-            <div class="modal-body">
-                <div class="form-row two">
-                    <div class="form-group"><label>Full Name *</label><input type="text" id="caName" required placeholder="e.g. Juan dela Cruz"></div>
-                    <div class="form-group"><label>Specialty *</label>
-                        <select id="caSpecialty" required>
+                        <select id="regSpecialty" required>
                             <option value="Builder">Builder</option><option value="Welder">Welder</option><option value="Engineer">Engineer</option><option value="Electrician">Electrician</option><option value="Mechanic">Mechanic</option><option value="Quality Inspector">Quality Inspector</option><option value="Painter">Painter</option><option value="Fiberglass Specialist">Fiberglass Specialist</option>
                         </select>
                     </div>
                 </div>
                 <div class="form-row two">
-                    <div class="form-group"><label>Email *</label><input type="email" id="caEmail" required placeholder="worker@email.com"></div>
-                    <div class="form-group"><label>Phone</label><input type="tel" id="caPhone" placeholder="09XXXXXXXXX"></div>
+                    <div class="form-group"><label>Email Address *</label><input type="email" id="regEmail" required placeholder="worker@email.com"></div>
+                    <div class="form-group"><label>Phone</label><input type="tel" id="regPhone" placeholder="09XXXXXXXXX"></div>
                 </div>
                 <div class="form-row two">
-                    <div class="form-group"><label>Password *</label><input type="password" id="caPassword" required minlength="8" placeholder="Min 8 characters"></div>
-                    <div class="form-group"><label>Confirm Password *</label><input type="password" id="caConfirmPassword" required minlength="8"></div>
+                    <div class="form-group"><label>Password *</label><input type="password" id="regPassword" required minlength="8" placeholder="Min 8 characters"></div>
+                    <div class="form-group"><label>Confirm Password *</label><input type="password" id="regConfirmPassword" required minlength="8" placeholder="Re-enter password"></div>
+                </div>
+                <div class="form-group info-note">
+                    <i class="fa-solid fa-circle-info"></i> The worker will be registered and receive an email with login credentials so they can sign in right away.
                 </div>
             </div>
             <div class="modal-actions">
-                <button type="button" class="qa-btn ghost" onclick="closeWorkerModal('createAccountModal')">Cancel</button>
-                <button type="submit" class="qa-btn" id="createAccountSubmit"><i class="fa-solid fa-paper-plane"></i> Create &amp; Send Credentials</button>
+                <button type="button" class="qa-btn ghost" onclick="closeWorkerModal('registerModal')">Cancel</button>
+                <button type="submit" class="qa-btn" id="regSubmitBtn"><i class="fa-solid fa-paper-plane"></i> Register Worker</button>
             </div>
         </form>
     </div>
