@@ -48,6 +48,9 @@ export function initThreeViewer() {
     autoRotate: true,
     onAutoRotateChange: notifyAutoRotate,
   });
+  // Replay any name/flag set before the viewer existed.
+  if (pendingName) viewer.setName(pendingName.text, pendingName.font, pendingName.color, pendingName.placements);
+  if (pendingFlag) viewer.setFlag(pendingFlag.type, pendingFlag.imageDataUrl, pendingFlag.placements);
   initialized = true;
 }
 
@@ -97,6 +100,28 @@ export function setDeckColor(hex) { pushColor('deck', hex); }
 export function setFloorColor(hex) { pushColor('floor', hex); }
 export function setLowerHullColor(hex) { pushColor('lowerHull', hex); }
 export function setRailColor(hex) { pushColor('rail', hex); }
+
+// Boat name / flag decals. Safe to call before the viewer exists — the
+// values are replayed once the 3D view is initialised.
+let pendingName = null;
+let pendingFlag = null;
+
+export function setBoatName(text, font, color, placements = []) {
+  pendingName = { text, font, color, placements };
+  if (viewer) viewer.setName(text, font, color, placements);
+}
+export function clearBoatName() {
+  pendingName = { text: '', font: 'Impact', color: '#ffffff', placements: [] };
+  if (viewer) viewer.clearName();
+}
+export function setBoatFlag(type, imageDataUrl, placements = []) {
+  pendingFlag = { type, imageDataUrl, placements };
+  if (viewer) viewer.setFlag(type, imageDataUrl, placements);
+}
+export function clearBoatFlag() {
+  pendingFlag = { type: 'none', imageDataUrl: null, placements: [] };
+  if (viewer) viewer.clearFlag();
+}
 
 /**
  * Toggle the 360° auto rotation. Returns the new state (true = rotating).

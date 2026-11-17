@@ -734,6 +734,16 @@ select{
     transform:translateY(-2px);
 }
 
+.submit-review-btn.is-disabled,
+.submit-review-btn.is-disabled:hover
+{
+    opacity:0.5;
+    cursor:not-allowed;
+    transform:none;
+    filter:grayscale(0.6);
+    box-shadow:none;
+}
+
 /* =========================================================
    SCROLLBAR
 ========================================================= */
@@ -936,4 +946,89 @@ select{
 
         grid-template-columns:1fr;
     }
+}
+
+/* =========================================================
+   BOAT NAME + CUSTOM FLAG SECTIONS
+========================================================= */
+
+.opt-tag{
+    font-size:10px;
+    font-weight:700;
+    color:#2563eb;
+    background:#eff6ff;
+    border-radius:6px;
+    padding:2px 6px;
+    margin-left:6px;
+    letter-spacing:0.05em;
+    vertical-align:1px;
+}
+
+.name-flag-section input[type="text"]{
+    width:100%;
+    height:44px;
+    border:1px solid #e2e8f0;
+    border-radius:12px;
+    background:#f3f4f6;
+    padding:0 14px;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:0.08em;
+    outline:none;
+    box-sizing:border-box;
+    margin:0 0 10px 0;
+    text-transform:uppercase;
+    transition:.2s;
+}
+.name-flag-section input[type="text"]:focus{
+    border-color:#2563eb;
+    background:#fff;
+    box-shadow:0 0 0 3px rgba(37,99,235,.15);
+}
+
+.name-flag-section select{
+    margin-bottom:10px;
+}
+
+.name-colors{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:4px;
+}
+.name-swatch{
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    border:2px solid #fff;
+    box-shadow:0 0 0 1px #cbd5e1;
+    cursor:pointer;
+    transition:.15s;
+    padding:0;
+}
+.name-swatch:hover{
+    transform:scale(1.18);
+}
+.name-swatch.active{
+    box-shadow:0 0 0 2px #2563eb, 0 0 0 4px rgba(37,99,235,.3);
+    transform:scale(1.18);
+}
+
+.placement-option{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    color:#334155;
+    cursor:pointer;
+    padding:4px 0;
+    font-weight:500;
+    user-select:none;
+}
+.placement-option input[type="checkbox"],
+.placement-option input[type="radio"]{
+    accent-color:#2563eb;
+    width:16px;
+    height:16px;
+    cursor:pointer;
 }

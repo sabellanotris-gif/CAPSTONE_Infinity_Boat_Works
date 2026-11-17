@@ -156,6 +156,12 @@ function renderScheduleCard(a, idx) {
     const customConfig = o.customConfig;
     const ackResponses = o.ackResponses || [];
     const ackComments = o.ackComments || {};
+    // New single-checklist format: { all: 'yes', date: ISO } — also covers
+    // the custom-order flow via guidelineResponses / guidelineComments.
+    const ackAll = (o.ackResponses && o.ackResponses.all === 'yes') ? o.ackResponses
+        : (o.guidelineResponses && o.guidelineResponses.all === 'yes') ? o.guidelineResponses
+        : null;
+    const ackAllComment = (o.ackComments && o.ackComments.all) || (o.guidelineComments && o.guidelineComments.all) || '';
     const signature = schedule?.signature || o.signature || '';
 
     const ackLabels = [
@@ -223,7 +229,13 @@ function renderScheduleCard(a, idx) {
             </div>
         </div>
 
-        ${ackResponses.length > 0 ? `
+        ${ackAll ? `
+        <div class="payment-info" style="background:#f0fdf4;border-color:#bbf7d0;">
+            <h4 style="color:#15803d;"><i class="fas fa-clipboard-check"></i> Acknowledgment</h4>
+            <p style="font-size:13px;color:#166534;margin-top:8px;"><i class="fas fa-check-circle"></i> Customer acknowledged all items${ackAll.date ? ' — ' + new Date(ackAll.date).toLocaleString() : ''}.</p>
+            ${ackAllComment ? `<p style="font-size:12px;color:#64748b;margin-top:6px;margin-left:22px;">"${ackAllComment}"</p>` : ''}
+        </div>
+        ` : (Array.isArray(ackResponses) && ackResponses.length > 0) ? `
         <div class="payment-info" style="background:#fefce8;border-color:#fde68a;">
             <h4 style="color:#a16207;"><i class="fas fa-clipboard-check"></i> Acknowledgment Responses</h4>
             <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
@@ -271,6 +283,8 @@ function renderScheduleCard(a, idx) {
                 ${customConfig.seats ? `<div class="pa-item"><span class="label">Seats</span><span class="value" style="font-size:13px;">${customConfig.seats}</span></div>` : ''}
                 ${customConfig.engineName && customConfig.engineName !== 'None' ? `<div class="pa-item"><span class="label">Engine</span><span class="value" style="font-size:13px;">${customConfig.engineName}</span></div>` : ''}
                 ${customConfig.ledName && customConfig.ledName !== 'None' ? `<div class="pa-item"><span class="label">LED</span><span class="value" style="font-size:13px;">${customConfig.ledName}</span></div>` : ''}
+                ${customConfig.boatName ? `<div class="pa-item"><span class="label">Boat Name</span><span class="value" style="font-size:13px;">${customConfig.boatName}</span></div>` : ''}
+                ${customConfig.flagType && customConfig.flagType !== 'none' ? `<div class="pa-item"><span class="label">Flag</span><span class="value" style="font-size:13px;">${customConfig.flagType === 'ph' ? 'Philippine Flag' : '<img src="' + customConfig.flagImage + '" alt="Custom flag" style="height:34px;border:1px solid #e2e8f0;border-radius:4px;vertical-align:middle;">'}</span></div>` : ''}
             </div>
             <div style="display:flex;gap:20px;margin-top:10px;flex-wrap:wrap;">
                 ${customConfig.color ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${customConfig.color};border:2px solid #d1d5db;flex-shrink:0;"></span><span><strong>Hull:</strong> ${customConfig.hullColorName || 'N/A'}</span></div>` : ''}

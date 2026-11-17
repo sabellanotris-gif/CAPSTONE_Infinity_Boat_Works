@@ -122,17 +122,6 @@ rel="stylesheet">
         <div class="control-group">
 
             <label>
-                SEATING CAPACITY
-            </label>
-
-            <select id="seatSelect">
-            </select>
-
-        </div>
-
-        <div class="control-group">
-
-            <label>
                 STORAGE
             </label>
 
@@ -145,20 +134,6 @@ rel="stylesheet">
             </select>
 
         </div>
-        <div class="control-group">
-
-            <label>
-
-                LED LIGHTS
-
-            </label>
-
-            <select id="ledSelect">
-
-            </select>
-
-        </div>
-
         <div class="color-picker">
 
             <label>
@@ -227,6 +202,84 @@ rel="stylesheet">
 
 
 
+        <div class="control-group name-flag-section">
+
+            <label>
+                BOAT NAME <span class="opt-tag">OPTIONAL · ₱15,000</span>
+            </label>
+
+            <input type="text"
+                id="boatNameText"
+                maxlength="20"
+                placeholder="e.g. SEA SPIRIT"
+                style="text-transform:uppercase;">
+
+            <select id="boatNameFont">
+                <option value="Georgia">Georgia (Classic)</option>
+                <option value="Impact" selected>Impact (Bold)</option>
+                <option value="Arial Black">Arial Black</option>
+                <option value="Brush Script MT">Brush Script (Script)</option>
+                <option value="Times New Roman">Times New Roman (Serif)</option>
+                <option value="Segoe UI">Segoe UI (Modern)</option>
+            </select>
+
+            <div class="name-colors" id="boatNameColors"></div>
+
+            <label style="font-size:11px;margin-top:10px;">PLACEMENT</label>
+            <label class="placement-option"><input type="checkbox" name="namePlacement" value="sides" checked> Hull sides (both)</label>
+            <label class="placement-option"><input type="checkbox" name="namePlacement" value="stern"> Stern (transom)</label>
+            <label class="placement-option"><input type="checkbox" name="namePlacement" value="bow"> Bow</label>
+
+        </div>
+
+        <div class="control-group name-flag-section">
+
+            <label>
+                CUSTOM FLAG <span class="opt-tag">OPTIONAL · ₱3,500</span>
+            </label>
+
+            <label class="placement-option"><input type="radio" name="flagType" value="none" checked> None</label>
+            <label class="placement-option"><input type="radio" name="flagType" value="ph"> Philippine Flag</label>
+            <label class="placement-option"><input type="radio" name="flagType" value="custom"> Upload my own</label>
+
+            <div id="flagPhPreview" style="display:none;margin:10px 0 0;align-items:center;gap:10px;">
+                <svg viewBox="0 0 240 120" width="72" height="36" role="img" aria-label="Philippine flag" style="border:1px solid #e2e8f0;border-radius:4px;">
+                    <rect x="0" y="0" width="240" height="60" fill="#0038A8"/>
+                    <rect x="0" y="60" width="240" height="60" fill="#CE1126"/>
+                    <polygon points="0,0 0,120 103.9,60" fill="#FFFFFF"/>
+                    <g fill="#FCD116">
+                        <circle cx="34.6" cy="60" r="11"/>
+                        <g id="phrays">
+                            <polygon points="34.6,42 37.5,55 31.7,55"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(45 34.6 60)"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(90 34.6 60)"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(135 34.6 60)"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(180 34.6 60)"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(225 34.6 60)"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(270 34.6 60)"/>
+                            <polygon points="34.6,42 37.5,55 31.7,55" transform="rotate(315 34.6 60)"/>
+                        </g>
+                    </g>
+                    <g fill="#FCD116">
+                        <polygon points="22,16 24.7,24.4 33.6,24.4 26.4,29.6 29.2,38 22,32.8 14.8,38 17.6,29.6 10.4,24.4 19.3,24.4"/>
+                        <polygon points="22,104 24.7,95.6 33.6,95.6 26.4,90.4 29.2,82 22,87.2 14.8,82 17.6,90.4 10.4,95.6 19.3,95.6"/>
+                        <polygon points="80,52 82.7,60.4 91.6,60.4 84.4,65.6 87.2,74 80,68.8 72.8,74 75.6,65.6 68.4,60.4 77.3,60.4" transform="translate(0,0) scale(1)"/>
+                    </g>
+                </svg>
+                <span style="font-size:12px;color:#475569;">Philippine Flag</span>
+            </div>
+
+            <div id="flagUploadBox" style="display:none;margin-top:8px;">
+                <input type="file" id="flagFile" accept="image/png,image/jpeg" style="font-size:12px;">
+                <img id="flagPreview" alt="Flag preview" style="display:none;max-width:96px;max-height:64px;margin-top:8px;border:1px solid #e2e8f0;border-radius:4px;">
+            </div>
+
+            <label style="font-size:11px;margin-top:10px;">PLACEMENT</label>
+            <label class="placement-option"><input type="checkbox" name="flagPlacement" value="sides"> Hull sides (both)</label>
+            <label class="placement-option"><input type="checkbox" name="flagPlacement" value="stern" checked> Stern</label>
+
+        </div>
+
         <button class="reset-btn">
             Reset All
         </button>
@@ -272,12 +325,12 @@ rel="stylesheet">
             <div class="info-card">
 
                 <h3>
-                    SAFETY GUIDE
+                    CUSTOM NAME?
                 </h3>
 
                 <p>
-                    Please do not exceed
-                    recommended weight.
+                    Give your boat a
+                    personal name. ₱15,000
                 </p>
 
             </div>
@@ -285,25 +338,12 @@ rel="stylesheet">
             <div class="info-card">
 
                 <h3>
-                    SUGGESTIONS
+                    CUSTOM FLAG
                 </h3>
 
                 <p>
-                    Your configuration
-                    is ideal.
-                </p>
-
-            </div>
-
-            <div class="info-card">
-
-                <h3>
-                    MORE SEATS?
-                </h3>
-
-                <p>
-                    Adding more seats may
-                    affect balance.
+                    Philippine flag or your
+                    own design. ₱3,500
                 </p>
 
             </div>
@@ -342,53 +382,6 @@ rel="stylesheet">
         <div class="summary-card">
 
             <h3>
-                CAPACITY SUMMARY
-            </h3>
-
-            <div class="summary-row">
-
-                <span>
-                    Maximum Capacity
-                </span>
-
-                <span id="recommendedSeats">
-                    12 Seats
-                </span>
-
-            </div>
-
-            <div class="summary-row">
-
-                <span>
-                    Current Capacity
-                </span>
-
-                <span id="currentSeats">
-                    12 Seats
-                </span>
-
-            </div>
-
-            <div class="summary-row">
-
-                <span>
-                    Remaining Capacity
-                </span>
-
-                <span class="green"
-                id="remainingWeight">
-
-                    60kg
-
-                </span>
-
-            </div>
-
-        </div>
-
-        <div class="summary-card">
-
-            <h3>
                 PRICE BREAKDOWN
             </h3>
 
@@ -403,15 +396,15 @@ rel="stylesheet">
                 </div>
                 <div class="summary-row">
                     <span>Engine</span>
-                    <span id="enginePriceDisplay">₱350,000</span>
+                    <span id="enginePriceDisplay">Included</span>
                 </div>
-                <div class="summary-row">
-                    <span>Seats</span>
-                    <span id="seatPriceDisplay">₱0</span>
+                <div class="summary-row" id="boatNameRow" style="display:none">
+                    <span>Boat Name</span>
+                    <span id="boatNameDisplay">₱15,000</span>
                 </div>
-                <div class="summary-row">
-                    <span>LED Lights</span>
-                    <span id="ledPriceDisplay">₱25,000</span>
+                <div class="summary-row" id="flagRow" style="display:none">
+                    <span>Custom Flag</span>
+                    <span id="flagDisplay">₱3,500</span>
                 </div>
                 <div class="summary-row" id="colorPriceRow">
                     <span>Hull Paint</span>
@@ -444,27 +437,8 @@ rel="stylesheet">
 
             </div>
 
-            <div id="custPaymentSection" style="margin:16px 0;padding:14px;background:#f0f4ff;border-radius:10px;">
-                <label style="font-weight:600;font-size:13px;margin-bottom:8px;display:block;"><i class="fa-solid fa-credit-card"></i> Payment Method</label>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                    <label style="flex:1;min-width:120px;display:flex;align-items:center;gap:8px;padding:10px 14px;background:white;border:2px solid #2563eb;border-radius:10px;cursor:pointer;" id="custFullPayLabel">
-                        <input type="radio" name="custPaymentMethod" id="custFullPay" value="Full Payment" checked style="accent-color:#2563eb;width:16px;height:16px;">
-                        <div>
-                            <strong style="font-size:13px;">Full Payment</strong>
-                            <p style="font-size:11px;color:#64748b;">Pay 100% once</p>
-                        </div>
-                    </label>
-                    <label style="flex:1;min-width:120px;display:flex;align-items:center;gap:8px;padding:10px 14px;background:white;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;" id="custInstallLabel">
-                        <input type="radio" name="custPaymentMethod" id="custInstallPay" value="Installment" style="accent-color:#2563eb;width:16px;height:16px;">
-                        <div>
-                            <strong style="font-size:13px;">Installment</strong>
-                            <p style="font-size:11px;color:#64748b;">30/40/30 phases</p>
-                        </div>
-                    </label>
-                </div>
-            </div>
-
-            <button class="submit-review-btn" id="submitReviewBtn">
+            <button class="submit-review-btn is-disabled" id="submitReviewBtn" aria-disabled="true"
+                title="Unavailable — configuration is not safe yet. Adjust dimensions.">
 
                 <i class="fa-solid fa-paper-plane"></i>
                 Submit for Review

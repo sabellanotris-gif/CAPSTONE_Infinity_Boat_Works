@@ -740,6 +740,10 @@ payNowBtn.addEventListener(
                 document.getElementById("previewHullColor").textContent = cfg.hullColorName || cfg.color || "N/A";
                 document.getElementById("previewFloorColor").textContent = cfg.floorColorName || cfg.deckColorName || "N/A";
                 document.getElementById("previewRoofColor").textContent = cfg.roofColorName || "N/A";
+                const previewBoatNameEl = document.getElementById("previewBoatName");
+                if (previewBoatNameEl) previewBoatNameEl.textContent = cfg.boatName || "None";
+                const previewFlagEl = document.getElementById("previewFlag");
+                if (previewFlagEl) previewFlagEl.textContent = !cfg.flagType || cfg.flagType === "none" ? "None" : (cfg.flagType === "ph" ? "Philippine Flag" : "Custom Upload");
                 document.getElementById("previewLowerHullColor").textContent = cfg.lowerHullColorName || "N/A";
                 document.getElementById("previewRailColor").textContent = cfg.railColorName || "N/A";
                 document.getElementById("previewCustomTotal").textContent = cfg.totalPrice || "N/A";

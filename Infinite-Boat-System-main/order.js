@@ -30,6 +30,37 @@ const customAcks = [
     "I understand the cancellation policy, including potential fees for cancellations after contract approval and possible delays in delivery."
 ];
 
+const standardTerms = [
+    "A non-refundable downpayment is required to begin production.",
+    "Full payment must be completed before boat delivery.",
+    "Custom changes after order placement may incur additional charges.",
+    "Production timeline starts after downpayment confirmation.",
+    "The customer is responsible for transportation and delivery fees.",
+    "Warranty claims must be submitted within 30 days of issue discovery.",
+    "The company reserves the right to modify specifications with notice.",
+    "All disputes shall be resolved under Philippine maritime law."
+];
+
+const customTerms = [
+    "All custom designs are subject to engineering approval before production.",
+    "Customizations may affect the standard warranty coverage.",
+    "Additional costs for customizations must be settled before production begins.",
+    "Design revisions requested after submission may extend review time.",
+    "Approved designs that proceed to payment become final and cannot be modified.",
+    "The company reserves the right to reject designs that are not structurally feasible.",
+    "Custom orders are non-cancellable once production has started.",
+    "Delivery timelines for custom builds are estimates and subject to change."
+];
+
+const finalAcks = [
+    "I have reviewed the approved design and confirm it matches what I want.",
+    "I accept the final price, payment method, and schedule as agreed.",
+    "I understand that production timelines begin after downpayment and contract signing.",
+    "I agree to the payment schedule (full payment or installment) and acknowledge that outstanding balances are due before delivery.",
+    "I have read and agree to the warranty and cancellation terms.",
+    "I confirm that my digital signature on this page legally binds me to this agreement."
+];
+
 
 
 let buildType = null;
@@ -152,10 +183,12 @@ function showApprovedDesignSummary(order) {
             <div class="summary-row"><span>${i.name}</span><strong>&#8369;${Number(i.amount).toLocaleString()}</strong></div>
             `).join('') : `
             <div class="summary-row"><span>Engine</span><strong>&#8369;${Number(order.customConfig.engine).toLocaleString()}</strong></div>
-            <div class="summary-row"><span>Seats</span><strong>${order.customConfig.seats}</strong></div>
-            <div class="summary-row"><span>LED</span><strong>&#8369;${Number(order.customConfig.led).toLocaleString()}</strong></div>
+            ${order.customConfig.seats ? `<div class="summary-row"><span>Seats</span><strong>${order.customConfig.seats}</strong></div>` : ''}
+            ${order.customConfig.led ? `<div class="summary-row"><span>LED</span><strong>&#8369;${Number(order.customConfig.led).toLocaleString()}</strong></div>` : ''}
             `}
             <div class="summary-row"><span>Hull Color</span><strong>${order.customConfig.color}</strong></div>
+            ${order.customConfig.boatName ? `<div class="summary-row"><span>Boat Name</span><strong>${order.customConfig.boatName}${Array.isArray(order.customConfig.boatNamePlacements) && order.customConfig.boatNamePlacements.length ? ' (' + order.customConfig.boatNamePlacements.join(', ') + ')' : ''}</strong></div>` : ''}
+            ${order.customConfig.flagType && order.customConfig.flagType !== 'none' ? `<div class="summary-row"><span>Flag</span><strong>${order.customConfig.flagType === 'ph' ? 'Philippine Flag' : 'Custom Upload'}${Array.isArray(order.customConfig.flagPlacements) && order.customConfig.flagPlacements.length ? ' (' + order.customConfig.flagPlacements.join(', ') + ')' : ''}</strong></div>` : ''}
             ` : ""}
             ${order.reviewFeedback ? `
             <div class="engineer-remarks">
@@ -164,10 +197,10 @@ function showApprovedDesignSummary(order) {
             </div>` : ""}
         </div>
         <h3 id="guidelineTitle">Final Acknowledgment</h3>
-        <p id="guidelineDesc">Please confirm that you have reviewed the approved design and accept all terms. Answer 'Yes' to all to proceed.</p>
+        <p id="guidelineDesc">Please review the approved design and the acknowledgment items below. Check the box to confirm and proceed.</p>
     `;
 
-    renderAcks(customAcks);
+    renderAcks(finalAcks);
     document.getElementById("guidelineError").style.display = "none";
 }
 
@@ -190,11 +223,11 @@ function proceedFromInfo() {
 
     if (buildType === "standard") {
         title.textContent = "Pre-Order Acknowledgment";
-        desc.textContent = "Please confirm you have read and understood the boat information. Answer 'Yes' to all to proceed.";
+        desc.textContent = "Please review the acknowledgment items below. Check the box to confirm and proceed.";
         renderAcks(standardAcks);
     } else {
         title.textContent = "Customization Acknowledgment";
-        desc.textContent = "Please confirm you understand the customization process and policies. Answer 'Yes' to all to proceed.";
+        desc.textContent = "Please review the customization acknowledgment items below. Check the box to confirm and proceed.";
         renderAcks(customAcks);
     }
 
@@ -206,47 +239,57 @@ function renderAcks(questions) {
     container.innerHTML = "";
     ackResponses = {};
 
-    questions.forEach((q, i) => {
-        const div = document.createElement("div");
-        div.className = "guideline-item";
-        div.innerHTML = `
-            <div class="g-question">${i + 1}. ${q}</div>
-            <div class="g-options">
-                <label><input type="radio" name="a_${i}" value="yes"> Yes</label>
-                <label><input type="radio" name="a_${i}" value="no"> No</label>
-            </div>
-            <textarea class="g-comment" placeholder="Optional: Add a comment or explanation..." rows="2"></textarea>
-        `;
-        container.appendChild(div);
-        div.querySelectorAll('input[name="a_' + i + '"]').forEach(r => {
-            r.addEventListener("change", () => {
-                ackResponses[i] = r.value;
-                document.getElementById("guidelineError").style.display = "none";
-            });
-        });
+    const isCustom = buildType === "custom";
+    const termsTitle = isCustom ? "Customization Policies" : "Terms & Conditions";
+    const termsIcon = isCustom ? "fa-file-shield" : "fa-file-lines";
+    const terms = isCustom ? customTerms : standardTerms;
+
+    const itemHTML = (q) => `
+        <div class="ack-item">
+            <span class="ack-box"><i class="fa-solid fa-check"></i></span>
+            <span>${q}</span>
+        </div>
+    `;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "ack-wrapper";
+    wrapper.innerHTML = `
+        <div class="ack-checklist">
+            <div class="ack-subhead"><i class="fa-solid fa-list-check"></i> Acknowledgment</div>
+            ${questions.map(itemHTML).join("")}
+            <div class="ack-subhead ack-subhead-terms"><i class="fa-solid ${termsIcon}"></i> ${termsTitle}</div>
+            ${terms.map(itemHTML).join("")}
+        </div>
+        <label class="ack-agree" for="ackAllCheckbox">
+            <input type="checkbox" id="ackAllCheckbox">
+            <span><strong>I have read and acknowledge all of the above.</strong></span>
+        </label>
+        <textarea class="ack-comment" id="ackCommentBox" placeholder="Optional: Add a comment or explanation..." rows="3"></textarea>
+    `;
+    container.appendChild(wrapper);
+
+    const checkbox = wrapper.querySelector("#ackAllCheckbox");
+    checkbox.addEventListener("change", () => {
+        ackResponses = checkbox.checked ? { all: "yes", date: new Date().toISOString() } : {};
+        wrapper.classList.toggle("all-checked", checkbox.checked);
+        wrapper.querySelector(".ack-agree").classList.toggle("checked", checkbox.checked);
+        document.getElementById("guidelineError").style.display = "none";
     });
 }
 
+function getAckComment() {
+    const ta = document.getElementById("ackCommentBox");
+    const text = ta ? ta.value.trim() : "";
+    return text ? { all: text } : {};
+}
+
 function proceedFromGuide() {
-    const questions = document.querySelectorAll("#guidelineQuestions .guideline-item");
-    let allYes = true;
-    let allAnswered = true;
-    let firstNo = -1;
-
-    questions.forEach((q, i) => {
-        const sel = q.querySelector('input[name="a_' + i + '"]:checked');
-        if (!sel) { allAnswered = false; }
-        else if (sel.value === "no") { allYes = false; if (firstNo === -1) firstNo = i; }
-    });
-
-    if (!allAnswered) {
-        showAckError("Please answer all acknowledgment questions.");
+    const checkbox = document.getElementById("ackAllCheckbox");
+    if (!checkbox || !checkbox.checked) {
+        showAckError("Please check the acknowledgment box to proceed.");
         return;
     }
-    if (!allYes) {
-        showAckError("You must acknowledge all items to proceed. Please review question #" + (firstNo + 1) + ".");
-        return;
-    }
+    ackResponses = { all: "yes", date: new Date().toISOString() };
 
     document.getElementById("guidelineError").style.display = "none";
 
@@ -524,11 +567,7 @@ async function submitOrder() {
     const customerPhone = phoneInput ? phoneInput.value.trim() : sessionStorage.getItem("customerPhone") || "";
     if (customerPhone) sessionStorage.setItem("customerPhone", customerPhone);
 
-    const comments = {};
-    document.querySelectorAll(".guideline-item").forEach((item, i) => {
-        const ta = item.querySelector(".g-comment");
-        if (ta && ta.value.trim()) comments[i] = ta.value.trim();
-    });
+    const comments = getAckComment();
 
     const isFinalize = new URLSearchParams(window.location.search).get("mode") === "finalize";
 
@@ -652,13 +691,9 @@ function saveCustomBuildDraft() {
         boatData: boatData,
         buildType: "custom",
         ackResponses: ackResponses,
-        comments: {},
+        comments: getAckComment(),
         createdAt: new Date().toISOString()
     };
-    document.querySelectorAll("#guidelineQuestions .guideline-item").forEach((item, i) => {
-        const ta = item.querySelector(".g-comment");
-        if (ta && ta.value.trim()) draft.comments[i] = ta.value.trim();
-    });
     localStorage.setItem("customBuildDraft", JSON.stringify(draft));
 }
 
@@ -709,14 +744,7 @@ function getStandardInfoHTML() {
             <h4><i class="fa-solid fa-file-lines"></i> Terms & Conditions</h4>
             <div class="terms-box">
                 <ul>
-                    <li>A non-refundable downpayment is required to begin production.</li>
-                    <li>Full payment must be completed before boat delivery.</li>
-                    <li>Custom changes after order placement may incur additional charges.</li>
-                    <li>Production timeline starts after downpayment confirmation.</li>
-                    <li>The customer is responsible for transportation and delivery fees.</li>
-                    <li>Warranty claims must be submitted within 30 days of issue discovery.</li>
-                    <li>The company reserves the right to modify specifications with notice.</li>
-                    <li>All disputes shall be resolved under Philippine maritime law.</li>
+                    ${standardTerms.map(t => `<li>${t}</li>`).join("\n                    ")}
                 </ul>
             </div>
         </div>
@@ -730,7 +758,7 @@ function getCustomInfoHTML() {
 
         <div class="info-section">
             <h4><i class="fa-solid fa-wand-magic-sparkles"></i> Customization Process</h4>
-            <p>Our 3D Boat Customizer allows you to modify various aspects of your boat, including dimensions, engine type, seating capacity, LED lighting, and hull color. All customizations are applied in real-time with instant pricing updates. Once you submit your design, it enters the engineering review process.</p>
+            <p>Our 3D Boat Customizer lets you personalize the look and finish of your boat — dimensions, engine type, hull and accent colors, boat name lettering, and a custom flag (or the Philippine flag). All selections are previewed in real time. Once you submit your design, it enters the engineering review process.</p>
         </div>
 
         <div class="info-section">
@@ -752,14 +780,7 @@ function getCustomInfoHTML() {
             <h4><i class="fa-solid fa-file-shield"></i> Customization Policies</h4>
             <div class="terms-box">
                 <ul>
-                    <li>All custom designs are subject to engineering approval before production.</li>
-                    <li>Customizations may affect the standard warranty coverage.</li>
-                    <li>Additional costs for customizations must be settled before production begins.</li>
-                    <li>Design revisions requested after submission may extend review time.</li>
-                    <li>Approved designs that proceed to payment become final and cannot be modified.</li>
-                    <li>The company reserves the right to reject designs that are not structurally feasible.</li>
-                    <li>Custom orders are non-cancellable once production has started.</li>
-                    <li>Delivery timelines for custom builds are estimates and subject to change.</li>
+                    ${customTerms.map(t => `<li>${t}</li>`).join("\n                    ")}
                 </ul>
             </div>
         </div>

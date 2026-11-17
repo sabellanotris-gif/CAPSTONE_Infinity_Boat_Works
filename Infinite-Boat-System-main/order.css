@@ -77,15 +77,28 @@ nav a:hover::after { width: 100%; }
 
 #guidelineHeader h3 { font-size: 22px; margin-bottom: 8px; }
 #guidelineHeader p { color: #64748b; font-size: 14px; margin-bottom: 24px; }
-.guideline-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 18px; padding: 18px 20px; margin-bottom: 14px; }
-.guideline-item .g-question { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
-.guideline-item .g-options { display: flex; gap: 20px; margin-bottom: 10px; }
-.guideline-item .g-options label { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
-.guideline-item .g-options input[type="radio"] { accent-color: #2563eb; width: 18px; height: 18px; }
-.guideline-item .g-comment { width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; outline: none; resize: vertical; min-height: 40px; transition: .2s; }
-.guideline-item .g-comment:focus { border-color: #2563eb; }
 .guideline-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 16px; padding: 16px 20px; margin-bottom: 18px; display: flex; align-items: center; gap: 12px; color: #dc2626; font-size: 14px; font-weight: 500; }
 .guideline-error i { font-size: 20px; }
+
+/* Single-checklist acknowledgment (replaces per-question Yes/No radios) */
+.ack-wrapper { display: flex; flex-direction: column; gap: 14px; }
+.ack-checklist { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 18px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; }
+.ack-subhead { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+.ack-subhead i { color: #2563eb; }
+.ack-subhead-terms { margin-top: 8px; }
+.ack-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #334155; line-height: 1.55; }
+.ack-box { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 1px; display: flex; align-items: center; justify-content: center; border-radius: 5px; transition: .2s; }
+.ack-box::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #cbd5e1; transition: .2s; }
+.ack-box i { display: none; font-size: 10px; color: #fff; }
+.ack-wrapper.all-checked .ack-box { background: #2563eb; }
+.ack-wrapper.all-checked .ack-box::before { display: none; }
+.ack-wrapper.all-checked .ack-box i { display: block; }
+.ack-agree { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border: 2px solid #e2e8f0; border-radius: 16px; background: #fff; cursor: pointer; font-size: 14px; color: #0f172a; transition: .2s; user-select: none; }
+.ack-agree:hover { border-color: #93c5fd; background: #f8fbff; }
+.ack-agree.checked { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.ack-agree input[type="checkbox"] { accent-color: #2563eb; width: 20px; height: 20px; cursor: pointer; flex-shrink: 0; }
+.ack-comment { width: 100%; padding: 12px 14px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 13px; outline: none; resize: vertical; min-height: 60px; font-family: inherit; box-sizing: border-box; transition: .2s; }
+.ack-comment:focus { border-color: #2563eb; }
 
 .order-summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 20px; margin-bottom: 24px; }
 .final-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }

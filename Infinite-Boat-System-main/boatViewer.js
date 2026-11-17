@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+import { drawPhilippineFlag } from './phflag.js';
 
 // Single shared model file so both the customizer and the dashboards
 // always show the same boat preview.
-const MODEL_URL = new URL('models/final-boat.glb', import.meta.url).href + '?v=1';
+const MODEL_URL = new URL('models/final-boat.glb', import.meta.url).href + '?v=2';
 
 let preloaded = false;
 
@@ -259,6 +261,336 @@ export function createBoatViewer(container, options = {}) {
     if (opts.colors[key]) pendingColors[key] = opts.colors[key];
   });
 
+  // ── Boat name / flag decals ──────────────────────────────────────
+  // Name and flag artwork is projected onto the hull via DecalGeometry
+  // (hugs the curved surface like real vinyl wrap) using Blender anchor
+  // empties (Anchor_Name_* / Anchor_Flag_*) or a smart local-bbox fallback.
+  // Sides and bow project; the tapered transom uses the flat plane.
+  // Decals live at scene level and are re-projected whenever the model's
+  // dimensions finish easing, so they stay glued to the hull while stretching.
+  let localBox = null;
+  const anchors = {}; // scene-local anchor transforms captured at load
+  let nameGroup = null;
+  let flagGroup = null;
+  let pendingName = null;
+  let pendingFlag = null;
+  let decalRebuildPending = false; // set when dimensions change; decals are re-snapped once the ease settles
+
+  function makeTextTexture(text, font, color) {
+    const fontPx = 96;
+    const pad = 24;
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = `800 ${fontPx}px ${font}`;
+    const w = Math.min(1024, Math.ceil(measure.measureText(text).width) + pad * 2);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, 128);
+    ctx.font = `800 ${fontPx}px ${font}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+    ctx.lineWidth = 6;
+    ctx.strokeText(text, w / 2, 66);
+    ctx.fillStyle = color;
+    ctx.fillText(text, w / 2, 66);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    return { texture: tex, aspect: w / 128 };
+  }
+
+  function makeImageTexture(source) {
+    // Source can be a data URL string or an HTMLImageElement-ready canvas.
+    const canvas = document.createElement('canvas');
+    canvas.width = source.width || 256;
+    canvas.height = source.height || 128;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    return { texture: tex, aspect: canvas.width / canvas.height };
+  }
+
+  function loadImageTexture(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        // Normalize to a bounded canvas so huge uploads stay cheap.
+        const maxSide = 512;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height, 1));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(makeImageTexture(canvas));
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+
+  function loadPHFlagTexture(widthPx, heightPx) {
+    const canvas = document.createElement('canvas');
+    canvas.width = widthPx;
+    canvas.height = heightPx;
+    drawPhilippineFlag(canvas.getContext('2d'), widthPx, heightPx);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    return { texture: tex, aspect: widthPx / heightPx };
+  }
+
+  function decalMaterial(map) {
+    return new THREE.MeshBasicMaterial({
+      map,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+    });
+  }
+
+  function disposeGroup(group) {
+    if (!group) return;
+    group.traverse((child) => {
+      if (!child.isMesh) return;
+      child.geometry?.dispose();
+      const mat = child.material;
+      if (mat?.map) mat.map.dispose();
+      mat?.dispose();
+    });
+    group.parent?.remove(group);
+  }
+
+  // Shared placement computation for name/flag decals in LOCAL model space.
+  // Returns the un-clamped plane size (pw/ph) and the pose (pos/quat) where
+  // the decal should sit, using Blender anchor empties when available.
+  function computeDecalPose(textureAspect, part, opts = {}) {
+    const la = lengthAxis, bm = beamAxis;
+    const size = localBox.getSize(new THREE.Vector3());
+    const center = localBox.getCenter(new THREE.Vector3());
+    const lenSize = la === 'x' ? size.x : size.z;
+    const beamSize = bm === 'x' ? size.x : size.z;
+    const isStern = part.startsWith('stern');
+    const maxW = isStern ? beamSize * 0.72 : lenSize * 0.42;
+    const maxH = size.y * (isStern ? 0.2 : 0.15);
+    let ph = maxH;
+    let pw = ph * textureAspect;
+    if (pw > maxW) {
+      pw = maxW;
+      ph = pw / textureAspect;
+    }
+
+    // Exact placement wins: use Blender anchor empties when available.
+    const anchor = opts.anchor ? anchors[opts.anchor] : null;
+    if (anchor) {
+      return { pos: anchor.position.clone(), quat: anchor.quaternion.clone(), pw, ph, scale: anchor.scale || 1 };
+    }
+
+    const offset = Math.max(size.x, size.y, size.z) * 0.004 + 0.002;
+    const yLift = opts.yLift ?? 0;
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const e = new THREE.Euler();
+
+    if (part === 'side' || part === 'side-flag') {
+      const side = opts.side ?? 1; // +1 or -1 along beam axis
+      const bmPos = (side > 0 ? localBox.max[bm] + offset : localBox.min[bm] - offset);
+      if (la === 'x') pos.set(center.x, center.y + yLift, bmPos);
+      else pos.set(bmPos, center.y + yLift, center.z);
+      const rot = bm === 'z'
+        ? (side > 0 ? 0 : Math.PI)                        // faces ±z
+        : (side > 0 ? Math.PI / 2 : -Math.PI / 2);        // faces ±x
+      quat.setFromEuler(e.set(0, rot, 0));
+    } else if (isStern) {
+      const stPos = localBox.min[la] - offset;
+      if (la === 'x') pos.set(stPos, center.y + yLift, center.z);
+      else pos.set(center.x, center.y + yLift, stPos);
+      quat.setFromEuler(e.set(0, la === 'x' ? -Math.PI / 2 : Math.PI, 0));
+    } else { // bow flanks — aimed at a point ahead of and outboard of the bow
+      const bowLa = localBox.max[la] - lenSize * 0.16;
+      const side = opts.side ?? 1;
+      const beamPos = (side > 0 ? localBox.max[bm] : localBox.min[bm]) * 0.78;
+      if (la === 'x') pos.set(bowLa, center.y + yLift, beamPos);
+      else pos.set(beamPos, center.y + yLift, bowLa);
+      const ahead = localBox.max[la] + lenSize * 0.6;
+      const outward = beamPos * 1.9;
+      const target = new THREE.Vector3();
+      if (la === 'x') target.set(ahead, center.y + yLift, outward);
+      else target.set(outward, center.y + yLift, ahead);
+      const dummy = new THREE.Object3D();
+      dummy.position.copy(pos);
+      dummy.lookAt(target);
+      quat.copy(dummy.quaternion);
+    }
+    return { pos, quat, pw, ph, scale: 1 };
+  }
+
+  // Local → world pose. Decals are scene-level so they can be re-projected
+  // (re-snapped to the hull) whenever the model's dimensions change.
+  function poseToWorld(pose) {
+    model.updateMatrixWorld(true);
+    const p = model.localToWorld(pose.pos.clone());
+    const q = model.getWorldQuaternion(new THREE.Quaternion()).multiply(pose.quat);
+    return { p, q };
+  }
+
+  function findHullMesh() {
+    let hull = null;
+    model.traverse((c) => {
+      if (hull || !c.isMesh) return;
+      const mats = Array.isArray(c.material) ? c.material : [c.material];
+      if (mats.some((m) => m && String(m.name || '').toLowerCase().includes('body'))) hull = c;
+    });
+    return hull;
+  }
+
+  // Build ONE decal from a texture: projected onto the hull via
+  // DecalGeometry so the artwork hugs the curved surface like real vinyl,
+  // with a flat-plane fallback when projection can't be built.
+  function addDecalPlane(group, texture, aspect, part, opts = {}) {
+    const pose = computeDecalPose(aspect, part, opts);
+    const { p, q } = poseToWorld(pose);
+    const size = localBox.getSize(new THREE.Vector3());
+    const decalW = pose.pw * (pose.scale || 1);
+    const decalH = pose.ph * (pose.scale || 1);
+
+    // Project where the hull cross-section is generous (sides, bow). The
+    // transom is too tapered for a reliable projection, so the stern decal
+    // uses the flat plane (still visible and correctly placed).
+    const wantProject = !part.startsWith('stern');
+    const hull = wantProject ? findHullMesh() : null;
+    if (hull) {
+      const depth = Math.max(size.x, size.y, size.z) * 0.9 + 0.5;
+      const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+      try {
+        const geo = new DecalGeometry(hull, p, e, new THREE.Vector3(decalW, decalH, depth));
+        if (geo && geo.getAttribute('position') && geo.getAttribute('position').count > 0) {
+          const mesh = new THREE.Mesh(geo, decalMaterial(texture));
+          mesh.renderOrder = 6;
+          group.add(mesh);
+          return mesh;
+        }
+        geo.dispose();
+      } catch (err) {
+        console.warn('[boatViewer] DecalGeometry projection failed, using plane fallback:', err);
+      }
+    }
+
+    const geo = new THREE.PlaneGeometry(decalW, decalH);
+    const mesh = new THREE.Mesh(geo, decalMaterial(texture));
+    mesh.renderOrder = 6;
+    mesh.position.copy(p);
+    mesh.quaternion.copy(q);
+    group.add(mesh);
+    return mesh;
+  }
+
+  function cloneTexture(texture) {
+    const t = texture.clone();
+    t.needsUpdate = true;
+    return t;
+  }
+
+  function buildNameGroup({ text, font, color, placements }) {
+    const group = new THREE.Group();
+    const clean = (text || '').trim().toUpperCase();
+    if (!clean || !localBox) return group;
+    const { texture, aspect } = makeTextTexture(clean, font, color);
+    const size = localBox.getSize(new THREE.Vector3());
+    const want = (p) => placements.includes(p);
+    if (want('sides')) {
+      [1, -1].forEach((side) => {
+        addDecalPlane(group, cloneTexture(texture), aspect, 'side', {
+          side,
+          yLift: size.y * 0.06,
+          anchor: side > 0 ? 'name_sider' : 'name_sidel',
+        });
+      });
+    }
+    if (want('stern')) {
+      addDecalPlane(group, cloneTexture(texture), aspect, 'stern', { yLift: size.y * 0.07, anchor: 'name_stern' });
+    }
+    if (want('bow')) {
+      [1, -1].forEach((side) => {
+        addDecalPlane(group, cloneTexture(texture), aspect, 'bow', {
+          side,
+          yLift: size.y * 0.07,
+          anchor: side > 0 ? 'name_bowr' : 'name_bowl',
+        });
+      });
+    }
+    return group;
+  }
+
+  function buildFlagGroup({ type, imageDataUrl, placements }) {
+    const group = new THREE.Group();
+    if (!localBox || (type !== 'ph' && !imageDataUrl)) return Promise.resolve(group);
+    const size = localBox.getSize(new THREE.Vector3());
+    // Flag is placed lower than the name so both can coexist on the hull.
+    const yLiftSides = size.y * -0.075;
+    const yLiftStern = size.y * -0.16;
+
+    const buildWith = (texInfo) => {
+      if (!texInfo || !texInfo.texture) return;
+      if (placements.includes('sides')) {
+        [1, -1].forEach((side) => {
+          addDecalPlane(group, cloneTexture(texInfo.texture), texInfo.aspect, 'side-flag', {
+            side,
+            yLift: yLiftSides,
+            anchor: side > 0 ? 'flag_sider' : 'flag_sidel',
+          });
+        });
+      }
+      if (placements.includes('stern')) {
+        addDecalPlane(group, cloneTexture(texInfo.texture), texInfo.aspect, 'stern-flag', { yLift: yLiftStern, anchor: 'flag_stern' });
+      }
+    };
+
+    if (type === 'ph') {
+      buildWith(loadPHFlagTexture(512, 256));
+      return Promise.resolve(group);
+    }
+    return loadImageTexture(imageDataUrl).then((texInfo) => {
+      buildWith(texInfo);
+      return group;
+    });
+  }
+
+  function applyPendingDecals() {
+    if (pendingName) applyNameDecal(pendingName);
+    if (pendingFlag) applyFlagDecal(pendingFlag);
+  }
+
+  function applyNameDecal({ text, font, color, placements = [] } = {}) {
+    pendingName = { text, font, color, placements };
+    if (!model || !localBox) return;
+    disposeGroup(nameGroup);
+    nameGroup = buildNameGroup(pendingName);
+    scene.add(nameGroup);
+  }
+
+  function applyFlagDecal({ type, imageDataUrl, placements = [] } = {}) {
+    pendingFlag = { type, imageDataUrl, placements };
+    if (!model || !localBox) return;
+    const stale = flagGroup;
+    flagGroup = null;
+    disposeGroup(stale);
+    buildFlagGroup(pendingFlag).then((group) => {
+      if (!model || !localBox) return;
+      // Newest call wins — drop anything replaced while loading.
+      disposeGroup(flagGroup);
+      flagGroup = group;
+      scene.add(flagGroup);
+    });
+  }
+
   const COLOR_ORDER = ['hull', 'body', 'door', 'roof', 'deck', 'floor', 'lowerHull', 'rail'];
 
   function applyPendingColors() {
@@ -287,6 +619,12 @@ export function createBoatViewer(container, options = {}) {
       // Ease the model toward the configured dimensions.
       model.scale.lerp(targetScale, 0.18);
       if (model.scale.distanceToSquared(targetScale) < 1e-8) model.scale.copy(targetScale);
+      // Re-snap decals to the hull once the stretch settles.
+      if (decalRebuildPending && model.scale.distanceToSquared(targetScale) < 1e-8) {
+        decalRebuildPending = false;
+        if (pendingName) applyNameDecal(pendingName);
+        if (pendingFlag) applyFlagDecal(pendingFlag);
+      }
     }
     controls.update();
     renderer.render(scene, camera);
@@ -308,6 +646,28 @@ export function createBoatViewer(container, options = {}) {
           return;
         }
         model = gltf.scene;
+        localBox = new THREE.Box3().setFromObject(model);
+
+        // Capture Blender-exported anchor empties (Anchor_Name_* /
+        // Anchor_Flag_*). Anchors are recorded in SCENE-LOCAL space so decal
+        // planes can be placed exactly where the model author put them,
+        // independent of any centering/scaling we apply afterwards.
+        model.updateMatrixWorld(true);
+        const sceneInv = model.matrixWorld.clone().invert();
+        model.traverse((obj) => {
+          const m = /^anchor_(name|flag)_(sidel|sider|stern|bowl|bowr)$/i.exec(obj.name || '');
+          if (!m) return;
+          const rel = obj.matrixWorld.clone().premultiply(sceneInv);
+          const pos = new THREE.Vector3();
+          const quat = new THREE.Quaternion();
+          const scl = new THREE.Vector3();
+          rel.decompose(pos, quat, scl);
+          anchors[(m[1] + '_' + m[2]).toLowerCase()] = {
+            position: pos,
+            quaternion: quat,
+            scale: Math.max(scl.x, scl.y, scl.z) || 1,
+          };
+        });
 
         model.traverse((child) => {
           if (child.isMesh && child.material) {
@@ -351,6 +711,7 @@ export function createBoatViewer(container, options = {}) {
         controls.update();
 
         applyPendingColors();
+        applyPendingDecals();
 
         overlay.remove();
         ready = true;
@@ -381,6 +742,22 @@ export function createBoatViewer(container, options = {}) {
       });
       applyPendingColors();
     },
+    // Boat name decal: text drawn to a canvas texture, anchored to the
+    // model's local bounding box. Safe to call before the model loads.
+    setName(text, font, color, placements = ['sides']) {
+      applyNameDecal({ text, font, color, placements });
+    },
+    clearName() {
+      applyNameDecal({ text: '', font: 'Impact', color: '#ffffff', placements: [] });
+    },
+    // Flag decal: type 'ph' (procedurally-drawn Philippine flag) or 'custom'
+    // (customer-uploaded image data URL). Safe to call before the model loads.
+    setFlag(type, imageDataUrl, placements = ['stern']) {
+      applyFlagDecal({ type, imageDataUrl, placements });
+    },
+    clearFlag() {
+      applyFlagDecal({ type: 'none', imageDataUrl: null, placements: [] });
+    },
     // Stretch the boat horizontally: length along the length axis and beam
     // along the beam axis, both smoothly eased in the render loop.
     setDimensions(lengthFactor = 1, beamFactor = 1) {
@@ -389,6 +766,7 @@ export function createBoatViewer(container, options = {}) {
       pendingDimensions.lengthFactor = Number.isFinite(lf) ? Math.min(1.5, Math.max(0.5, lf)) : 1;
       pendingDimensions.beamFactor = Number.isFinite(bf) ? Math.min(1.5, Math.max(0.5, bf)) : 1;
       applyDimensionFactors(false);
+      decalRebuildPending = true;
     },
     setAutoRotate,
     toggleAutoRotate() {

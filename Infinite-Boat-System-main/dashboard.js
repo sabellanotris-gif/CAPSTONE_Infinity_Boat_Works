@@ -373,6 +373,8 @@ window.showOrderInfo = function (orderId) {
             ${order.customConfig.seats ? `<div class="field"><label>Seats</label><span>${order.customConfig.seats}</span></div>` : ''}
             ${order.customConfig.engineName && order.customConfig.engineName !== 'None' ? `<div class="field"><label>Engine</label><span>${order.customConfig.engineName}</span></div>` : ''}
             ${order.customConfig.ledName && order.customConfig.ledName !== 'None' ? `<div class="field"><label>LED</label><span>${order.customConfig.ledName}</span></div>` : ''}
+            ${order.customConfig.boatName ? `<div class="field"><label>Boat Name</label><span>${order.customConfig.boatName}</span></div>` : ''}
+            ${order.customConfig.flagType && order.customConfig.flagType !== 'none' ? `<div class="field"><label>Flag</label><span>${order.customConfig.flagType === 'ph' ? 'Philippine Flag' : 'Custom Upload'}</span></div>` : ''}
         </div>
         <div style="display:flex;gap:20px;margin-bottom:12px;flex-wrap:wrap;">
             ${order.customConfig.color ? `<div style="display:flex;align-items:center;gap:8px;font-size:13px;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${order.customConfig.color};border:2px solid #d1d5db;"></span><span><strong>Hull:</strong> ${order.customConfig.hullColorName || 'N/A'}</span></div>` : ''}

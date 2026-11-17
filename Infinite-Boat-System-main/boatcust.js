@@ -1,6 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions } from "./boat3d.js";
+import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions, setBoatName, setBoatFlag } from "./boat3d.js";
 import { createColorWheel } from "./colorWheel.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
@@ -61,7 +61,7 @@ let deckColorPrice = 0;
 let roofColorPrice = 0;
 let lowerHullColorPrice = 0;
 let railColorPrice = 0;
-let inventoryItems = { engines: [], seats: [], leds: [], colors: [], deckColors: [], railColors: [] };
+let inventoryItems = { engines: [], colors: [], deckColors: [], railColors: [] };
 
 function sameColor(a, b) {
   return String(a || '').toLowerCase() === String(b || '').toLowerCase();
@@ -226,11 +226,6 @@ function parseSpecMeters(str) {
   return isNaN(n) ? null : n;
 }
 
-function parseSpecPax(str) {
-  const m = String(str || '').match(/(\d+)\s*passengers?/i);
-  return m ? parseInt(m[1]) : null;
-}
-
 function getOriginalPrice() {
   let draft;
   try { draft = JSON.parse(localStorage.getItem('customBuildDraft')); } catch (e) { draft = null; }
@@ -268,46 +263,6 @@ function applyBoatSpecDefaults() {
     widthRange.value = stdWidth;
     widthValue.textContent = stdWidth + 'm';
   }
-}
-
-function getFitCapacity(len, wid) {
-  const specs = getBoatSpecs(getDraftBoatName());
-  const stdLength = parseSpecMeters(specs?.length);
-  const stdBeam = parseSpecMeters(specs?.breadth);
-  if (specs?.seatRows && specs?.seatsPerRow && stdLength && stdBeam) {
-    const rows = Math.max(1, Math.floor((len / stdLength) * specs.seatRows + 1e-9));
-    const perRow = Math.max(1, Math.floor((wid / stdBeam) * specs.seatsPerRow + 1e-9));
-    return rows * perRow;
-  }
-  const stdPax = parseSpecPax(specs?.passengerCapacity);
-  if (stdPax && stdLength && stdBeam) {
-    return Math.max(1, Math.round(stdPax * (len * wid) / (stdLength * stdBeam)));
-  }
-  return Math.floor(8 + (len - 8) * 0.7);
-}
-
-function hasSeatLayout() {
-  const specs = getBoatSpecs(getDraftBoatName());
-  return !!(specs?.seatRows && specs?.seatsPerRow);
-}
-
-function refreshSeatAvailability(maxCap) {
-  if (!hasSeatLayout()) return;
-  const options = Array.from(seatSelect.options);
-  options.forEach(opt => {
-    const cap = parseInt(opt.dataset.capacity || 0);
-    const overCapacity = cap > maxCap;
-    opt.disabled = overCapacity;
-    if (overCapacity) opt.title = 'Does not fit current dimensions (max ' + maxCap + ')';
-    else opt.removeAttribute('title');
-  });
-  const selected = seatSelect.selectedOptions[0];
-  const selectedCap = parseInt(selected?.dataset?.capacity || 0);
-  if (selectedCap <= maxCap) return;
-  const fitting = options.filter(o => !o.disabled)
-    .map(o => ({ opt: o, cap: parseInt(o.dataset.capacity || 0) }))
-    .sort((a, b) => b.cap - a.cap);
-  seatSelect.value = (fitting[0]?.opt || options[0]).value;
 }
 
 const lengthRange = document.getElementById('lengthRange');
@@ -380,26 +335,6 @@ function applyDefaultEngineSelection() {
   if (opt) opt.selected = true;
 }
 
-function applyDefaultSeatSelection() {
-  if (revisionOrderId) return;
-  const name = getDraftBoatName();
-  const specs = getBoatSpecs(name);
-  const stdPax = parseSpecPax(specs?.passengerCapacity);
-  let target = null;
-  if (stdPax) {
-    target = inventoryItems.seats.find(s => s.metadata?.capacity === stdPax)
-      || inventoryItems.seats.reduce((best, s) => {
-        const cap = s.metadata?.capacity || 0;
-        const bestCap = best?.metadata?.capacity || 0;
-        return cap <= stdPax && cap > bestCap ? s : best;
-      }, null);
-  }
-  if (!target && inventoryItems.seats.length > 0) target = inventoryItems.seats[0];
-  if (!target) return;
-  const opt = seatSelect.querySelector(`option[data-id="${target.id}"]`);
-  if (opt) seatSelect.value = opt.value;
-}
-
 const BOAT_PRICING = {
   'Speed Boat': { rate: 107000, stdLength: 5.8, stdWidth: 2.25 },
   '1950 Passenger Boat': { rate: 50000, stdLength: 19.5, stdWidth: 4.2 },
@@ -415,13 +350,138 @@ function getBoatPricing() {
   const match = Object.keys(BOAT_PRICING).find(k => name.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
   return match ? BOAT_PRICING[match] : { rate: 50000, stdLength: 10, stdWidth: 2.8 };
 }
-const seatSelect = document.getElementById('seatSelect');
-const ledSelect = document.getElementById('ledSelect');
+const NAME_LETTERING_PRICE = 15000;
+const FLAG_PRICE = 3500;
+const NAME_COLOR_SWATCHES = [
+  { name: 'White', hex: '#ffffff' },
+  { name: 'Black', hex: '#111827' },
+  { name: 'Gold', hex: '#D4AF37' },
+  { name: 'Silver', hex: '#C0C0C0' },
+  { name: 'Navy', hex: '#1e3a5f' },
+  { name: 'Red', hex: '#dc2626' },
+  { name: 'Cream', hex: '#F5F5DC' },
+  { name: 'Charcoal', hex: '#374151' },
+];
+let selectedNameColor = '#ffffff';
+let uploadedFlagImage = ''; // data URL of the custom-uploaded flag (empty = none)
+
 const totalPrice = document.getElementById('totalPrice');
 const safetyBox = document.getElementById('safetyBox');
-const recommendedSeats = document.getElementById('recommendedSeats');
-const currentSeats = document.getElementById('currentSeats');
-const remainingWeight = document.getElementById('remainingWeight');
+const boatNameText = document.getElementById('boatNameText');
+const boatNameFont = document.getElementById('boatNameFont');
+const boatNameColorsBox = document.getElementById('boatNameColors');
+const flagPhPreview = document.getElementById('flagPhPreview');
+const flagUploadBox = document.getElementById('flagUploadBox');
+const flagFile = document.getElementById('flagFile');
+const flagPreview = document.getElementById('flagPreview');
+const boatNameRow = document.getElementById('boatNameRow');
+const boatNameDisplay = document.getElementById('boatNameDisplay');
+const flagRow = document.getElementById('flagRow');
+const flagDisplay = document.getElementById('flagDisplay');
+
+const getCheckedValues = (name) =>
+  Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(el => el.value);
+
+function getBoatNameState() {
+  return {
+    text: (boatNameText?.value || '').trim().toUpperCase(),
+    font: boatNameFont?.value || 'Impact',
+    color: selectedNameColor,
+    placements: getCheckedValues('namePlacement'),
+  };
+}
+
+function getFlagState() {
+  const type = document.querySelector('input[name="flagType"]:checked')?.value || 'none';
+  return {
+    type,
+    imageDataUrl: type === 'custom' ? uploadedFlagImage : '',
+    placements: getCheckedValues('flagPlacement'),
+  };
+}
+
+const isBoatNameActive = () => getBoatNameState().text.length > 0;
+const isFlagActive = () => getFlagState().type !== 'none';
+const computeNameFlagFees = () => ({
+  nameFee: isBoatNameActive() ? NAME_LETTERING_PRICE : 0,
+  flagFee: isFlagActive() ? FLAG_PRICE : 0,
+});
+
+function applyNameFlagTo3D() {
+  const name = getBoatNameState();
+  if (typeof setBoatName === 'function') setBoatName(name.text, name.font, name.color, name.placements);
+  const flag = getFlagState();
+  if (typeof setBoatFlag === 'function') setBoatFlag(flag.type, flag.imageDataUrl, flag.placements);
+}
+
+NAME_COLOR_SWATCHES.forEach(({ hex, name }) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'name-swatch' + (hex === selectedNameColor ? ' active' : '');
+  btn.style.background = hex;
+  btn.dataset.hex = hex;
+  btn.title = name;
+  btn.setAttribute('aria-label', 'Boat name color ' + name);
+  btn.addEventListener('click', () => {
+    selectedNameColor = hex;
+    boatNameColorsBox?.querySelectorAll('.name-swatch').forEach(el => el.classList.toggle('active', el === btn));
+    applyNameFlagTo3D();
+    refreshSummary();
+  });
+  boatNameColorsBox?.appendChild(btn);
+});
+
+let nameDebounce = null;
+boatNameText?.addEventListener('input', () => {
+  const pos = boatNameText.selectionStart;
+  boatNameText.value = boatNameText.value.toUpperCase();
+  try { boatNameText.setSelectionRange(pos, pos); } catch (e) { /* selection restore best-effort */ }
+  clearTimeout(nameDebounce);
+  nameDebounce = setTimeout(() => {
+    applyNameFlagTo3D();
+    refreshSummary();
+  }, 220);
+});
+boatNameFont?.addEventListener('change', () => { applyNameFlagTo3D(); refreshSummary(); });
+document.querySelectorAll('input[name="namePlacement"]').forEach(el =>
+  el.addEventListener('change', () => { applyNameFlagTo3D(); refreshSummary(); }));
+document.querySelectorAll('input[name="flagType"]').forEach(el =>
+  el.addEventListener('change', () => {
+    const type = document.querySelector('input[name="flagType"]:checked')?.value || 'none';
+    if (flagPhPreview) flagPhPreview.style.display = type === 'ph' ? 'flex' : 'none';
+    if (flagUploadBox) flagUploadBox.style.display = type === 'custom' ? 'block' : 'none';
+    applyNameFlagTo3D();
+    refreshSummary();
+  }));
+document.querySelectorAll('input[name="flagPlacement"]').forEach(el =>
+  el.addEventListener('change', () => { applyNameFlagTo3D(); refreshSummary(); }));
+flagFile?.addEventListener('change', () => {
+  const file = flagFile.files && flagFile.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Please choose an image under 2 MB.');
+    flagFile.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const maxSide = 256;
+      const scale = Math.min(1, maxSide / Math.max(img.width, img.height, 1));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      uploadedFlagImage = canvas.toDataURL('image/png');
+      if (flagPreview) { flagPreview.src = uploadedFlagImage; flagPreview.style.display = 'block'; }
+      applyNameFlagTo3D();
+      refreshSummary();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 const CUSTOMIZATION_SEED = [
   { name: 'Suzuki 150 HP', category: 'Engine', stock: 5, price: 700000, metadata: { brand: 'Suzuki', hp: 150, optionType: 'engine' } },
@@ -434,16 +494,6 @@ const CUSTOMIZATION_SEED = [
   { name: '6× Mercury Verado 600', category: 'Engine', stock: 5, price: 29676000, metadata: { brand: 'Mercury', hp: 3600, unitHp: 600, count: 6, label: '1800 HP x2 (6× 600)', optionType: 'engine', forPassenger: true, default: true } },
   { name: 'Twin Mercury Verado 350', category: 'Engine', stock: 5, price: 3568500, metadata: { brand: 'Mercury', hp: 700, unitHp: 350, count: 2, label: '700 HP (2× 350)', optionType: 'engine', forPassenger: true } },
   { name: '12× Suzuki DF300AP', category: 'Engine', stock: 5, price: 14040000, metadata: { brand: 'Suzuki', hp: 3600, unitHp: 300, count: 12, label: '1800 HP x2 (12× 300)', optionType: 'engine', forPassenger: true } },
-  { name: '5 Seats', category: 'Seats', stock: 99, price: 32500, metadata: { capacity: 5, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '8 Seats', category: 'Seats', stock: 99, price: 52000, metadata: { capacity: 8, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '10 Seats', category: 'Seats', stock: 99, price: 65000, metadata: { capacity: 10, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '12 Seats', category: 'Seats', stock: 99, price: 78000, metadata: { capacity: 12, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '15 Seats', category: 'Seats', stock: 99, price: 97500, metadata: { capacity: 15, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '20 Seats', category: 'Seats', stock: 99, price: 130000, metadata: { capacity: 20, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '65 Seats', category: 'Seats', stock: 99, price: 422500, metadata: { capacity: 65, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: '180 Seats', category: 'Seats', stock: 99, price: 1170000, metadata: { capacity: 180, optionType: 'seats', perSeatPrice: 6500 } },
-  { name: 'Blue LED', category: 'LED', stock: 20, price: 15000, metadata: { ledType: 'blue', optionType: 'led' } },
-  { name: 'RGB LED', category: 'LED', stock: 15, price: 25000, metadata: { ledType: 'rgb', optionType: 'led' } },
   { name: 'Default', category: 'Color', stock: 99, price: 0, metadata: { hex: '#111827', colorType: 'hull', optionType: 'color', isDefault: true } },
   { name: 'Body', category: 'Color', stock: 99, price: 0, metadata: { hex: '#F2F1E9', colorType: 'hull', optionType: 'color' } },
   { name: 'White', category: 'Color', stock: 99, price: 0, metadata: { hex: '#ffffff', colorType: 'hull', optionType: 'color' } },
@@ -492,7 +542,7 @@ const CUSTOMIZATION_SEED = [
 
 async function loadOptions() {
   let { data } = await supabase.from("inventory").select("*");
-  const cats = ['Engine', 'Seats', 'LED', 'Color', 'DeckColor', 'RailColor'];
+  const cats = ['Engine', 'Color', 'DeckColor', 'RailColor'];
   let customizationItems = (data || []).filter(i => cats.includes(i.category));
 
   if (!data || customizationItems.length === 0) {
@@ -552,8 +602,6 @@ async function loadOptions() {
   }
 
   inventoryItems.engines = data.filter(i => i.category === 'Engine').sort((a, b) => a.price - b.price);
-  inventoryItems.seats = data.filter(i => i.category === 'Seats').sort((a, b) => (a.metadata?.capacity || 0) - (b.metadata?.capacity || 0));
-  inventoryItems.leds = data.filter(i => i.category === 'LED').sort((a, b) => a.price - b.price);
   inventoryItems.colors = data.filter(i => i.category === 'Color');
   inventoryItems.deckColors = data.filter(i => i.category === 'DeckColor');
   inventoryItems.railColors = data.filter(i => i.category === 'RailColor');
@@ -574,18 +622,6 @@ async function loadOptions() {
     refreshSummary();
   });
 
-  seatSelect.innerHTML = '<option value="0" data-capacity="0" data-id="" data-name="None">None</option>' +
-    inventoryItems.seats.map(s =>
-      `<option value="${s.price}" data-capacity="${s.metadata?.capacity || 8}" data-id="${s.id}" data-name="${s.name}">${s.name}</option>`
-    ).join('');
-
-  applyDefaultSeatSelection();
-
-  ledSelect.innerHTML = '<option value="0" data-id="" data-name="None">None</option>' +
-    inventoryItems.leds.map(l =>
-      `<option value="${l.price}" data-id="${l.id}" data-name="${l.name}">${l.name}</option>`
-    ).join('');
-
   // Color sections (7 primary presets + per-section HSV wheel) are built at
   // module init and do not depend on the inventory fetch.
 
@@ -601,6 +637,58 @@ async function loadOptions() {
   }
 
   refreshSummary();
+}
+
+// Smart Stability Analysis -------------------------------------------
+// Single source of truth for the length-to-width safety check. Used by
+// the safety panel, the submit-button gate and the submit guard so a
+// configuration that fails the analysis can never be submitted.
+function evaluateStability(len, wid) {
+  const safeRatio = len / wid;
+  let score = 92;
+  if (safeRatio < 2.5 || safeRatio > 6) score = 55;
+  else if (safeRatio < 3 || safeRatio > 5) score = 70;
+  return { score, ratio: safeRatio };
+}
+
+function getSafetyBlockInfo(len, wid) {
+  const { score } = evaluateStability(len, wid);
+  const reasons = [];
+  if (score < 80) reasons.push('stability');
+  return { blocked: reasons.length > 0, reasons, score };
+}
+
+// Greys out the submit button while the configuration is unsafe. The
+// button stays in the tab order on purpose (aria-disabled instead of the
+// disabled attribute) so clicking/keypressing it can show the toast that
+// explains why submission is blocked.
+function updateSubmitGate(len, wid) {
+  const submitReviewBtn = document.getElementById('submitReviewBtn');
+  if (!submitReviewBtn) return;
+  const { blocked } = getSafetyBlockInfo(len, wid);
+  submitReviewBtn.classList.toggle('is-disabled', blocked);
+  submitReviewBtn.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+  if (blocked) {
+    submitReviewBtn.title = 'Unavailable — configuration is not safe yet. Adjust dimensions.';
+  } else {
+    submitReviewBtn.removeAttribute('title');
+  }
+}
+
+function showSafetyBlockToasts(reasons) {
+  const messages = [];
+  if (reasons.includes('stability')) {
+    messages.push({
+      title: 'Unsafe Configuration',
+      text: 'The current length-to-width ratio is outside the safe range for this boat. Adjust the dimensions until the Smart Stability Analysis shows SAFE & BALANCED (92%) before submitting.',
+      variant: 'warning',
+      duration: 3600,
+    });
+  }
+  return messages.reduce(
+    (chain, msg) => chain.then(() => showToast(msg)),
+    Promise.resolve()
+  );
 }
 
 // Dimension factors relative to the designed boat. Used both to stretch
@@ -627,17 +715,12 @@ function applyDimensionsTo3D() {
 function refreshSummary() {
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
-  const maxCap = getFitCapacity(len, wid);
-  refreshSeatAvailability(maxCap);
   const engineVal = parseInt(engineHP.value);
-  const seatOpt = seatSelect.selectedOptions[0];
-  const seats = parseInt(seatOpt?.dataset?.capacity || 8);
-  const ledVal = parseInt(ledSelect.value);
-  updateSummary(len, wid, engineVal, seats, ledVal, maxCap);
+  updateSummary(len, wid, engineVal);
   applyDimensionsTo3D();
 }
 
-function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
+function updateSummary(len, wid, engineVal) {
   const originalPrice = getOriginalPrice();
   const pricing = getBoatPricing();
   const stdArea = pricing.stdLength * pricing.stdWidth;
@@ -646,11 +729,7 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   const extensionCost = Math.round(pricing.rate * extraArea / 1000) * 1000;
   const basePrice = originalPrice + extensionCost;
   const enginePrice = parseInt(engineHP.value);
-  const ledPrice = parseInt(ledSelect.value);
-  const seatOpt = seatSelect.selectedOptions[0];
-  const seatCapacity = parseInt(seatOpt?.dataset?.capacity || seats);
-  const seatTotal = parseInt(seatSelect.value) || 0;
-  const perSeatPrice = seatCapacity > 0 ? Math.round(seatTotal / seatCapacity) : 0;
+  const { nameFee, flagFee } = computeNameFlagFees();
   // Prices come from the shared preset/wheel rules: each section default is
   // free, every other color (including arbitrary wheel colors) is charged
   // like a non-default preset.
@@ -659,7 +738,7 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   roofColorPrice = getSectionColorPrice('roof', roofColor);
   railColorPrice = getSectionColorPrice('rail', railColor);
   lowerHullColorPrice = getSectionColorPrice('lower-hull', lowerHullColor);
-  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + deckColorPrice + roofColorPrice + lowerHullColorPrice + railColorPrice;
+  const total = basePrice + enginePrice + colorPrice + deckColorPrice + roofColorPrice + lowerHullColorPrice + railColorPrice + nameFee + flagFee;
 
   totalPrice.textContent = '₱' + total.toLocaleString();
 
@@ -675,10 +754,12 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   }
   const enginePriceDisplay = document.getElementById('enginePriceDisplay');
   if (enginePriceDisplay) enginePriceDisplay.textContent = enginePrice > 0 ? '₱' + enginePrice.toLocaleString() : 'Included';
-  const seatPriceDisplay = document.getElementById('seatPriceDisplay');
-  if (seatPriceDisplay) seatPriceDisplay.textContent = seatTotal > 0 ? '₱' + seatTotal.toLocaleString() + ' (' + seatCapacity + ' × ₱' + perSeatPrice.toLocaleString() + ')' : 'None';
-  const ledPriceDisplay = document.getElementById('ledPriceDisplay');
-  if (ledPriceDisplay) ledPriceDisplay.textContent = '₱' + ledPrice.toLocaleString();
+  const nameFeeRow = boatNameRow;
+  if (nameFeeRow) nameFeeRow.style.display = nameFee > 0 ? 'flex' : 'none';
+  if (boatNameDisplay) boatNameDisplay.textContent = '₱' + NAME_LETTERING_PRICE.toLocaleString();
+  const flagFeeRow = flagRow;
+  if (flagFeeRow) flagFeeRow.style.display = flagFee > 0 ? 'flex' : 'none';
+  if (flagDisplay) flagDisplay.textContent = '₱' + FLAG_PRICE.toLocaleString();
   const colorPriceDisplay = document.getElementById('colorPriceDisplay');
   if (colorPriceDisplay) {
     colorPriceDisplay.textContent = isDefaultBodyColor(hullColor)
@@ -711,23 +792,8 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
       : presetNameFor(railColor) + (railColorPrice > 0 ? ' ₱' + railColorPrice.toLocaleString() : '');
   }
 
-  recommendedSeats.textContent = maxCap + ' Seats';
-  currentSeats.textContent = seats + ' Seats';
-
-  const remaining = maxCap - seats;
-  if (remaining >= 0) {
-    remainingWeight.textContent = remaining + ' Seats';
-    remainingWeight.className = 'green';
-  } else {
-    remainingWeight.textContent = Math.abs(remaining) + ' Over Capacity';
-    remainingWeight.className = '';
-    remainingWeight.style.color = '#dc2626';
-  }
-
-  const safeRatio = len / wid;
-  let score = 92;
-  if (safeRatio < 2.5 || safeRatio > 6) score = 55;
-  else if (safeRatio < 3 || safeRatio > 5) score = 70;
+  const stability = evaluateStability(len, wid);
+  const score = stability.score;
 
   const safetyHeading = safetyBox.querySelector('h3');
   const safetyText = safetyBox.querySelector('p');
@@ -736,20 +802,22 @@ function updateSummary(len, wid, engineVal, seats, ledVal, maxCap) {
   if (score >= 80) {
     safetyHeading.textContent = 'SAFE & BALANCED';
     safetyHeading.style.color = '#16a34a';
-    safetyText.textContent = 'Great! Your configuration is within safe limits.';
+    safetyText.textContent = 'Great! Your configuration is within safe limits and ready for review.';
     scoreCircle.style.borderColor = '#22c55e';
   } else if (score >= 60) {
-    safetyHeading.textContent = 'CAUTION';
+    safetyHeading.textContent = 'CAUTION — SUBMISSION BLOCKED';
     safetyHeading.style.color = '#ca8a04';
-    safetyText.textContent = 'Consider adjusting length/width ratio for better stability.';
+    safetyText.textContent = 'This length-to-width ratio is outside the recommended safe range. Submission is disabled — adjust the dimensions until it returns to SAFE & BALANCED.';
     scoreCircle.style.borderColor = '#eab308';
   } else {
-    safetyHeading.textContent = 'UNSTABLE';
+    safetyHeading.textContent = 'UNSTABLE — SUBMISSION BLOCKED';
     safetyHeading.style.color = '#dc2626';
-    safetyText.textContent = 'Warning: Current configuration may be unsafe. Adjust dimensions.';
+    safetyText.textContent = 'Warning: this configuration is unsafe for this boat. Submission is disabled — adjust the length and width until the analysis shows SAFE & BALANCED.';
     scoreCircle.style.borderColor = '#ef4444';
   }
   scoreCircle.textContent = score + '%';
+
+  updateSubmitGate(len, wid);
 }
 
 lengthRange.addEventListener('input', () => {
@@ -763,8 +831,6 @@ widthRange.addEventListener('input', () => {
 });
 
 engineHP.addEventListener('change', refreshSummary);
-seatSelect.addEventListener('change', refreshSummary);
-  ledSelect.addEventListener('change', refreshSummary);
   
   
 
@@ -808,8 +874,20 @@ document.getElementById('resetBtn')?.addEventListener('click', () => {
 document.querySelector('.reset-btn').addEventListener('click', () => {
   applyBoatSpecDefaults();
   applyDefaultEngineSelection();
-  applyDefaultSeatSelection();
-  ledSelect.value = '0';
+  // Reset boat name
+  if (boatNameText) boatNameText.value = '';
+  if (boatNameFont) boatNameFont.value = 'Impact';
+  selectedNameColor = '#ffffff';
+  boatNameColorsBox?.querySelectorAll('.name-swatch').forEach(el => el.classList.toggle('active', el.dataset.hex === '#ffffff'));
+  document.querySelectorAll('input[name="namePlacement"]').forEach(el => { el.checked = el.value === 'sides'; });
+  // Reset custom flag
+  uploadedFlagImage = '';
+  if (flagFile) flagFile.value = '';
+  if (flagPreview) { flagPreview.removeAttribute('src'); flagPreview.style.display = 'none'; }
+  if (flagUploadBox) flagUploadBox.style.display = 'none';
+  if (flagPhPreview) flagPhPreview.style.display = 'none';
+  document.querySelectorAll('input[name="flagType"]').forEach(el => { el.checked = el.value === 'none'; });
+  document.querySelectorAll('input[name="flagPlacement"]').forEach(el => { el.checked = el.value === 'stern'; });
   resetThree();
   updateThreePlayButton(false);
   hullColor = DEFAULT_BODY_HEX;
@@ -829,16 +907,16 @@ document.querySelector('.reset-btn').addEventListener('click', () => {
     if (wheel) wheel.setHex(section.defaultHex);
     section.apply3D(section.defaultHex);
   });
+  applyNameFlagTo3D();
   updateColorPreview();
   refreshSummary();
 });
 
 document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
-  const seatOpt = seatSelect.selectedOptions[0];
-  const seatCapacity = parseInt(seatOpt?.dataset?.capacity || 8);
-  const seatTotal = parseInt(seatSelect.value) || 0;
+  const nameState = getBoatNameState();
+  const flagState = getFlagState();
+  const { nameFee, flagFee } = computeNameFlagFees();
   const enginePrice = parseInt(engineHP.value);
-  const ledPrice = parseInt(ledSelect.value);
   const originalPrice = getOriginalPrice();
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
@@ -853,7 +931,7 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
   const qRp = getSectionColorPrice('rail', railColor);
   const qLHp = getSectionColorPrice('lower-hull', lowerHullColor);
   colorPrice = getSectionColorPrice('hull', hullColor);
-  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + qDp + qRP + qLHp + qRp;
+  const total = basePrice + enginePrice + colorPrice + qDp + qRP + qLHp + qRp + nameFee + flagFee;
 
   const engineBrandName = engineBrand.value || '';
   const engineHPText = engineHP.selectedOptions[0]?.textContent || '';
@@ -872,10 +950,14 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     items.push({ name: 'Dimension Extension', amount: extensionCost });
   }
   items.push(
-    { name: 'Engine: ' + engineDisplayName, amount: enginePrice },
-    { name: 'Seats (' + seatCapacity + ' × ₱' + Math.round(seatTotal / seatCapacity).toLocaleString() + ')', amount: seatTotal },
-    { name: 'LED: ' + (ledSelect.selectedOptions[0]?.dataset?.name || ''), amount: ledPrice }
+    { name: 'Engine: ' + engineDisplayName, amount: enginePrice }
   );
+  if (nameFee > 0) {
+    items.push({ name: 'Boat Name: ' + nameState.text + ' (' + nameState.placements.join(', ') + ')', amount: nameFee });
+  }
+  if (flagFee > 0) {
+    items.push({ name: 'Custom Flag (' + (flagState.type === 'ph' ? 'Philippine Flag' : 'Custom Upload') + ') — ' + flagState.placements.join(', '), amount: flagFee });
+  }
   if (colorPrice > 0) {
     items.push({ name: 'Hull Paint: ' + qHullName, amount: colorPrice });
   }
@@ -901,14 +983,15 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     engine: engineHP.value,
     engineItem: engineHP.selectedOptions[0]?.dataset?.id || '',
     engineName: engineDisplayName,
-    seats: String(seatCapacity),
-    seatsItem: seatSelect.selectedOptions[0]?.dataset?.id || '',
-    seatsName: seatSelect.selectedOptions[0]?.dataset?.name || '',
-    seatTotal: String(seatTotal),
-    perSeatPrice: String(Math.round(seatTotal / seatCapacity)),
-    led: ledPrice,
-    ledItem: ledSelect.selectedOptions[0]?.dataset?.id || '',
-    ledName: ledSelect.selectedOptions[0]?.dataset?.name || '',
+    boatName: nameState.text,
+    boatNameFont: nameState.font,
+    boatNameColor: nameState.color,
+    boatNamePlacements: nameState.placements,
+    boatNameFee: String(nameFee),
+    flagType: flagState.type,
+    flagImage: flagState.type === 'custom' ? uploadedFlagImage : '',
+    flagPlacements: flagState.placements,
+    flagFee: String(flagFee),
     color: hullColor,
     colorPrice: String(colorPrice),
     hullColorName: qHullName,
@@ -949,34 +1032,15 @@ let revisionOrderId = null;
   }
 })();
 
-// Locks the payment-method radios to a saved method. Payment method is chosen
-// once (during the initial order flow) and can no longer be changed afterwards,
-// including during design revisions.
-function lockPaymentRadios(method, noteText) {
-  const radios = document.querySelectorAll('input[name="custPaymentMethod"]');
-  radios.forEach(r => {
-    r.disabled = true;
-    if (r.value === method) r.checked = true;
-  });
-  const labels = document.querySelectorAll('#custFullPayLabel, #custInstallLabel');
-  labels.forEach(l => { if (l) l.style.cursor = 'default'; });
-
-  const section = document.getElementById('custPaymentSection');
-  if (section && noteText && !section.querySelector('.payment-locked-note')) {
-    const note = document.createElement('p');
-    note.className = 'payment-locked-note';
-    note.style.cssText = 'margin:10px 0 0;font-size:11px;color:#64748b;';
-    note.innerHTML = '<i class="fa-solid fa-lock"></i> ' + noteText;
-    section.appendChild(note);
-  }
-}
+// Payment method is chosen once in the order flow (Step 4) and carried on
+// the customBuildDraft / revision order — it is not editable here.
 
 (function checkAccessControl() {
   if (revisionOrderId) return;
   let draft;
   try { draft = JSON.parse(localStorage.getItem('customBuildDraft')); } catch (e) { draft = null; }
   if (!draft || !draft.boatData || !draft.boatData.name) {
-    const submitBtns = document.querySelectorAll('.submit-review-btn, .quote-btn, #custPaymentSection');
+    const submitBtns = document.querySelectorAll('.submit-review-btn, .quote-btn');
     submitBtns.forEach(el => { if (el) el.style.display = 'none'; });
 
     const previewBanner = document.createElement('div');
@@ -986,9 +1050,6 @@ function lockPaymentRadios(method, noteText) {
 
     const modelEl = document.getElementById('boatModelName');
     if (modelEl) modelEl.textContent = 'Boat Preview';
-  } else {
-    const savedMethod = draft.paymentMethod;
-    if (savedMethod) lockPaymentRadios(savedMethod);
   }
 })();
 
@@ -1039,10 +1100,8 @@ async function loadRevisionOrder(orderId) {
   localStorage.setItem("customBuildDraft", JSON.stringify(draft));
   localStorage.setItem("boatConfig", JSON.stringify(cfg));
 
-  // Payment method is locked for revisions — it was fixed when the order was
-  // first placed and must not change on a design revision.
-  lockPaymentRadios(savedPaymentMethod, "Payment method is locked for this revision.");
-
+  // Payment method stays fixed from when the order was first placed — it
+  // rides along on the draft and is submitted unchanged.
   await waitForOptionsReady();
 
   if (cfg.length) { lengthRange.value = cfg.length; updateLengthDisplay(); }
@@ -1056,14 +1115,30 @@ async function loadRevisionOrder(orderId) {
     const opt = engineHP.querySelector(`option[data-id="${cfg.engineItem}"]`);
     if (opt) opt.selected = true;
   }
-  if (cfg.seatsItem) {
-    const sOpt = seatSelect.querySelector(`option[data-id="${cfg.seatsItem}"]`);
-    if (sOpt) seatSelect.value = sOpt.value;
+  // Re-apply saved boat name / flag (legacy configs without them just skip).
+  if (cfg.boatName) {
+    if (boatNameText) boatNameText.value = cfg.boatName;
+    if (boatNameFont && cfg.boatNameFont) boatNameFont.value = cfg.boatNameFont;
+    if (cfg.boatNameColor) {
+      selectedNameColor = cfg.boatNameColor;
+      boatNameColorsBox?.querySelectorAll('.name-swatch').forEach(el => el.classList.toggle('active', el.dataset.hex === cfg.boatNameColor));
+    }
+    const namePlacements = Array.isArray(cfg.boatNamePlacements) ? cfg.boatNamePlacements : ['sides'];
+    document.querySelectorAll('input[name="namePlacement"]').forEach(el => { el.checked = namePlacements.includes(el.value); });
   }
-  if (cfg.ledItem) {
-    const lOpt = ledSelect.querySelector(`option[data-id="${cfg.ledItem}"]`);
-    if (lOpt) ledSelect.value = lOpt.value;
+  if (cfg.flagType && cfg.flagType !== 'none') {
+    const flagRadio = document.querySelector('input[name="flagType"][value="' + cfg.flagType + '"]');
+    if (flagRadio) flagRadio.checked = true;
+    if (flagPhPreview) flagPhPreview.style.display = cfg.flagType === 'ph' ? 'flex' : 'none';
+    if (flagUploadBox) flagUploadBox.style.display = cfg.flagType === 'custom' ? 'block' : 'none';
+    if (cfg.flagType === 'custom' && cfg.flagImage) {
+      uploadedFlagImage = cfg.flagImage;
+      if (flagPreview) { flagPreview.src = cfg.flagImage; flagPreview.style.display = 'block'; }
+    }
+    const flagPlacements = Array.isArray(cfg.flagPlacements) ? cfg.flagPlacements : ['stern'];
+    document.querySelectorAll('input[name="flagPlacement"]').forEach(el => { el.checked = flagPlacements.includes(el.value); });
   }
+  applyNameFlagTo3D();
   hullColor = cfg.color || DEFAULT_BODY_HEX;
   deckColor = cfg.deckColor || cfg.floorColor || DEFAULT_FLOOR_HEX;
   roofColor = cfg.roofColor || DEFAULT_ROOF_HEX;
@@ -1079,12 +1154,22 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function waitForOptionsReady(maxMs = 3000) {
   const step = 100;
   for (let waited = 0; waited < maxMs; waited += step) {
-    if (inventoryItems.engines.length || inventoryItems.seats.length) return;
+    if (inventoryItems.engines.length) return;
     await delay(step);
   }
 }
 
 document.getElementById('submitReviewBtn').addEventListener('click', async () => {
+  // Defense in depth: the button is greyed out while the configuration is
+  // unsafe, but re-check here too so it can never be submitted unsafe.
+  const gateLen = parseFloat(lengthRange.value);
+  const gateWid = parseFloat(widthRange.value);
+  const gate = getSafetyBlockInfo(gateLen, gateWid);
+  if (gate.blocked) {
+    await showSafetyBlockToasts(gate.reasons);
+    return;
+  }
+
   const draft = JSON.parse(localStorage.getItem('customBuildDraft'));
   const isRevision = !!revisionOrderId;
   if (!draft || !draft.boatData) {
@@ -1100,6 +1185,9 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     }
   }
 
+  const nameState = getBoatNameState();
+  const flagState = getFlagState();
+  const { nameFee, flagFee } = computeNameFlagFees();
   const originalPrice = getOriginalPrice();
   const len = parseFloat(lengthRange.value);
   const wid = parseFloat(widthRange.value);
@@ -1109,17 +1197,13 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   const extraArea = Math.max(0, customArea - stdArea);
   const extensionCost = Math.round(pricing.rate * extraArea / 1000) * 1000;
   const basePrice = originalPrice + extensionCost;
-  const seatOpt = seatSelect.selectedOptions[0];
-  const seatCapacity = parseInt(seatOpt?.dataset?.capacity || 8);
-  const seatTotal = parseInt(seatSelect.value) || 0;
   const enginePrice = parseInt(engineHP.value);
-  const ledPrice = parseInt(ledSelect.value);
   const dp = getSectionColorPrice('floor', deckColor);
   const rfp = getSectionColorPrice('roof', roofColor);
   const rp = getSectionColorPrice('rail', railColor);
   const lhp = getSectionColorPrice('lower-hull', lowerHullColor);
   colorPrice = getSectionColorPrice('hull', hullColor);
-  const total = basePrice + enginePrice + seatTotal + ledPrice + colorPrice + dp + rfp + lhp + rp;
+  const total = basePrice + enginePrice + colorPrice + dp + rfp + lhp + rp + nameFee + flagFee;
 
   const engineBrandName = engineBrand.value || '';
   const engineHPText = engineHP.selectedOptions[0]?.textContent || '';
@@ -1138,10 +1222,14 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     items.push({ name: 'Dimension Extension', amount: extensionCost });
   }
   items.push(
-    { name: 'Engine: ' + engineDisplayName, amount: enginePrice },
-    { name: 'Seats (' + seatCapacity + ' × ₱' + Math.round(seatTotal / seatCapacity).toLocaleString() + ')', amount: seatTotal },
-    { name: 'LED: ' + (ledSelect.selectedOptions[0]?.dataset?.name || ''), amount: ledPrice }
+    { name: 'Engine: ' + engineDisplayName, amount: enginePrice }
   );
+  if (nameFee > 0) {
+    items.push({ name: 'Boat Name: ' + nameState.text + ' (' + nameState.placements.join(', ') + ')', amount: nameFee });
+  }
+  if (flagFee > 0) {
+    items.push({ name: 'Custom Flag (' + (flagState.type === 'ph' ? 'Philippine Flag' : 'Custom Upload') + ') — ' + flagState.placements.join(', '), amount: flagFee });
+  }
   if (colorPrice > 0) {
     items.push({ name: 'Hull Paint: ' + hullName, amount: colorPrice });
   }
@@ -1184,14 +1272,15 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     engine: String(enginePrice),
     engineItem: engineHP.selectedOptions[0]?.dataset?.id || '',
     engineName: engineDisplayName,
-    seats: String(seatCapacity),
-    seatsItem: seatSelect.selectedOptions[0]?.dataset?.id || '',
-    seatsName: seatSelect.selectedOptions[0]?.dataset?.name || '',
-    seatTotal: String(seatTotal),
-    perSeatPrice: String(Math.round(seatTotal / seatCapacity)),
-    led: String(ledPrice),
-    ledItem: ledSelect.selectedOptions[0]?.dataset?.id || '',
-    ledName: ledSelect.selectedOptions[0]?.dataset?.name || '',
+    boatName: nameState.text,
+    boatNameFont: nameState.font,
+    boatNameColor: nameState.color,
+    boatNamePlacements: nameState.placements,
+    boatNameFee: String(nameFee),
+    flagType: flagState.type,
+    flagImage: flagState.type === 'custom' ? uploadedFlagImage : '',
+    flagPlacements: flagState.placements,
+    flagFee: String(flagFee),
     color: hullColor,
     colorPrice: String(colorPrice),
     hullColorName: hullName,
@@ -1221,7 +1310,7 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
   const customerEmail = sessionStorage.getItem('customerEmail') || '';
   const customerPhone = sessionStorage.getItem('customerPhone') || '';
   const priceNum = parseFloat(String(config.totalPrice).replace(/[^0-9.]/g, '')) || 0;
-  const custPayMethod = document.querySelector('input[name="custPaymentMethod"]:checked')?.value || "Full Payment";
+  const custPayMethod = draft?.paymentMethod || "Full Payment";
 
   if (isRevision) {
     const { error } = await supabase
