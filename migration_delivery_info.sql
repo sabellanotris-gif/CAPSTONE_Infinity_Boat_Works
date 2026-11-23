@@ -3,15 +3,17 @@
 
 ALTER TABLE public.boat_orders ADD COLUMN IF NOT EXISTS "deliveryInfo" JSONB DEFAULT '{}';
 
--- Backfill existing completed orders with basic delivery info
+-- Backfill existing orders with neutral tracking defaults only.
+-- Customer-input fields (location, contact, preferred date) stay blank so the
+-- customer still has to fill them in the delivery confirmation form.
 UPDATE public.boat_orders
 SET "deliveryInfo" = jsonb_build_object(
     'deliveryStatus', 'Preparing for Delivery',
-    'expectedDate', 'To be determined',
+    'expectedDate', '',
     'committedDeliveryDate', '',
     'actualDeliveryDate', '',
-    'deliveryLocation', 'To be confirmed',
-    'contactPerson', 'To be assigned',
+    'deliveryLocation', '',
+    'contactPerson', '',
     'seaTrialResults', 'Pending',
     'deliveryProgress', 0,
     'deliveryConfirmed', false,

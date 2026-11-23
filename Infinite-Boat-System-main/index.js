@@ -2,6 +2,7 @@ const carousel = document.querySelector('.carousel .list');
 const items = carousel.querySelectorAll('.item');
 const prevBtn = document.querySelector('.arrows .prev');
 const nextBtn = document.querySelector('.arrows .next');
+const dots = Array.from(document.querySelectorAll('.arrows .indicators .dot'));
 
 let currentIndex = 0;
 let autoSlideInterval;
@@ -11,6 +12,11 @@ function showSlide(index) {
     item.classList.toggle('active', i === index);
     item.style.opacity = i === index ? '1' : '0';
     item.style.zIndex = i === index ? '1' : '0';
+  });
+
+  dots.forEach((dot, i) => {
+    if (i === index) dot.setAttribute('aria-current', 'true');
+    else dot.removeAttribute('aria-current');
   });
 }
 
@@ -44,6 +50,14 @@ prevBtn.addEventListener('click', () => {
 nextBtn.addEventListener('click', () => {
   nextSlide();
   startAutoSlide();
+});
+
+dots.forEach((dot, i) => {
+  dot.addEventListener('click', () => {
+    currentIndex = i;
+    showSlide(currentIndex);
+    startAutoSlide();
+  });
 });
 
 document.addEventListener('keydown', (e) => {

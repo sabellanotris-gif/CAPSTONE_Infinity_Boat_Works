@@ -31,6 +31,17 @@ function escAttr(str) {
 let gOrders = [];
 let forceConfirmEdit = false;
 
+// Match the server's ownership rule: stored userId wins, with the verified
+// customer email as a recovery path for older/staff-created orders.
+function ownsCurrentOrder(order) {
+  if (!order) return false;
+  const uid = sessionStorage.getItem("userId");
+  const email = String(sessionStorage.getItem("customerEmail") || "").trim().toLowerCase();
+  const orderEmail = String(order.customerEmail || "").trim().toLowerCase();
+  return !!(uid && String(order.userId || "") === String(uid))
+    || !!(email && orderEmail === email);
+}
+
 function getOrders() { return gOrders; }
 
 function setOrders(val) { gOrders = val; }
@@ -281,8 +292,10 @@ window.addEventListener("DOMContentLoaded", async () => {
             actualDate: info.actualDeliveryDate || "",
             deliveryStatus: info.deliveryStatus || "Preparing for Delivery",
             deliveryProgress: info.deliveryProgress || 0,
-            deliveryLocation: info.deliveryLocation || "To be confirmed",
-            contactPerson: info.contactPerson || "To be assigned",
+            // Customer view must show only what the customer confirmed, never
+            // staff-entered delivery fields.
+            deliveryLocation: info.confirmLocation || "",
+            contactPerson: info.confirmContact || "",
             seaTrialResults: info.seaTrialResults || "Pending",
             deliveryConfirmed: info.deliveryConfirmed || false,
             delayDays: info.delayDays || 0,
@@ -355,10 +368,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     );
     setOrders(allOrdersData || []);
     const allOrders = getOrders();
-    const userOrders = allOrders.filter(o =>
-        o.customerEmail === customerEmail ||
-        o.customerName === customerName
-    );
+    const userOrders = allOrders.filter(ownsCurrentOrder);
     const myOrders = userOrders.filter(o => o.status !== "Cancelled");
     let cancelledOrders = userOrders.filter(o => o.status === "Cancelled");
 
@@ -374,20 +384,13 @@ window.addEventListener("DOMContentLoaded", async () => {
        REALTIME: Listen for admin changes
     ============================================= */
 
-    const customerEmailForRealtime = customerEmail;
-    const customerNameForRealtime = customerName;
-
     const rtChannel = supabase.channel("home-realtime-" + (customerEmail || "anon"));
     rtChannel.on("postgres_changes",
         { event: "UPDATE", schema: "public", table: "boat_orders" },
         async (payload) => {
             try {
                 const updated = payload.new;
-                const matchesUser =
-                    (customerEmailForRealtime && updated.customerEmail === customerEmailForRealtime) ||
-                    (customerNameForRealtime && updated.customerName === customerNameForRealtime);
-
-                if (!matchesUser) return;
+                if (!ownsCurrentOrder(updated)) return;
 
                 const allOrders = getOrders();
                 const idx = allOrders.findIndex(o => o.orderId === updated.orderId);
@@ -398,9 +401,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 }
                 setOrders(allOrders);
 
-                const userOrders = allOrders.filter(o =>
-                    (o.customerEmail === customerEmailForRealtime || o.customerName === customerNameForRealtime)
-                );
+                const userOrders = allOrders.filter(ownsCurrentOrder);
                 const myOrders = userOrders.filter(o => o.status !== "Cancelled");
                 cancelledOrders = userOrders.filter(o => o.status === "Cancelled");
                 myOrders.forEach(migrateOrderData);
@@ -424,18 +425,13 @@ window.addEventListener("DOMContentLoaded", async () => {
         async (payload) => {
             try {
                 const inserted = payload.new;
-                const matchesUser =
-                    (customerEmailForRealtime && inserted.customerEmail === customerEmailForRealtime) ||
-                    (customerNameForRealtime && inserted.customerName === customerNameForRealtime);
-                if (!matchesUser) return;
+                if (!ownsCurrentOrder(inserted)) return;
 
                 const allOrders = getOrders();
                 allOrders.unshift(inserted);
                 setOrders(allOrders);
 
-                const userOrders = allOrders.filter(o =>
-                    (o.customerEmail === customerEmailForRealtime || o.customerName === customerNameForRealtime)
-                );
+                const userOrders = allOrders.filter(ownsCurrentOrder);
                 const myOrders = userOrders.filter(o => o.status !== "Cancelled");
                 cancelledOrders = userOrders.filter(o => o.status === "Cancelled");
                 myOrders.forEach(migrateOrderData);
@@ -458,9 +454,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         { event: "*", schema: "public", table: "project_workers" },
         () => {
             const allOrders = getOrders();
-            const userOrders = allOrders.filter(o =>
-                (o.customerEmail === customerEmail || o.customerName === customerName)
-            );
+            const userOrders = allOrders.filter(ownsCurrentOrder);
             const myOrders = userOrders.filter(o => o.status !== "Cancelled");
             applyFilter(currentFilter, myOrders);
         }
@@ -1057,7 +1051,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         return `
         <div style="margin-top:16px;padding:16px;background:white;border:1px solid #e2e8f0;border-radius:14px;">
             <h4 style="font-size:15px;font-weight:700;margin-bottom:12px;"><i class="fa-solid fa-coins"></i> Budget Overview</h4>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div class="resp-grid resp-grid--3" style="gap:10px;margin-bottom:12px;">
                 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px;">
                     <span style="font-size:11px;color:#64748b;">Budget</span>
                     <strong style="display:block;font-size:16px;color:#16a34a;">₱${total.toLocaleString()}</strong>
@@ -1277,7 +1271,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         <div class="tab-panel" id="tab-photos-${idx}">
             <h4 style="font-size:15px;font-weight:700;margin-bottom:14px;"><i class="fa-solid fa-images"></i> Build Progress Photos</h4>
             ${photos.length > 0 ? `
-            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+            <div class="resp-grid resp-grid--auto" style="gap:10px;">
                 ${photos.map(p => `
                 <div style="border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;background:white;">
                     <img src="${p.fileUrl}" alt="${p.caption}" style="width:100%;height:130px;object-fit:cover;display:block;cursor:pointer;" onclick="window.open('${p.fileUrl}','_blank')">
@@ -1306,7 +1300,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         <div class="tab-panel" id="tab-timeline-${idx}">
             <h4 style="font-size:15px;font-weight:700;margin-bottom:14px;"><i class="fa-solid fa-calendar-days"></i> Project Timeline</h4>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div class="resp-grid resp-grid--2" style="gap:10px;margin-bottom:16px;">
                 <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px;">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                         <i class="fa-solid fa-calendar-plus" style="color:#2563eb;font-size:14px;"></i>
@@ -1367,7 +1361,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                         <i class="fa-solid fa-clock" style="color:#f59e0b;font-size:16px;"></i>
                         <span style="font-size:13px;color:#92400e;font-weight:600;">Delivery info available at 70% completion</span>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                    <div class="resp-grid resp-grid--2" style="gap:10px;margin-top:10px;">
                         <div style="padding:10px;background:white;border:1px solid #e2e8f0;border-radius:10px;">
                             <span style="font-size:11px;color:#64748b;display:block;">Estimated Delivery</span>
                             <strong style="font-size:14px;color:#2563eb;">${esc(delivery.expectedDate)}</strong>
@@ -1427,8 +1421,8 @@ window.addEventListener("DOMContentLoaded", async () => {
                 <div class="spec-item"><span>Committed Delivery Date</span><strong>${delivery.committedDate || 'Not yet set'}</strong></div>
                 <div class="spec-item"><span>Actual Delivery Date</span><strong>${delivery.actualDate || 'Pending'}</strong></div>
                 <div class="spec-item"><span>Order Date</span><strong>${esc(orderDate)}</strong></div>
-                <div class="spec-item"><span>Delivery Location</span><strong>${delivery.deliveryLocation || 'To be confirmed'}</strong></div>
-                <div class="spec-item"><span>Contact Person</span><strong>${delivery.contactPerson || 'To be assigned'}</strong></div>
+                <div class="spec-item"><span>Delivery Location</span><strong>${delivery.deliveryLocation || '—'}</strong></div>
+                <div class="spec-item"><span>Contact Person</span><strong>${delivery.contactPerson || '—'}</strong></div>
                 <div class="spec-item"><span>Sea Trial Results</span><strong>${delivery.seaTrialResults}</strong></div>
                 <div class="spec-item"><span>Delivery Confirmed</span><strong>${delivery.deliveryConfirmed ? 'Yes' : 'Pending'}</strong></div>
             </div>
@@ -1443,7 +1437,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             <div style="margin-top:16px;padding:16px;background:#fef2f2;border:1px solid #fca5a5;border-radius:14px;">
                 <h4 style="font-size:14px;font-weight:700;color:#991b1b;margin-bottom:8px;"><i class="fa-solid fa-exclamation-triangle"></i> Delivery Delay Notice</h4>
                 <p style="font-size:13px;color:#7f1d1d;margin-bottom:10px;">We apologize for the delay. Your boat was delivered <strong>${delivery.delayDays} day(s)</strong> past the committed date.</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div class="resp-grid resp-grid--2" style="gap:10px;margin-bottom:10px;">
                     <div style="padding:10px;background:#fff;border:1px solid #fecaca;border-radius:10px;">
                         <span style="font-size:11px;color:#991b1b;display:block;">Committed Date</span>
                         <strong style="font-size:13px;color:#991b1b;">${delivery.committedDate || 'N/A'}</strong>
@@ -1462,8 +1456,9 @@ window.addEventListener("DOMContentLoaded", async () => {
             </div>` : ''}
 
             <div style="margin-top:16px;padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
-                <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;"><i class="fa-solid fa-circle-info"></i> Delivery Details</h4>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+                <h4 style="font-size:14px;font-weight:700;margin-bottom:4px;"><i class="fa-solid fa-circle-info"></i> Standard Boat Delivery Reference</h4>
+                <p style="font-size:11px;color:#64748b;margin-bottom:10px;">Reference specs only. Your actual delivery location and contact are the details you confirm in the form below.</p>
+                <div class="resp-grid resp-grid--2" style="gap:8px;font-size:13px;">
                     <div><span style="color:#64748b;">Standard Lead Time:</span><br><strong>${delivery.standardLeadTime}</strong></div>
                     <div><span style="color:#64748b;">Delivery Method:</span><br><strong>${delivery.deliveryMethod}</strong></div>
                     <div><span style="color:#64748b;">Sea Trial Duration:</span><br><strong>${delivery.seaTrialDuration}</strong></div>
@@ -1529,7 +1524,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             <div style="margin-top:16px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;">
                 <h4 style="font-size:14px;font-weight:700;color:#1d4ed8;margin-bottom:4px;"><i class="fa-solid fa-clipboard-check"></i> Delivery Details Confirmed</h4>
                 <p style="font-size:12px;color:#1e40af;margin-bottom:8px;">The yard has your delivery details. They're now used to schedule the hand-over.</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:#1e3a8a;">
+                <div class="resp-grid resp-grid--2" style="gap:8px;font-size:12px;color:#1e3a8a;">
                     <div><strong>Delivery Location:</strong><br>${esc(di.confirmLocation || '—')}</div>
                     <div><strong>Contact Person:</strong><br>${esc(di.confirmContact || '—')}</div>
                     <div><strong>Preferred Date &amp; Time:</strong><br>${esc(di.confirmDate || 'Anytime')}${di.confirmTime ? ' · ' + esc(di.confirmTime) : ''}</div>
@@ -1544,8 +1539,10 @@ window.addEventListener("DOMContentLoaded", async () => {
         // Unconfirmed orders always see the form, even after the stage moves —
         // the confirmation is mandatory before staff can hand over.
         const registered = sessionStorage.getItem("customerName") || '';
-        const loc = di.confirmLocation || di.deliveryLocation || '';
-        const con = di.confirmContact || di.contactPerson || (order.customerName || '');
+        // Only prefill from the customer's own saved confirmation. Staff fields
+        // and the account name must never pre-fill this form.
+        const loc = di.confirmLocation || '';
+        const con = di.confirmContact || '';
         const dt = di.confirmDate || '';
         const tm = di.confirmTime || '';
         const timeOptions = (() => {
@@ -1565,11 +1562,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         <div id="deliveryConfirm-${idx}" style="margin-top:16px;padding:16px;background:#f0fdf4;border:2px solid #86efac;border-radius:14px;">
             <h4 style="font-size:14px;font-weight:700;color:#15803d;margin-bottom:2px;"><i class="fa-solid fa-clipboard-question"></i> Confirm Your Delivery Details</h4>
             <p style="font-size:12px;color:#166534;margin-bottom:10px;">So the yard can set up the right schedule, confirm the address, the person authorized to receive the boat, and a preferred date.</p>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="resp-grid resp-grid--2" style="gap:10px;margin-bottom:10px;">
                 <input type="text" id="confirmLocation-${idx}" placeholder="Delivery location (address or port)" value="${escAttr(loc)}" style="${inputStyle}" autocomplete="off">
                 <input type="text" id="confirmContact-${idx}" placeholder="Authorized contact person" value="${escAttr(con)}" style="${inputStyle}" autocomplete="off">
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+            <div class="resp-grid resp-grid--2" style="gap:10px;margin-bottom:10px;">
                 <input type="date" id="confirmDate-${idx}" value="${escAttr(dt)}" style="${inputStyle}">
                 <select id="confirmTime-${idx}" style="${inputStyle};cursor:pointer;">${timeOptions}</select>
             </div>
@@ -1723,7 +1720,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         <div class="tab-panel" id="tab-payments-${idx}">
             <h4 style="font-size:15px;font-weight:700;margin-bottom:14px;"><i class="fa-solid fa-credit-card"></i> Payment Progress</h4>
 
-            <div class="payment-summary-cards" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div class="payment-summary-cards resp-grid resp-grid--3" style="gap:10px;margin-bottom:16px;">
                 <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px;">
                     <span style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Total Contract</span>
                     <strong style="display:block;font-size:20px;color:#1d4ed8;margin-top:4px;">₱${totalPrice.toLocaleString()}</strong>
@@ -1762,7 +1759,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                         <span>Duration: ${getProjectDuration(order)}</span>
                     </div>
                 </div>` : ''}
-                <div style="display:grid;grid-template-columns:1fr ${order.paymentMethod !== 'Full Payment' ? '1fr 1fr' : ''};gap:8px;margin-top:8px;">
+                <div class="resp-grid resp-grid--auto" style="gap:8px;margin-top:8px;">
                     ${(() => {
                         const pp = order.paymentMethod === "Full Payment" ? FULL_PAYMENT_PHASES : PAYMENT_PHASES;
                         return pp.map(p => `
@@ -2066,7 +2063,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         const paid = getAmountPaidForOrder(order.orderId) || 0;
         const content = document.getElementById("orderSummaryContent");
         content.innerHTML = `
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+            <div class="resp-grid resp-grid--2" style="gap:16px;margin-top:16px;">
                 <div>
                     <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:#1e293b;">Boat Details</h4>
                     <div class="specs-grid">
@@ -2090,7 +2087,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             </div>
             <div style="margin-top:16px;">
                 <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:#1e293b;">Financial Summary</h4>
-                <div class="specs-grid" style="grid-template-columns:1fr 1fr 1fr;">
+                <div class="specs-grid resp-grid resp-grid--3">
                     <div class="spec-item"><span>Total Price</span><strong>₱${price.toLocaleString()}</strong></div>
                     <div class="spec-item"><span>Amount Paid</span><strong style="color:#16a34a;">₱${paid.toLocaleString()}</strong></div>
                     <div class="spec-item"><span>Remaining Balance</span><strong style="color:#ea580c;">₱${Math.max(0, price - paid).toLocaleString()}</strong></div>
@@ -2098,7 +2095,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 ${order.paymentMethod !== "Full Payment" ? `
                 <div style="margin-top:10px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
                     <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#475569;">Payment Breakdown</h4>
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                    <div class="resp-grid resp-grid--3" style="gap:8px;">
                         ${PAYMENT_PHASES.map(p => `
                         <div style="text-align:center;padding:8px;background:white;border-radius:8px;border:1px solid #e2e8f0;">
                             <strong style="font-size:15px;color:#2563eb;">₱${Math.round(price * p.percentage / 100).toLocaleString()}</strong>
@@ -2581,7 +2578,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 box.style.cssText = "background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px;margin:12px 0;";
                 box.innerHTML = `
                     <h4 style="font-size:13px;color:#475569;margin-bottom:8px;"><i class="fa-solid fa-ship"></i> BOAT DETAILS</h4>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+                    <div class="resp-grid resp-grid--2" style="gap:8px;font-size:13px;">
                         <div><span style="color:#64748b;">Boat Name:</span> <strong id="cancelBoatName">${esc(order.boatName || "N/A")}</strong></div>
                         <div><span style="color:#64748b;">Price:</span> <strong id="cancelBoatPrice">${esc(order.boatPrice || "N/A")}</strong></div>
                         <div><span style="color:#64748b;">Build Type:</span> <strong id="cancelBuildType">${esc(order.buildType === "custom" ? "Custom Build" : "Standard Build")}</strong></div>
@@ -2621,7 +2618,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 box2.style.cssText = "background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:14px;margin:12px 0;";
                 box2.innerHTML = `
                     <h4 style="font-size:13px;color:#475569;margin-bottom:8px;"><i class="fa-solid fa-ship"></i> BOAT DETAILS</h4>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+                    <div class="resp-grid resp-grid--2" style="gap:8px;font-size:13px;">
                         <div><span style="color:#64748b;">Boat Name:</span> <strong>${esc(order.boatName || "N/A")}</strong></div>
                         <div><span style="color:#64748b;">Price:</span> <strong>${esc(order.boatPrice || "N/A")}</strong></div>
                         <div><span style="color:#64748b;">Build Type:</span> <strong>${order.buildType === "custom" ? "Custom Build" : "Standard Build"}</strong></div>

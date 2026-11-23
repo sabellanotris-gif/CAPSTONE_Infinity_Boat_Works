@@ -314,7 +314,7 @@ document.addEventListener('click', (e) => {
         const modal = document.getElementById('paymentModal');
         const body = document.getElementById('paymentModalBody');
         body.innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="resp-grid resp-grid--2" style="gap:12px;">
             <div><strong>Customer</strong><p>${pay.customerName || 'N/A'}</p></div>
             <div><strong>Boat</strong><p>${pay.boatName || 'N/A'}</p></div>
             <div><strong>Bank</strong><p>${pay.bankName || 'N/A'}</p></div>

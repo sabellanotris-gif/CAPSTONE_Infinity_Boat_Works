@@ -1,8 +1,10 @@
 let supabase;
+let API_BASE;
 
 (async function init() {
     const mod = await import("./supabase.js");
     supabase = mod.supabase;
+    API_BASE = mod.API_BASE;
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -747,6 +749,34 @@ function generateAdminNotifications() {
     return merged;
 }
 
+function notificationLink(n) {
+    if (n.type === "delivery_confirm" || n.type === "delivery_status") return "delivery.html";
+    if (n.orderId) return "dashprogress.html";
+    return "";
+}
+
+async function loadStaffNotifications() {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token || !API_BASE) return [];
+        const res = await fetch(API_BASE + "/notifications", {
+            headers: { Authorization: "Bearer " + token }
+        });
+        const body = await res.json().catch(() => []);
+        if (!res.ok) throw new Error(body.error || ("HTTP " + res.status));
+        return (Array.isArray(body) ? body : []).map(n => ({
+            id: n.id,
+            msg: `${n.title || "Notification"} — ${n.message || ""}`,
+            time: n.createdAt || n.created_at || new Date().toISOString(),
+            link: notificationLink(n)
+        }));
+    } catch (e) {
+        console.error("Failed to load staff notifications:", e);
+        return [];
+    }
+}
+
 function renderAdminNotifications(notes) {
     const badge = document.getElementById("adminNotifBadge");
     const list = document.getElementById("adminNotifList");
@@ -787,8 +817,18 @@ function renderAdminNotifications(notes) {
     });
 }
 
-const adminNotes = generateAdminNotifications();
-renderAdminNotifications(adminNotes);
+(async () => {
+    const localNotes = generateAdminNotifications();
+    const dbNotes = await loadStaffNotifications();
+    const seen = new Set();
+    const merged = [...dbNotes, ...localNotes].filter(n => {
+        const key = n.id || (n.msg + "|" + n.time);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    }).slice(0, 20);
+    renderAdminNotifications(merged);
+})();
 
 const adminBell = document.getElementById("adminNotifBell");
 const adminDropdown = document.getElementById("adminNotifDropdown");

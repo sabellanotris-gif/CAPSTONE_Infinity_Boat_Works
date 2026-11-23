@@ -198,7 +198,7 @@ function renderScheduleCard(a, idx) {
 
         <div class="payment-info" style="background:#f0fdf4;border-color:#bbf7d0;">
             <h4 style="color:#15803d;"><i class="fas fa-user"></i> Customer Information</h4>
-            <div class="payment-amounts" style="grid-template-columns:repeat(4,1fr);">
+            <div class="payment-amounts resp-grid resp-grid--4" style="gap:8px;">
                 <div class="pa-item">
                     <span class="label">Full Name</span>
                     <span class="value" style="font-size:13px;">${o.customerName || 'N/A'}</span>
@@ -277,7 +277,7 @@ function renderScheduleCard(a, idx) {
                     </button>
                 </div>
             </div>` : ''}
-            <div class="payment-amounts" style="grid-template-columns:repeat(3,1fr);">
+            <div class="payment-amounts resp-grid resp-grid--3" style="gap:8px;">
                 ${customConfig.length ? `<div class="pa-item"><span class="label">Length</span><span class="value" style="font-size:13px;">${customConfig.length}m</span></div>` : ''}
                 ${customConfig.width ? `<div class="pa-item"><span class="label">Width</span><span class="value" style="font-size:13px;">${customConfig.width}m</span></div>` : ''}
                 ${customConfig.seats ? `<div class="pa-item"><span class="label">Seats</span><span class="value" style="font-size:13px;">${customConfig.seats}</span></div>` : ''}

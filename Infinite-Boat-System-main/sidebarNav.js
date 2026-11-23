@@ -228,7 +228,11 @@
     scrim.className = "nav-scrim";
     scrim.id = "navScrim";
 
-    document.body.appendChild(toggle);
+    // Sit the toggle inside the topbar on admin/manager/worker pages so it
+    // lines up with the page title instead of floating over it on mobile.
+    var topbar = document.querySelector(".topbar");
+    if (topbar) topbar.insertBefore(toggle, topbar.firstChild);
+    else document.body.appendChild(toggle);
     document.body.appendChild(scrim);
 
     function setOpen(open) {
@@ -263,7 +267,15 @@
      if it disagrees.
      ========================================= */
   render();
-  setupDrawer();
+
+  // This script is loaded inside <aside>, before .topbar is parsed. Wait for
+  // the DOM so the toggle can be inserted into the topbar instead of being
+  // appended to <body> and floating over the page title.
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupDrawer);
+  } else {
+    setupDrawer();
+  }
 
   var polls = 0;
   timer = setInterval(function () {

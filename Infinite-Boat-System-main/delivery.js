@@ -86,6 +86,7 @@ function cardHtml(order) {
   <article class="dd-card${delayed ? " is-delayed" : ""}">
     <div class="dd-card-top">
       <span class="status-badge ${statusClass(status)}">${esc(status)}</span>
+      ${di.customerConfirmed ? `<span class="status-badge" style="background:#eff6ff;color:#1d4ed8;"><i class="fas fa-clipboard-check"></i> Customer confirmed</span>` : ""}
       ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ""}
       ${di.termsAcknowledgedAt ? `<span class="terms-signed-chip"><i class="fas fa-file-signature"></i> Signed</span>` : ""}
       ${((Array.isArray(di.snagList) ? di.snagList : []).filter(s => s.status !== 'closed').length) > 0 ? `<span class="delay-badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fdba74;"><i class="fas fa-flag"></i> ${(Array.isArray(di.snagList) ? di.snagList : []).filter(s => s.status !== 'closed').length} snag${((Array.isArray(di.snagList) ? di.snagList : []).filter(s => s.status !== 'closed').length) > 1 ? 's' : ''}</span>` : ""}
@@ -99,7 +100,8 @@ function cardHtml(order) {
       <span><i class="fa-solid fa-calendar-day"></i> Committed: <strong class="${late ? "late" : ""}">${esc(fmtDate(di.committedDeliveryDate))}</strong></span>
       ${di.customerConfirmed && (di.confirmDate || di.confirmTime) ? `<span><i class="fa-solid fa-calendar-check"></i> Customer prefers: <strong>${esc(di.confirmDate || "Anytime")}${di.confirmTime ? " · " + esc(fmtTime(di.confirmTime)) : ""}</strong></span>` : ""}
       <span><i class="fa-solid fa-circle-check"></i> Actual: <strong>${esc(fmtDate(di.actualDeliveryDate))}</strong></span>
-      <span><i class="fa-solid fa-location-dot"></i> ${esc(di.deliveryLocation || "Location TBC")}</span>
+      <span><i class="fa-solid fa-location-dot"></i> ${esc(di.deliveryLocation || di.confirmLocation || "Location TBC")}</span>
+      <span><i class="fa-solid fa-user-check"></i> Contact: ${esc(di.contactPerson || di.confirmContact || "TBA")}</span>
     </div>
     <div class="dd-badges">
       ${seaTrialBadge(di.seaTrialResults)}
@@ -206,6 +208,27 @@ function wireControls() {
 
   wireControls();
   render();
+
+  // Keep the board in sync when a customer confirms delivery in another tab.
+  const channel = supabase.channel("delivery-board-" + (window.currentRole || "staff"));
+  channel.on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "boat_orders" },
+    async () => {
+      try {
+        const { data: refreshed, error: refreshErr } = await supabase
+          .from("boat_orders")
+          .select("*")
+          .order("createdAt", { ascending: false });
+        if (refreshErr) throw refreshErr;
+        allOrders = (refreshed || []).filter(isInDelivery);
+        render();
+      } catch (e) {
+        console.error("Delivery realtime refresh failed:", e);
+      }
+    }
+  );
+  channel.subscribe();
 
   window.addEventListener("delivery:saved", async () => {
     const refreshed = await supabase

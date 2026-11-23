@@ -10,8 +10,12 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="icon" type="image/jpeg" href="./images/Rlogo.jpg">
+    <link rel="stylesheet" href="responsive.css">
+    <link rel="stylesheet" href="mobile.css">
+
 </head>
-<body>
+<body class="landing">
 
    
     <header>
@@ -242,6 +246,13 @@
   
         <div class="arrows">
             <button class="prev" aria-label="Previous boat">&#10094;</button>
+
+            <div class="indicators" role="tablist" aria-label="Choose a boat">
+                <button type="button" class="dot" aria-label="Show 1950 Passenger Boat" aria-current="true"></button>
+                <button type="button" class="dot" aria-label="Show 2680 Passenger Boat"></button>
+                <button type="button" class="dot" aria-label="Show Patrol Boat"></button>
+            </div>
+
             <button class="next" aria-label="Next boat">&#10095;</button>
         </div>
 

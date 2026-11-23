@@ -211,6 +211,26 @@ function isAdminOrManager(req) {
   return role === "admin" || role === "manager";
 }
 
+// Customer order ownership. The stored userId is authoritative, but older or
+// staff-created orders can carry a missing/wrong userId while still having the
+// correct customerEmail. A verified Supabase auth email is enough to recover
+// those orders without weakening access for unrelated accounts.
+function isOrderOwner(req, order) {
+  if (!order) return false;
+  if (order.userId && req.user?.id && String(order.userId) === String(req.user.id)) return true;
+  const orderEmail = String(order.customerEmail || "").trim().toLowerCase();
+  const authEmail = String(req.user?.email || "").trim().toLowerCase();
+  return !!orderEmail && orderEmail === authEmail;
+}
+
+function logOwnerMismatch(req, order, action) {
+  console.warn(
+    `[OWNER] ${action} blocked | order=${order?.orderId || "-"} ` +
+    `orderUserId=${order?.userId || "-"} requestUserId=${req.user?.id || "-"} ` +
+    `orderEmail=${order?.customerEmail || "-"} authEmail=${req.user?.email || "-"}`
+  );
+}
+
 /* ============ AUTH ============ */
 
 app.post("/api/auth/me", authenticate, (req, res) => {
@@ -1332,8 +1352,7 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, as
   try {
     const { orderId } = req.params;
     const {
-      deliveryStatus, committedDeliveryDate, actualDeliveryDate,
-      deliveryLocation, contactPerson, seaTrialResults,
+      deliveryStatus, committedDeliveryDate, actualDeliveryDate, seaTrialResults,
       deliveryProgress, deliveryConfirmed, delayReason, deliveryNotes,
       checklist, waivePenalty
     } = req.body;
@@ -1362,11 +1381,21 @@ app.put("/api/orders/:orderId/delivery", authenticate, requireAdminOrManager, as
     const oldInfo = existing.deliveryInfo || {};
     const newInfo = { ...oldInfo };
 
-    if (deliveryStatus !== undefined) newInfo.deliveryStatus = deliveryStatus;
+    // Stages must advance one at a time. Enforced server-side so a crafted
+    // request cannot jump straight to Delivered or roll a stage back.
+    if (deliveryStatus !== undefined) {
+      const STATUS_FLOW = ["Preparing for Delivery", "Ready for Delivery", "In Transit", "Delivered"];
+      const currentIndex = Math.max(0, STATUS_FLOW.indexOf(oldInfo.deliveryStatus || STATUS_FLOW[0]));
+      const nextIndex = STATUS_FLOW.indexOf(deliveryStatus);
+      if (nextIndex < 0 || nextIndex < currentIndex || nextIndex > currentIndex + 1) {
+        return res.status(400).json({ error: "Delivery status must move one stage at a time." });
+      }
+      newInfo.deliveryStatus = deliveryStatus;
+    }
     if (committedDeliveryDate !== undefined) newInfo.committedDeliveryDate = committedDeliveryDate;
     if (actualDeliveryDate !== undefined) newInfo.actualDeliveryDate = actualDeliveryDate;
-    if (deliveryLocation !== undefined) newInfo.deliveryLocation = deliveryLocation;
-    if (contactPerson !== undefined) newInfo.contactPerson = contactPerson;
+    // deliveryLocation/contactPerson are intentionally ignored here: only the
+    // customer-confirm endpoint may write the customer's delivery answers.
     if (seaTrialResults !== undefined) newInfo.seaTrialResults = seaTrialResults;
     if (deliveryProgress !== undefined) newInfo.deliveryProgress = Number(deliveryProgress) || 0;
     if (deliveryConfirmed !== undefined) newInfo.deliveryConfirmed = deliveryConfirmed;
@@ -1531,7 +1560,8 @@ app.post("/api/orders/:orderId/customer-confirm", authenticate, async (req, res)
       .single();
 
     if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
-    if (existing.userId !== req.user.id) {
+    if (!isOrderOwner(req, existing)) {
+      logOwnerMismatch(req, existing, "customer-confirm");
       return res.status(403).json({ error: "Not authorized to confirm delivery for this order" });
     }
 
@@ -1560,6 +1590,11 @@ app.post("/api/orders/:orderId/customer-confirm", authenticate, async (req, res)
       confirmTime: time || "",
       confirmName: name,
       confirmSignature: signature,
+      // Copy the customer's answers into the staff-facing delivery fields so
+      // admin/manager cards show them immediately, not only inside the modal.
+      // The confirm* keys above remain the signed audit record.
+      deliveryLocation: location,
+      contactPerson: contact,
     };
 
     const activity = Array.isArray(existing.activityLog) ? [...existing.activityLog] : [];
@@ -1571,9 +1606,13 @@ app.post("/api/orders/:orderId/customer-confirm", authenticate, async (req, res)
       role: "Customer",
     });
 
+    const userIdRepair = String(existing.userId || "") !== String(req.user.id || "")
+      ? { userId: req.user.id }
+      : {};
+
     const { data, error } = await adminDb
       .from("boat_orders")
-      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now })
+      .update({ deliveryInfo: newInfo, activityLog: activity, updatedAt: now, ...userIdRepair })
       .eq("orderId", orderId)
       .select();
 
@@ -1587,7 +1626,7 @@ app.post("/api/orders/:orderId/customer-confirm", authenticate, async (req, res)
         const notifs = staffList.map(p => ({
           userId: p.id,
           title: "Customer confirmed delivery details",
-          message: `${name} confirmed delivery for ${orderId} (${existing.boatName || "boat"}): ${location}${date ? `, ${date}` : ""}${time ? ` at ${time}` : ""}.`,
+          message: `${name} confirmed delivery for ${orderId} (${existing.boatName || "boat"}). Location: ${location}. Contact: ${contact}.${date ? ` Preferred: ${date}${time ? ` at ${time}` : ""}.` : ""}`,
           type: "delivery_confirm",
           orderId,
         }));
@@ -1642,7 +1681,8 @@ app.post("/api/orders/:orderId/snag", authenticate, async (req, res) => {
       .single();
 
     if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
-    if (!trusted && existing.userId !== req.user.id) {
+    if (!trusted && !isOrderOwner(req, existing)) {
+      logOwnerMismatch(req, existing, "snag");
       return res.status(403).json({ error: "Not authorized to add snags for this order" });
     }
     if (!trusted) {
@@ -1798,7 +1838,8 @@ app.post("/api/orders/:orderId/delivery-ack", authenticate, async (req, res) => 
       .single();
 
     if (fetchErr || !existing) return res.status(404).json({ error: "Order not found" });
-    if (existing.userId !== req.user.id) {
+    if (!isOrderOwner(req, existing)) {
+      logOwnerMismatch(req, existing, "delivery-ack");
       return res.status(403).json({ error: "Not authorized to acknowledge delivery for this order" });
     }
 

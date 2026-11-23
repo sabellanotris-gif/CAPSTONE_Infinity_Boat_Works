@@ -56,7 +56,7 @@ header.scrolled
 
 .navbar
 {
-    padding:25px 10%;
+    padding:clamp(14px, 3vw, 25px) clamp(20px, 5vw, 10%);
     display:flex;
     align-items:center;
     justify-content:space-between;
@@ -234,22 +234,22 @@ header.scrolled
 
 .carousel .author
 {
-    font-size:14px;
+    font-size:clamp(10px, 2.4vw, 14px);
     font-weight:500;
-    letter-spacing:6px;
+    letter-spacing:clamp(2px, 1.1vw, 6px);
     margin-bottom:10px;
 }
 
 .carousel .title
 {
-    font-size:4em;
+    font-size:clamp(26px, calc(14px + 3.5vw), 64px);
     font-weight:800;
     line-height:1.1;
 }
 
 .carousel .topic
 {
-    font-size:4.5em;
+    font-size:clamp(30px, calc(14px + 4vw), 72px);
     font-weight:800;
     color:#19baf0;
     line-height:1.1;
@@ -258,9 +258,9 @@ header.scrolled
 
 .carousel .des
 {
-    width:600px;
-    max-width:100%;
-    font-size:15px;
+    width:100%;
+    max-width:600px;
+    font-size:clamp(12px, 3vw, 15px);
     line-height:1.8;
     margin-bottom:20px;
 }
@@ -288,15 +288,15 @@ header.scrolled
     justify-content:center;
     gap:9px;
 
-    min-width:172px;
-    height:52px;
-    padding:0 26px;
+    min-width:min(172px, 100%);
+    height:clamp(44px, 11vw, 52px);
+    padding:0 clamp(16px, 4vw, 26px);
 
     border:none;
     border-radius:999px;
 
     font-family:'Poppins', sans-serif;
-    font-size:14px;
+    font-size:clamp(12px, 2.8vw, 14px);
     font-weight:600;
     letter-spacing:0.4px;
 
@@ -372,8 +372,8 @@ header.scrolled
 .arrows
 {
     position:absolute;
-    bottom:30px;
-    left:10%;
+    bottom:clamp(16px, 4vw, 30px);
+    left:clamp(20px, 5vw, 10%);
     display:flex;
     gap:10px;
     z-index:100;
@@ -402,7 +402,7 @@ header.scrolled
 .section-title
 {
     text-align:center;
-    font-size:45px;
+    font-size:clamp(24px, 4.5vw, 45px);
     color:#000;
     margin-bottom:20px;
     font-weight:700;
@@ -412,8 +412,8 @@ header.scrolled
 {
     text-align:center;
     color:#333;
-    font-size:17px;
-    margin-bottom:60px;
+    font-size:clamp(13px, 2.2vw, 17px);
+    margin-bottom:clamp(28px, 6vw, 60px);
     line-height:1.7;
 }
 
@@ -421,7 +421,7 @@ header.scrolled
 .why-us
 {
     width:100%;
-    padding:90px 10%;
+    padding:clamp(48px, 9vw, 90px) clamp(20px, 5vw, 10%);
 }
 
 .why-container
@@ -434,9 +434,9 @@ header.scrolled
 
 .why-card
 {
-    width:320px;
+    width:min(320px, 100%);
     background:#fff;
-    padding:35px 30px;
+    padding:clamp(20px, 4vw, 35px) clamp(18px, 4vw, 30px);
     border-radius:24px;
     box-shadow:0 10px 30px rgba(0,0,0,0.08);
     transition:0.4s ease;
@@ -462,19 +462,19 @@ header.scrolled
 
 .why-icon i
 {
-    font-size:28px;
+    font-size:clamp(20px, 5vw, 28px);
     color:#000;
 }
 
 .why-card h3
 {
-    font-size:26px;
+    font-size:clamp(19px, 4.4vw, 26px);
     margin-bottom:15px;
 }
 
 .why-card p
 {
-    font-size:15px;
+    font-size:clamp(13px, 2.6vw, 15px);
     line-height:1.8;
     color:#555;
 }
@@ -483,7 +483,7 @@ header.scrolled
 .process
 {
     width:100%;
-    padding:90px 10%;
+    padding:clamp(48px, 9vw, 90px) clamp(20px, 5vw, 10%);
 }
 
 .process-container
@@ -496,7 +496,7 @@ header.scrolled
 
 .step
 {
-    width:320px;
+    width:min(320px, 100%);
     background:#fff;
     border-radius:24px;
     overflow:hidden;
@@ -512,13 +512,13 @@ header.scrolled
 .step img
 {
     width:100%;
-    height:240px;
+    height:clamp(160px, 42vw, 240px);
     object-fit:cover;
 }
 
 .step h3
 {
-    font-size:24px;
+    font-size:clamp(19px, 4vw, 24px);
     padding:20px 20px 10px;
 }
 
@@ -533,8 +533,8 @@ header.scrolled
 
 .glass-card
 {
-    width:320px;
-    padding:35px 30px;
+    width:min(320px, 100%);
+    padding:clamp(20px, 4vw, 35px) clamp(18px, 4vw, 30px);
     background:#fff;
     border-radius:24px;
     box-shadow:0 10px 30px rgba(0,0,0,0.08);
@@ -548,7 +548,7 @@ header.scrolled
 
 .glass-card h3
 {
-    font-size:24px;
+    font-size:clamp(19px, 4vw, 24px);
     margin-bottom:15px;
 }
 
@@ -562,7 +562,7 @@ header.scrolled
 .gallery
 {
     width:100%;
-    padding:90px 10%;
+    padding:clamp(48px, 9vw, 90px) clamp(20px, 5vw, 10%);
 }
 
 .gallery-container
@@ -575,7 +575,7 @@ header.scrolled
 
 .gallery-item
 {
-    width:320px;
+    width:min(320px, 100%);
     background:#fff;
     border-radius:24px;
     overflow:hidden;
@@ -591,13 +591,13 @@ header.scrolled
 .gallery-item img
 {
     width:100%;
-    height:240px;
+    height:clamp(160px, 42vw, 240px);
     object-fit:cover;
 }
 
 .gallery-item h3
 {
-    font-size:24px;
+    font-size:clamp(19px, 4vw, 24px);
     padding:20px 20px 10px;
 }
 
@@ -611,7 +611,7 @@ header.scrolled
 .testimonials-section
 {
     width:100%;
-    padding:90px 10%;
+    padding:clamp(48px, 9vw, 90px) clamp(20px, 5vw, 10%);
 }
 
 .testimonial-container
@@ -624,9 +624,9 @@ header.scrolled
 
 .testimonial-card
 {
-    width:320px;
+    width:min(320px, 100%);
     background:#fff;
-    padding:35px 30px;
+    padding:clamp(20px, 4vw, 35px) clamp(18px, 4vw, 30px);
     border-radius:24px;
     box-shadow:0 10px 30px rgba(0,0,0,0.08);
     transition:0.4s ease;
@@ -639,7 +639,7 @@ header.scrolled
 
 .quote-icon
 {
-    font-size:45px;
+    font-size:clamp(28px, 8vw, 45px);
     color:#38bdf8;
     margin-bottom:20px;
 }
@@ -668,7 +668,7 @@ header.scrolled
 
 .client-info h4
 {
-    font-size:18px;
+    font-size:clamp(14px, 3vw, 18px);
 }
 
 .client-info span
@@ -682,7 +682,7 @@ header.scrolled
 {
     background:#295385;
     color:#fff;
-    padding:60px 10% 20px;
+    padding:clamp(40px, 8vw, 60px) clamp(20px, 5vw, 10%) 20px;
 }
 
 .footer-container
@@ -700,7 +700,7 @@ header.scrolled
 
 .footer-brand h2
 {
-    font-size:32px;
+    font-size:clamp(22px, 5vw, 32px);
     margin-bottom:15px;
 }
 
@@ -818,16 +818,6 @@ header.scrolled
 
 @media(max-width:1024px)
 {
-    .carousel .title
-    {
-        font-size:3em;
-    }
-
-    .carousel .topic
-    {
-        font-size:3.5em;
-    }
-
     .carousel .content
     {
         width:90%;
@@ -907,13 +897,14 @@ header.scrolled
 
     .logo img
     {
-        width:60px;
-        height:60px;
+        width:clamp(48px, 14vw, 60px);
+        height:clamp(48px, 14vw, 60px);
     }
 
     .carousel
     {
         height:100vh;
+        height:100svh;
     }
 
     .carousel .content
@@ -921,28 +912,6 @@ header.scrolled
         top:16%;
         left:5%;
         width:90%;
-    }
-
-    .carousel .author
-    {
-        font-size:11px;
-        letter-spacing:3px;
-    }
-
-    .carousel .title
-    {
-        font-size:2em;
-    }
-
-    .carousel .topic
-    {
-        font-size:2.5em;
-    }
-
-    .carousel .des
-    {
-        font-size:13px;
-        width:100%;
     }
 
     .buttons
@@ -968,22 +937,12 @@ header.scrolled
         bottom:20px;
     }
 
-    .section-title
-    {
-        font-size:32px;
-    }
-
-    .section-subtitle
-    {
-        font-size:15px;
-    }
-
     .why-us,
     .process,
     .gallery,
     .testimonials-section
     {
-        padding:70px 5%;
+        padding:clamp(48px, 9vw, 70px) clamp(20px, 5vw, 5%);
     }
 
     .why-card,
@@ -992,12 +951,12 @@ header.scrolled
     .gallery-item,
     .testimonial-card
     {
-        width:100%;
+        width:min(100%, 340px);
     }
 
     .footer
     {
-        padding:50px 5% 20px;
+        padding:clamp(40px, 8vw, 50px) clamp(20px, 5vw, 5%) 20px;
     }
 
     .footer-container
@@ -1008,41 +967,26 @@ header.scrolled
 
 @media(max-width:480px)
 {
-    .carousel .title
-    {
-        font-size:1.7em;
-    }
-
-    .carousel .topic
-    {
-        font-size:2em;
-    }
-
-    .carousel .des
-    {
-        font-size:12px;
-    }
-
-    .buttons button
-    {
-        height:45px;
-        font-size:12px;
-    }
-
-    .section-title
-    {
-        font-size:26px;
-    }
-
-    .step img,
-    .gallery-item img
-    {
-        height:200px;
-    }
-
     .client-profile
     {
         flex-direction:column;
         align-items:flex-start;
+    }
+}
+
+@media(max-width:360px)
+{
+    .buttons { gap:10px; }
+    .buttons a { max-width:100%; }
+    .why-card,
+    .glass-card,
+    .testimonial-card
+    {
+        padding:20px !important;
+    }
+    .client-profile img
+    {
+        width:44px;
+        height:44px;
     }
 }

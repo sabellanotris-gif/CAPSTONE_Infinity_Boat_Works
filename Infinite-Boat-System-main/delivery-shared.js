@@ -125,6 +125,14 @@ const PDI_ITEMS = [
   { key: 'hull', label: 'Hull, rails and fittings inspected — no damage' },
 ];
 
+// A delivery may only stay on the current stage or advance one stage at a time.
+const DELIVERY_STATUS_FLOW = [
+  'Preparing for Delivery',
+  'Ready for Delivery',
+  'In Transit',
+  'Delivered'
+];
+
 function renderChecklistInto(di) {
   const container = document.getElementById('pdiList');
   if (!container) return;
@@ -147,7 +155,21 @@ function updatePdiCounter() {
     el.textContent = '· ' + done + '/' + total + ' done';
     el.style.color = done === total ? '#15803d' : '#b45309';
   }
+  const toggleBtn = document.getElementById('pdiCheckAllBtn');
+  if (toggleBtn) {
+    toggleBtn.innerHTML = done === total && total > 0
+      ? '<i class="fas fa-square"></i> Uncheck All'
+      : '<i class="fas fa-check-double"></i> Check All';
+  }
 }
+
+window.toggleAllPdi = function () {
+  const boxes = document.querySelectorAll('#pdiList input[data-pdi]');
+  if (!boxes.length) return;
+  const shouldCheck = [...boxes].some(b => !b.checked);
+  boxes.forEach(b => { b.checked = shouldCheck; });
+  updatePdiCounter();
+};
 
 // Manager drives the delivery — sets dates, sea trial, snag list, PDI,
 // waives delay penalties for them to pay. The admin monitors read-only;
@@ -239,16 +261,17 @@ export function renderDeliveryCard(order) {
         <div class="card-header">
             <div class="card-badges">
                 <span class="status-badge ${badgeClass}">${status}</span>
+                ${di.customerConfirmed ? `<span class="status-badge" style="background:#eff6ff;color:#1d4ed8;"><i class="fas fa-clipboard-check"></i> Customer confirmed</span>` : ''}
                 ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
                 ${di.termsAcknowledgedAt ? `<span class="delay-badge" style="background:#f0fdf4;color:#15803d;"><i class="fas fa-file-signature"></i> Terms signed</span>` : ''}
             </div>
             ${canViewDelivery() ? `<button class="manage-btn" onclick="openDeliveryModal('${order.orderId}')" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:${window.currentRole === 'admin' ? '#475569' : '#356cff'};color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-${window.currentRole === 'admin' ? 'eye' : 'edit'}"></i> ${window.currentRole === 'admin' ? 'View' : 'Manage'}</button>` : ''}
         </div>
-        <div class="card-details" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
+        <div class="card-details resp-grid resp-grid--auto">
             <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
             <div class="detail-item"><h4>Actual Delivery</h4><p>${fmtDate(di.actualDeliveryDate)}</p></div>
-            <div class="detail-item"><h4>Location</h4><p>${di.deliveryLocation || 'TBC'}</p></div>
-            <div class="detail-item"><h4>Contact</h4><p>${di.contactPerson || 'TBA'}</p></div>
+            <div class="detail-item"><h4>Location</h4><p>${escapeHtml(di.deliveryLocation || di.confirmLocation || 'TBC')}</p></div>
+            <div class="detail-item"><h4>Contact</h4><p>${escapeHtml(di.contactPerson || di.confirmContact || 'TBA')}</p></div>
             <div class="detail-item"><h4>Sea Trial</h4><p>${di.seaTrialResults || 'Pending'}</p></div>
         </div>
         <div style="margin-bottom:12px;">
@@ -296,7 +319,7 @@ export function applyDeliveryReadOnly(body) {
     el.disabled = true;
   });
   // hide operational buttons (waiver + any close-modal keep)
-  ['waiverBtn', 'saveDeliveryBtn', 'snagInput'].forEach(function(id) {
+  ['waiverBtn', 'saveDeliveryBtn', 'snagInput', 'pdiCheckAllBtn'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el && id !== 'waiverBtn') el.style.display = 'none';
   });
@@ -320,6 +343,12 @@ export function openDeliveryModal(orderOrId) {
     currentDeliveryOrder = order;
     const di = order.deliveryInfo || {};
     const status = getDeliveryStatus(order);
+    // Only the current stage and the immediate next stage are selectable.
+    const statusIndex = Math.max(0, DELIVERY_STATUS_FLOW.indexOf(status));
+    const isStatusAllowed = (value) => {
+        const i = DELIVERY_STATUS_FLOW.indexOf(value);
+        return i === statusIndex || i === statusIndex + 1;
+    };
     const body = document.getElementById('deliveryModalBody');
     if (!body) return;
     body.innerHTML = `
@@ -333,7 +362,7 @@ export function openDeliveryModal(orderOrId) {
     ${di.customerConfirmed ? `
     <div class="penalty-preview" style="background:#eff6ff;border-color:#bfdbfe;margin-bottom:16px;">
         <h5 style="color:#1d4ed8;"><i class="fas fa-clipboard-check"></i> Customer Delivery Confirmation</h5>
-        <div style="font-size:12px;color:#1e3a8a;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="resp-grid resp-grid--2" style="font-size:12px;color:#1e3a8a;gap:8px;">
             <div><strong>Requested by:</strong><br>${escapeHtml(di.confirmName || 'Customer')}${di.customerConfirmedAt ? `<br><span style="font-size:10px;color:#3b82f6;">${new Date(di.customerConfirmedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>` : ''}</div>
             <div><strong>Preferred:</strong><br>${escapeHtml(di.confirmDate || 'Anytime')}${di.confirmTime ? ' · ' + escapeHtml(fmtTime(di.confirmTime)) : ''}</div>
             <div><strong>Location:</strong><br>${escapeHtml(di.confirmLocation || '—')}</div>
@@ -354,17 +383,20 @@ export function openDeliveryModal(orderOrId) {
     </div>
     <div class="modal-section">
         <h4><i class="fas fa-clipboard-check"></i> Pre-delivery Checklist <span id="pdiCounter" style="font-size:11px;color:#15803d;font-weight:800;margin-left:6px;"></span></h4>
-        <div id="pdiList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+            <button type="button" id="pdiCheckAllBtn" onclick="toggleAllPdi()" style="padding:5px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f1f5f9;color:#0f172a;font-weight:700;font-size:11px;cursor:pointer;"><i class="fas fa-check-double"></i> Check All</button>
+        </div>
+        <div id="pdiList" class="resp-grid resp-grid--2" style="gap:8px;"></div>
     </div>
     <div class="modal-section">
         <h4><i class="fas fa-truck-fast"></i> Delivery Status</h4>
         <div class="form-group">
             <label>Status</label>
             <select id="modalStatus">
-                <option value="Preparing for Delivery" ${status === 'Preparing for Delivery' ? 'selected' : ''}>Preparing for Delivery</option>
-                <option value="Ready for Delivery" ${status === 'Ready for Delivery' ? 'selected' : ''}>Ready for Delivery</option>
-                <option value="In Transit" ${status === 'In Transit' ? 'selected' : ''}>In Transit</option>
-                <option value="Delivered" ${status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                <option value="Preparing for Delivery" ${status === 'Preparing for Delivery' ? 'selected' : ''} ${isStatusAllowed('Preparing for Delivery') ? '' : 'disabled'}>Preparing for Delivery</option>
+                <option value="Ready for Delivery" ${status === 'Ready for Delivery' ? 'selected' : ''} ${isStatusAllowed('Ready for Delivery') ? '' : 'disabled'}>Ready for Delivery</option>
+                <option value="In Transit" ${status === 'In Transit' ? 'selected' : ''} ${isStatusAllowed('In Transit') ? '' : 'disabled'}>In Transit</option>
+                <option value="Delivered" ${status === 'Delivered' ? 'selected' : ''} ${isStatusAllowed('Delivered') ? '' : 'disabled'}>Delivered</option>
             </select>
         </div>
         <div class="form-row">
@@ -410,6 +442,18 @@ export function openDeliveryModal(orderOrId) {
     </div>
     <div class="modal-section">
         <h4><i class="fas fa-location-dot"></i> Delivery Details</h4>
+        ${di.customerConfirmed === true ? `
+        <p style="font-size:11px;color:#15803d;font-weight:700;margin-bottom:10px;"><i class="fas fa-lock"></i> Customer-confirmed — locked</p>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Delivery Location</label>
+                <div style="padding:9px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-size:13px;">${escapeHtml(di.confirmLocation || di.deliveryLocation || '—')}</div>
+            </div>
+            <div class="form-group">
+                <label>Contact Person</label>
+                <div style="padding:9px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-size:13px;">${escapeHtml(di.confirmContact || di.contactPerson || '—')}</div>
+            </div>
+        </div>` : `
         <div class="form-row">
             <div class="form-group">
                 <label>Delivery Location</label>
@@ -419,7 +463,7 @@ export function openDeliveryModal(orderOrId) {
                 <label>Contact Person</label>
                 <input type="text" id="modalContact" value="${escapeHtml(di.contactPerson || di.confirmContact || '')}" placeholder="Customer name or contact">
             </div>
-        </div>
+        </div>`}
     </div>
     <div class="modal-section">
         <h4><i class="fas fa-sticky-note"></i> Delay Info & Notes</h4>
@@ -507,8 +551,8 @@ export async function saveDelivery() {
         deliveryProgress: parseInt(document.getElementById('modalProgress').value) || 0,
         committedDeliveryDate: document.getElementById('modalCommittedDate').value || '',
         actualDeliveryDate: document.getElementById('modalActualDate').value || '',
-        deliveryLocation: document.getElementById('modalLocation').value || '',
-        contactPerson: document.getElementById('modalContact').value || '',
+        // Location and contact are owned by the customer; the server never
+        // accepts them from a staff save.
         delayReason: document.getElementById('modalDelayReason').value || '',
         deliveryNotes: document.getElementById('modalNotes').value || ''
     };
@@ -569,8 +613,8 @@ export async function waiveDelayPenalty() {
         deliveryProgress: parseInt(document.getElementById('modalProgress').value) || 0,
         committedDeliveryDate: document.getElementById('modalCommittedDate').value || '',
         actualDeliveryDate: document.getElementById('modalActualDate').value || '',
-        deliveryLocation: document.getElementById('modalLocation').value || '',
-        contactPerson: document.getElementById('modalContact').value || '',
+        // Location and contact are owned by the customer; the server never
+        // accepts them from a staff save.
         delayReason: document.getElementById('modalDelayReason').value || '',
         deliveryNotes: document.getElementById('modalNotes').value || ''
     };

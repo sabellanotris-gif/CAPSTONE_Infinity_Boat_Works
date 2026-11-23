@@ -593,7 +593,7 @@ function openPaymentReminderModal() {
 
   if (summary) {
     summary.innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="resp-grid resp-grid--2" style="gap:10px;">
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
           <span style="font-size:11px;color:#64748b;">Customer</span>
           <strong style="display:block;font-size:13px;color:#0f172a;">${escapeAttr(order.customerName || "Unknown")}</strong>
