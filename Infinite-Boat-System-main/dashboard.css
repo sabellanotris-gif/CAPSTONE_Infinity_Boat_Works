@@ -5,12 +5,6 @@
   font-family: 'Poppins', sans-serif;
 }
 
-/* Reserve the scrollbar track so expanding/collapsing a card never shifts
-   every card sideways when the page becomes tall enough to scroll. */
-html {
-  scrollbar-gutter: stable;
-}
-
 body {
   background: #eef3fb;
   overflow-x: hidden;
@@ -198,7 +192,7 @@ body.minimal-mode .dashboard-card[data-card-id="recentPayments"] {
   display: none;
 }
 
-body.minimal-mode .dashboard-masonry.primary-grid {
+body.minimal-mode .dashboard-grid.primary-grid {
   grid-template-columns: 1fr;
 }
 
@@ -256,22 +250,9 @@ body.minimal-mode .analytics-card p {
   }
 }
 
-/* Per-card collapse: smooth, independent expand/collapse */
-.dashboard-card {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  align-content: start;
-  transition: grid-template-rows 0.25s ease, padding 0.25s ease;
-}
-
-.dashboard-card.collapsed {
-  grid-template-rows: auto 0fr;
-  padding-bottom: 0;
-}
-
-.card-collapse-body {
-  min-height: 0;
-  overflow: hidden;
+/* Per-card collapse: keep the header, hide everything below it */
+.dashboard-card.collapsed > *:not(.card-header) {
+  display: none;
 }
 
 .dashboard-card.collapsed .card-header {
@@ -643,34 +624,6 @@ body.minimal-mode .analytics-card p {
   grid-template-columns: 1.8fr 1fr;
   gap: 12px;
   margin-bottom: 12px;
-}
-
-/* Masonry-style dashboard: each column stacks and sizes itself independently.
-   Expanding one card never stretches or adds space to another card. */
-.dashboard-masonry {
-  display: grid;
-  grid-template-columns: 1.8fr 1fr;
-  gap: 8px;
-  align-items: start;
-  margin-bottom: 8px;
-}
-
-.dashboard-masonry--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.dash-column {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-@media (max-width: 900px) {
-  .dashboard-masonry,
-  .dashboard-masonry--three {
-    grid-template-columns: 1fr;
-  }
 }
 
 .dashboard-card {
@@ -1663,8 +1616,7 @@ body.dash-manager {
   .analytics-card,
   .quick-actions .quick-action-btn,
   .card-header .card-link,
-  .accordion-body,
-  .dashboard-card {
+  .accordion-body {
     transition: none !important;
   }
   .analytics-card:hover,

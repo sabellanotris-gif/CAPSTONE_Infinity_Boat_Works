@@ -26,7 +26,7 @@ Infinity Boat Works Dashboard
 </script>
 
 <link rel="stylesheet"
-href="dashboard.css?v=6">
+href="dashboard.css">
 
 <link rel="preconnect"
 href="https://fonts.googleapis.com">
@@ -329,108 +329,110 @@ window.onpageshow = function(e) {
 
 
 
-    <section class="dashboard-masonry primary-grid">
-        <div class="dash-column dash-column--left">
-            <div class="dashboard-card large-card" data-card-id="liveProjects">
-
-                <div class="card-header">
-
-                    <h2>
-
-                        Live Boat Projects
-
-                    </h2>
-
-                    <button class="card-link">
-
-                        View All
-
-                    </button>
-
-                </div>
+    <section class="dashboard-grid primary-grid">
 
 
-                <div id="liveProjectsContainer"></div>
+        <div class="dashboard-card large-card" data-card-id="liveProjects">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Live Boat Projects
+
+                </h2>
+
+                <button class="card-link">
+
+                    View All
+
+                </button>
 
             </div>
 
-            <div class="dashboard-card minimal-hide" data-card-id="inventoryAlerts">
 
-                <div class="card-header">
+            <div id="liveProjectsContainer"></div>
 
-                    <h2>
-
-                        Inventory Alerts
-
-                    </h2>
-
-                </div>
-
-                <div id="inventoryAlertsContainer"></div>
-
-            </div>
         </div>
 
-        <div class="dash-column dash-column--right minimal-hide">
-            <div class="dashboard-card small-card" data-card-id="recentPayments">
+        <div class="dashboard-card small-card" data-card-id="recentPayments">
 
-                <div class="card-header">
+            <div class="card-header">
 
-                    <h2>
+                <h2>
 
-                        Recent Payments
+                    Recent Payments
 
-                    </h2>
-
-                </div>
-
-                <div id="recentPaymentsContainer"></div>
+                </h2>
 
             </div>
 
-            <div class="dashboard-card" data-card-id="analyticsOverview">
+            <div id="recentPaymentsContainer"></div>
 
-                <div class="card-header">
-
-                    <h2>
-
-                        Analytics Overview
-
-                    </h2>
-
-                </div>
-
-                <div id="donutChartsContainer"></div>
-
-            </div>
         </div>
+
     </section>
 
-    <section class="dashboard-masonry dashboard-masonry--three minimal-hide">
-        <div class="dash-column">
-            <div class="dashboard-card" data-card-id="upcomingMilestones">
-                <div class="card-header">
-                    <h2><i class="fa-solid fa-flag"></i> Upcoming Milestones</h2>
-                </div>
-                <div id="upcomingMilestonesContainer"></div>
+
+    <section class="dashboard-grid minimal-hide">
+
+        <div class="dashboard-card" data-card-id="inventoryAlerts">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Inventory Alerts
+
+                </h2>
+
             </div>
+
+            <div id="inventoryAlertsContainer"></div>
+
         </div>
-        <div class="dash-column">
-            <div class="dashboard-card" data-card-id="overdueTasks">
-                <div class="card-header">
-                    <h2><i class="fa-solid fa-clock"></i> Overdue Tasks</h2>
-                </div>
-                <div id="overdueTasksContainer"></div>
+
+     <div class="dashboard-card" data-card-id="analyticsOverview">
+
+            <div class="card-header">
+
+                <h2>
+
+                    Analytics Overview
+
+                </h2>
+
             </div>
+
+            <div id="donutChartsContainer"></div>
+
         </div>
-        <div class="dash-column">
-            <div class="dashboard-card" data-card-id="projectsByPhase">
-                <div class="card-header">
-                    <h2><i class="fa-solid fa-layer-group"></i> Projects by Phase</h2>
-                </div>
-                <div id="projectsByPhaseContainer"></div>
+
+    </section>
+
+    <section class="dashboard-grid minimal-hide">
+
+        <div class="dashboard-card" data-card-id="upcomingMilestones">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-flag"></i> Upcoming Milestones</h2>
             </div>
+            <div id="upcomingMilestonesContainer"></div>
         </div>
+
+        <div class="dashboard-card" data-card-id="overdueTasks">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-clock"></i> Overdue Tasks</h2>
+            </div>
+            <div id="overdueTasksContainer"></div>
+        </div>
+
+        <div class="dashboard-card" data-card-id="projectsByPhase">
+            <div class="card-header">
+                <h2><i class="fa-solid fa-layer-group"></i> Projects by Phase</h2>  
+            </div>
+            <div id="projectsByPhaseContainer"></div>
+        </div>
+
     </section>
 
 </main>
@@ -456,7 +458,7 @@ window.onpageshow = function(e) {
 <script src="toast.js"></script>
     <script src="boat-image.js?v=1"></script>
     <script src="three-fullscreen.js?v=1"></script>
-<script src="dashboard.js?v=5"></script>
+<script src="dashboard.js?v=3"></script>
 
 <script src="mobile-nav.js"></script>
     <script src="global-search.js?v=1"></script>

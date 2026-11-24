@@ -1133,22 +1133,8 @@ setupAdminRealtime();
     try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(ids)); } catch { /* non-fatal */ }
   }
 
-  // Wrap card content so each card can expand/collapse independently without
-  // changing the height or position of any sibling card.
-  const cards = Array.from(document.querySelectorAll('.dashboard-card[data-card-id]'));
-  cards.forEach((card) => {
-    if (card.querySelector('.card-collapse-body')) return;
-    const header = card.querySelector('.card-header');
-    if (!header) return;
-    const body = document.createElement('div');
-    body.className = 'card-collapse-body';
-    Array.from(card.children).forEach((child) => {
-      if (child !== header) body.appendChild(child);
-    });
-    card.appendChild(body);
-  });
-
   // Inject a collapse button into every dashboard card header.
+  const cards = Array.from(document.querySelectorAll('.dashboard-card[data-card-id]'));
   cards.forEach((card) => {
     const header = card.querySelector('.card-header');
     if (!header || header.querySelector('.card-collapse-btn')) return;
