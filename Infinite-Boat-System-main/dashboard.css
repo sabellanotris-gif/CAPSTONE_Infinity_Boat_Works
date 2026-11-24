@@ -1604,6 +1604,69 @@ body.dash-manager {
   min-height: 0;
 }
 
+/* Stable card geometry — expanding content scrolls inside; neighbours never move. */
+.dash-admin .dashboard-card,
+.dash-manager .dashboard-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dash-admin .dashboard-card > :not(.card-header),
+.dash-manager .dashboard-card > :not(.card-header) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.dash-admin [data-card-id="liveProjects"],
+.dash-admin [data-card-id="recentPayments"] {
+  height: 340px;
+}
+
+.dash-admin [data-card-id="inventoryAlerts"],
+.dash-admin [data-card-id="analyticsOverview"] {
+  height: 480px;
+}
+
+.dash-admin [data-card-id="upcomingMilestones"],
+.dash-admin [data-card-id="overdueTasks"],
+.dash-admin [data-card-id="projectsByPhase"] {
+  height: 220px;
+}
+
+.dash-manager .manager-recent-card {
+  height: 300px;
+}
+
+/* A fully collapsed card shrinks to its header — no leftover blank surface. */
+.dash-admin .dashboard-card.collapsed,
+.dash-manager .dashboard-card.collapsed {
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  .dash-admin [data-card-id="liveProjects"],
+  .dash-admin [data-card-id="recentPayments"] {
+    height: 300px;
+  }
+  .dash-admin [data-card-id="inventoryAlerts"],
+  .dash-admin [data-card-id="analyticsOverview"] {
+    height: 400px;
+  }
+  .dash-admin [data-card-id="upcomingMilestones"],
+  .dash-admin [data-card-id="overdueTasks"],
+  .dash-admin [data-card-id="projectsByPhase"] {
+    height: 200px;
+  }
+  .dash-manager .manager-recent-card {
+    height: 280px;
+  }
+}
+
 .dash-admin a:focus-visible,
 .dash-admin button:focus-visible,
 .dash-manager a:focus-visible,
