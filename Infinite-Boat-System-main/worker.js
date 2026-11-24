@@ -178,11 +178,11 @@ function renderAssignments() {
     const order = a.boat_orders || {};
     const phaseLabel = getPhaseLabel(a.phase) || "Pre-Assignment";
     const progress = clamp(Number(order.progress) || 0, 0, 100);
-    const boatImg = order.boatImage || "./images/boat.jpg";
+    const boatImg = window.boatImageFor(order);
     return `
       <div class="assignment-card" onclick="viewProject('${a.id}', '${a.orderId}')">
         <div class="card-img-wrap">
-          <img class="card-img" src="${escAttr(boatImg)}" alt="${escHtml(order.boatName || 'Boat')}" onerror="this.src='./images/boat.jpg'">
+          <img class="card-img" src="${escAttr(boatImg)}" alt="${escHtml(order.boatName || 'Boat')}" onerror="boatImageOnError(this)">
           <span class="status-badge ${escAttr(statusClass(a.status))}">${escHtml(a.status)}</span>
         </div>
         <div class="card-header">

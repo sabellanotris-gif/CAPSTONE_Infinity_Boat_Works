@@ -1564,7 +1564,9 @@ async function renderDetail(order) {
     const statusClass = getStatusClass(order.status);
     const stage = getBuildStage(progress, order.status, order);
 
-    document.getElementById("detailBoatImage").src = order.boatImage || "./images/boat2.jpg";
+    const detailBoatImage = document.getElementById("detailBoatImage");
+    detailBoatImage.onerror = function () { window.boatImageOnError(this); };
+    detailBoatImage.src = window.boatImageFor(order);
     document.getElementById("detailBoatName").textContent = order.boatName || "Boat";
     document.getElementById("detailCustomerName").textContent = "Customer: " + (order.customerName || "Unknown");
     const statusEl = document.getElementById("detailStatus");
