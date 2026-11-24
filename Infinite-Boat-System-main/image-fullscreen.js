@@ -100,9 +100,20 @@
     image.className = "image-fs-image";
     image.alt = options.alt || options.title || "Photo";
     image.src = options.src;
-    if (window.boatImageOnError) {
-      image.onerror = function () { window.boatImageOnError(this); };
-    }
+    var triedFallback = false;
+    image.onerror = function () {
+      var fallback = window.DEFAULT_BOAT_IMAGE || './images/boat2.jpg';
+      if (!triedFallback && image.src.indexOf(fallback) === -1) {
+        triedFallback = true;
+        image.src = fallback;
+        return;
+      }
+      image.remove();
+      var message = document.createElement('div');
+      message.className = 'image-fs-error';
+      message.textContent = 'Photo unavailable. Please try again later.';
+      stage.appendChild(message);
+    };
     stage.appendChild(image);
 
     var toolbar = document.createElement("div");
