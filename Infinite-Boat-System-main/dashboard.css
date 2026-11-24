@@ -775,7 +775,7 @@ body.minimal-mode .analytics-card p {
 }
 
 .accordion-empty {
-  padding: 18px 4px;
+  padding: 10px 4px 6px;
   text-align: center;
   color: var(--dash-muted);
   font-size: 13px;
@@ -1568,6 +1568,20 @@ body.dash-manager {
 
 .manager-recent-card {
   margin-top: 8px;
+}
+
+.dash-manager .dash-empty {
+  padding: 18px 12px;
+}
+
+/* Empty sections shrink to their content — no tall blank card surfaces. */
+.dash-admin .dashboard-grid {
+  align-items: start;
+}
+
+.dash-admin .large-card,
+.dash-admin .small-card {
+  min-height: 0;
 }
 
 .dash-admin a:focus-visible,
