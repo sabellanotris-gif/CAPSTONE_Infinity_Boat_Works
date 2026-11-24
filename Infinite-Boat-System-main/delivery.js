@@ -95,17 +95,44 @@ function searchableText(order) {
     order.customerName,
     order.orderId,
     order.customerEmail,
+    order.customerPhone,
+    order.customerAddress,
     order.boatType,
+    order.buildType,
+    order.notes,
+    di.customerName,
+    di.customerEmail,
+    di.customerPhone,
     di.deliveryLocation,
     di.confirmLocation,
     di.contactPerson,
     di.confirmContact,
+    di.confirmName,
+    di.confirmSignature,
+    di.acknowledgmentName,
     di.deliveryNotes,
+    di.delayReason,
+    di.seaTrialResults,
   ];
   if (Array.isArray(di.snagList)) {
-    parts.push(...di.snagList.map((snag) => snag && snag.title));
+    di.snagList.forEach((snag) => {
+      if (!snag) return;
+      parts.push(snag.title, snag.note, snag.notes, snag.description, snag.status);
+    });
   }
-  return parts.filter(Boolean).join(" ").toLowerCase();
+  if (Array.isArray(di.checklist)) {
+    di.checklist.forEach((item) => {
+      parts.push(typeof item === "string" ? item : item && (item.label || item.name || item.title));
+    });
+  } else if (di.checklist && typeof di.checklist === "object") {
+    Object.values(di.checklist).forEach((item) => {
+      parts.push(typeof item === "string" ? item : item && (item.label || item.name || item.title));
+    });
+  }
+  if (order.ratingInfo) {
+    parts.push(order.ratingInfo.customerName, order.ratingInfo.comment, order.ratingInfo.review);
+  }
+  return parts.filter((part) => part !== null && part !== undefined && part !== "").join(" ").toLowerCase();
 }
 
 function visibleOrders() {
@@ -277,6 +304,18 @@ function renderAllView(visible) {
 }
 
 function render() {
+  const visible = visibleOrders();
+  const resultCount = document.getElementById("ddResultCount");
+  if (resultCount) {
+    const isNarrowed = Boolean(searchQuery) || currentFilter !== "all";
+    resultCount.textContent = allOrders.length === 0
+      ? "No delivery orders"
+      : isNarrowed
+        ? `${visible.length} of ${allOrders.length} shown`
+        : `${allOrders.length} orders`;
+    resultCount.classList.toggle("is-empty", allOrders.length > 0 && visible.length === 0);
+  }
+
   const stats = { preparing: 0, ready: 0, transit: 0, delivered: 0, overdue: 0 };
   allOrders.forEach((o) => {
     const status = boardStatus(o);
@@ -311,7 +350,6 @@ function render() {
     if (allView) allView.hidden = true;
   }
 
-  const visible = visibleOrders();
   const noResults = visible.length === 0;
   const grouped = Object.fromEntries(Object.keys(COLUMN_IDS).map((status) => [status, []]));
   visible.forEach((o) => {

@@ -81,8 +81,9 @@ window.onpageshow = function(e) {
     <div class="dd-controls">
         <div class="dd-search">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="ddSearch" placeholder="Search boat, customer, order ID, location, or contact..." autocomplete="off">
+            <input type="text" id="ddSearch" placeholder="Search boat, customer, order ID, location, contact, phone, or address..." autocomplete="off">
         </div>
+        <span class="dd-result-count" id="ddResultCount" aria-live="polite">0 orders</span>
         <button type="button" class="dd-filter-btn" id="ddFilterToggle" aria-expanded="true" aria-controls="ddFilters">
             <i class="fa-solid fa-sliders"></i><span>Filters</span>
         </button>
@@ -207,7 +208,7 @@ window.onpageshow = function(e) {
 </div>
 
 <script src="toast.js"></script>
-<script type="module" src="delivery.js?v=9"></script>
+<script type="module" src="delivery.js?v=10"></script>
 <script src="mobile-nav.js"></script>
 </body>
 </html>

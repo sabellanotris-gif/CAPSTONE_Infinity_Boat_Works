@@ -92,6 +92,17 @@ img { display: block; }
 }
 .dd-search i { color: #94a3b8; }
 .dd-search input { border: none; outline: none; background: none; width: 100%; font-size: 13px; }
+.dd-result-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.dd-result-count.is-empty { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
 .dd-filter-btn {
   display: inline-flex;
   align-items: center;
