@@ -120,12 +120,12 @@ async function renderInventory() {
     const statusClass = stock <= 5 ? 'low-stock' : 'available';
     const isCustom = CUSTOMIZATION_CATEGORIES.includes(item.category);
     return `<tr>
-      <td>${item.name}${isCustom ? ' <span style="font-size:10px;padding:1px 6px;border-radius:50px;background:#dbeafe;color:#2563eb;font-weight:500;">3D</span>' : ''}</td>
-      <td>${item.category}</td>
-      <td>${stock}</td>
-      <td><span class="${statusClass}">${status}</span></td>
-      <td>₱${(item.price || 0).toLocaleString()}</td>
-      <td>
+      <td data-label="Item">${item.name}${isCustom ? ' <span style="font-size:10px;padding:1px 6px;border-radius:50px;background:#dbeafe;color:#2563eb;font-weight:500;">3D</span>' : ''}</td>
+      <td data-label="Category">${item.category}</td>
+      <td data-label="Stock">${stock}</td>
+      <td data-label="Status"><span class="${statusClass}">${status}</span></td>
+      <td data-label="Price">₱${(item.price || 0).toLocaleString()}</td>
+      <td data-label="Actions">
         <button class="view-btn restock-btn" data-id="${item.id}">Restock</button>
         <button class="view-btn edit-btn" data-id="${item.id}">Edit</button>
         <button class="view-btn delete-btn" style="background:#dc2626;margin-left:5px" data-id="${item.id}">Delete</button>

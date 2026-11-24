@@ -153,7 +153,7 @@ function renderTable(rows) {
   emptyEl.style.display = 'none';
   tbody.innerHTML = rows.map(c => `
     <tr>
-      <td>
+      <td data-label="Customer">
         <div class="customer-cell">
           <img src="${escAttr(c.photo)}" onerror="this.src='./images/user.png'" alt="">
           <div>
@@ -162,11 +162,11 @@ function renderTable(rows) {
           </div>
         </div>
       </td>
-      <td>${c.orderCount}${c.activeBuilds ? `<div class="muted" style="margin-top:2px;">${c.activeBuilds} active</div>` : ''}</td>
-      <td class="money">${c.revenue ? fmtMoney(c.revenue) : '<span class="muted">—</span>'}</td>
-      <td>${fmtDate(c.lastOrderAt)}</td>
-      <td><span class="status-pill ${c.activeBuilds > 0 ? 'active' : (c.completedOrders > 0 ? 'completed' : 'none')}">${c.activeBuilds > 0 ? 'Active build' : (c.completedOrders > 0 ? 'Completed' : 'No orders')}</span></td>
-      <td><button class="view-btn" data-email="${escAttr(c.email)}">Manage</button></td>
+      <td data-label="Orders">${c.orderCount}${c.activeBuilds ? `<div class="muted" style="margin-top:2px;">${c.activeBuilds} active</div>` : ''}</td>
+      <td class="money" data-label="Revenue">${c.revenue ? fmtMoney(c.revenue) : '<span class="muted">—</span>'}</td>
+      <td data-label="Last Order">${fmtDate(c.lastOrderAt)}</td>
+      <td data-label="Status"><span class="status-pill ${c.activeBuilds > 0 ? 'active' : (c.completedOrders > 0 ? 'completed' : 'none')}">${c.activeBuilds > 0 ? 'Active build' : (c.completedOrders > 0 ? 'Completed' : 'No orders')}</span></td>
+      <td data-label="Action"><button class="view-btn" data-email="${escAttr(c.email)}">Manage</button></td>
     </tr>
   `).join('');
   tbody.querySelectorAll('.view-btn').forEach(btn => {

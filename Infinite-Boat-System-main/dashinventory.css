@@ -546,26 +546,7 @@ td
 
 /* RESPONSIVE */
 
-@media(max-width:900px)
-{
-    body
-    {
-        flex-direction:column;
-    }
-
-    .sidebar
-    {
-        position:relative;
-
-        width:100%;
-        height:auto;
-    }
-
-    .main-content
-    {
-        margin-left:0;
-    }
-}
+/* <= 900px sidebar is now the shared off-canvas drawer in responsive.css. */
 
 @media(max-width:700px)
 {

@@ -39,6 +39,56 @@ let workerProfile = null;
 
 document.addEventListener("DOMContentLoaded", init);
 
+/* Worker pages use their own three links, so they do not load sidebarNav.js.
+   This mirrors that drawer behavior without touching role/route logic. */
+function setupWorkerDrawer() {
+  const sidebar = document.querySelector(".sidebar");
+  if (!sidebar) return;
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "nav-toggle";
+  toggle.id = "workerNavToggle";
+  toggle.setAttribute("aria-label", "Toggle navigation");
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.innerHTML = "<span></span>";
+
+  const scrim = document.createElement("div");
+  scrim.className = "nav-scrim";
+  scrim.id = "workerNavScrim";
+
+  const topbar = document.querySelector(".topbar");
+  if (topbar) topbar.insertBefore(toggle, topbar.firstChild);
+  else document.body.appendChild(toggle);
+  document.body.appendChild(scrim);
+
+  function setOpen(open) {
+    sidebar.classList.toggle("open", open);
+    scrim.classList.toggle("show", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  toggle.addEventListener("click", () => {
+    setOpen(toggle.getAttribute("aria-expanded") !== "true");
+  });
+  scrim.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setOpen(false);
+  });
+  sidebar.querySelectorAll(".sidebar-menu a").forEach((a) => {
+    a.addEventListener("click", () => setOpen(false));
+  });
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900) setOpen(false);
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupWorkerDrawer);
+} else {
+  setupWorkerDrawer();
+}
+
 async function init() {
   const auth = await window.requireRole(["worker"]);
   if (!auth) return;

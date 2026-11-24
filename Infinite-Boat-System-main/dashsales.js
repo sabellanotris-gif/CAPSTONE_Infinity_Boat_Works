@@ -204,12 +204,12 @@ function renderSalesTable(orders, payments) {
 
   tbody.innerHTML = rows.map(r => `
     <tr>
-      <td>${r.customer}</td>
-      <td>${r.boat}</td>
-      <td>${r.method}</td>
-      <td>${r.amount}</td>
-      <td><span class="${r.status === 'Paid' || r.status === 'Active' ? 'paid-status' : 'pending-status'}">${r.status}</span></td>
-      <td>${r.date}</td>
+      <td data-label="Customer">${r.customer}</td>
+      <td data-label="Boat">${r.boat}</td>
+      <td data-label="Method">${r.method}</td>
+      <td data-label="Amount">${r.amount}</td>
+      <td data-label="Status"><span class="${r.status === 'Paid' || r.status === 'Active' ? 'paid-status' : 'pending-status'}">${r.status}</span></td>
+      <td data-label="Date">${r.date}</td>
     </tr>
   `).join('');
 }

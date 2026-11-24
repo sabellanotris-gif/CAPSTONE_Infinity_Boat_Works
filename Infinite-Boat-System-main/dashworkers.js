@@ -383,17 +383,17 @@ function renderTable(workers) {
   empty.style.display = 'none';
   tbody.innerHTML = workers.map(function(w) {
     return '<tr>'
-      + '<td>'
+      + '<td data-label="Worker">'
       +   '<div class="worker-cell">'
       +     '<div class="worker-avatar" style="background:linear-gradient(135deg,' + colorForName(w.name) + ',#0c2b6d);">' + escHtml(initials(w.name)) + '</div>'
       +     '<div class="worker-meta"><h4>' + escHtml(w.name) + '</h4><p>' + escHtml(w.email || (w.phone ? w.phone : 'No contact')) + '</p></div>'
       +   '</div>'
       + '</td>'
-      + '<td><span class="specialty-tag">' + escHtml(w.specialty) + '</span></td>'
-      + '<td>' + escHtml(w.phone || '—') + '</td>'
-      + '<td><span class="status-pill ' + (w.status === 'Active' ? 'active' : 'inactive') + '">' + (w.status === 'Active' ? 'Active' : 'Deactivated') + '</span></td>'
-      + '<td><span class="avail-tag ' + (w.available ? 'available' : 'busy') + '">' + (w.available ? 'Ready' : 'Busy') + '</span></td>'
-      + '<td class="col-actions"><button class="view-btn" data-view="' + w.id + '">View</button></td>'
+      + '<td data-label="Specialty"><span class="specialty-tag">' + escHtml(w.specialty) + '</span></td>'
+      + '<td data-label="Phone">' + escHtml(w.phone || '—') + '</td>'
+      + '<td data-label="Status"><span class="status-pill ' + (w.status === 'Active' ? 'active' : 'inactive') + '">' + (w.status === 'Active' ? 'Active' : 'Deactivated') + '</span></td>'
+      + '<td data-label="Availability"><span class="avail-tag ' + (w.available ? 'available' : 'busy') + '">' + (w.available ? 'Ready' : 'Busy') + '</span></td>'
+      + '<td class="col-actions" data-label="Action"><button class="view-btn" data-view="' + w.id + '">View</button></td>'
       + '</tr>';
   }).join('');
   tbody.querySelectorAll('[data-view]').forEach(function(b) {

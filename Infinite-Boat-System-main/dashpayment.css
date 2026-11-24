@@ -467,12 +467,7 @@ img { display: block; }
   .bank-grid {
     grid-template-columns: 1fr;
   }
-  .sidebar {
-    display: none;
-  }
-  .main-content {
-    margin-left: 0;
-  }
+  /* Sidebar/main width is handled by the shared drawer in responsive.css. */
 }
 
 @media (max-width: 700px) {

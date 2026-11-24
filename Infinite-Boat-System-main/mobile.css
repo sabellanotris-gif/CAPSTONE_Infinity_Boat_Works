@@ -1,37 +1,160 @@
 /* =========================================================
    MOBILE DESIGN LAYER — load LAST, after responsive.css.
-   Every rule lives inside a media query, so the desktop
-   design and behavior are completely untouched.
+   All rules are inside media queries, so the desktop design,
+   Three.js renderer, backend and all page logic are untouched.
    ========================================================= */
 
-/* Shared carousel dots (additive; existing arrows + auto-slide kept). */
-.carousel .arrows .indicators {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.carousel .arrows .indicators .dot {
-  width: 7px;
-  height: 7px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  transition: width 0.25s ease, background 0.25s ease;
-}
-.carousel .arrows .indicators .dot[aria-current="true"] {
-  width: 22px;
-  background: #19baf0;
-}
-.carousel .arrows .indicators .dot:focus-visible {
-  outline: 2px solid #fff;
-  outline-offset: 3px;
+/* Desktop keeps the original arrow-only carousel. */
+.carousel .arrows .indicators { display: none; }
+
+/* =========================================================
+   3D CUSTOMIZER — narrow laptop/tablet/phone.
+   boatcust.css hides its sidebars at 1200px and responsive.css
+   turns .sidebar into an off-canvas drawer at 900px. Neither
+   behavior fits a configurator, so restore normal flow and
+   keep the Three.js canvas untouched.
+   ========================================================= */
+@media (max-width: 1200px) {
+  html.customizer-page,
+  body.customizer-page {
+    height: auto;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .app-container {
+    display: flex !important;
+    flex-direction: column;
+    height: auto !important;
+    min-height: 100dvh;
+    padding: 12px;
+    gap: 12px;
+  }
+  .app-container > .viewer-section {
+    order: 1;
+    width: 100%;
+    height: auto !important;
+    min-height: 0;
+    overflow: visible;
+  }
+  .app-container > .left-sidebar { order: 2; }
+  .app-container > .right-sidebar { order: 3; }
+
+  .app-container > .sidebar {
+    display: block !important;
+    position: static !important;
+    top: auto;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    width: 100% !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 18px !important;
+    transform: none !important;
+    transition: none;
+    overflow: visible;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    z-index: auto;
+  }
+
+  .viewer-wrapper {
+    width: 100%;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: clamp(320px, 56svh, 560px);
+    border-radius: var(--mobile-radius, 18px);
+    overflow: hidden;
+  }
+  #threeViewer,
+  #threeViewer canvas { width: 100% !important; height: 100% !important; }
 }
 
 /* =========================================================
-   TABLET — 601px to 1024px
-   Keeps the desktop character, just tightened and centered.
+   SHARED BASE — up to 1024px
+   ========================================================= */
+@media (max-width: 1024px) {
+  html,
+  body { max-width: 100%; }
+
+  img,
+  canvas,
+  video { max-width: 100%; }
+
+  .main-content,
+  .dashboard-layout > .main-content,
+  .resp-grid,
+  .resp-grid > * { min-width: 0; }
+
+  .topbar,
+  .topbar-right,
+  .section-header,
+  .table-header,
+  .modal-header,
+  .form-actions,
+  .guideline-nav { flex-wrap: wrap; }
+
+  .stat-card,
+  .analytics-card,
+  .summary-card,
+  .project-card,
+  .order-card,
+  .worker-card,
+  .dd-card,
+  .delivery-card,
+  .info-card { min-width: 0; }
+
+  .carousel .arrows .indicators {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .carousel .arrows .indicators .dot {
+    width: 7px;
+    height: 7px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: width 0.25s ease, background 0.25s ease;
+  }
+  .carousel .arrows .indicators .dot[aria-current="true"] {
+    width: 22px;
+    background: #19baf0;
+  }
+  .carousel .arrows .indicators .dot:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+}
+
+/* =========================================================
+   TABLET LANDSCAPE — 769px to 1024px
+   ========================================================= */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .landing .carousel .content { width: 86%; left: 7%; }
+  .landing .carousel .des { max-width: 540px; }
+  .landing .buttons a { max-width: 200px; }
+
+  .stats-grid,
+  .analytics-section,
+  .dd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  .boats-grid,
+  .projects-grid,
+  .orders-grid,
+  .workers-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  .chart-card,
+  .donut-card,
+  .gantt-card { min-width: 0; }
+}
+
+/* =========================================================
+   SMALL TABLET — 601px to 768px
    ========================================================= */
 @media (min-width: 601px) and (max-width: 768px) {
   .landing .carousel .list .item {
@@ -78,12 +201,28 @@
     bottom: 26px;
     transform: none;
   }
-}
 
-@media (min-width: 769px) and (max-width: 1024px) {
-  .landing .carousel .content { width: 86%; left: 7%; }
-  .landing .carousel .des { max-width: 540px; }
-  .landing .buttons a { max-width: 200px; }
+  .main-content,
+  .dashboard-layout > .main-content { padding: 16px !important; }
+
+  .stats-grid,
+  .analytics-section,
+  .dd-stats,
+  .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  .boats-grid,
+  .projects-grid,
+  .orders-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  .table-card,
+  .table-wrapper,
+  .table-container,
+  .table-responsive { max-width: 100%; overflow-x: auto; }
+
+  .gantt-scroll,
+  .gantt-wrapper,
+  .gantt-container,
+  .timeline-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* =========================================================
@@ -94,26 +233,336 @@
     --mobile-header: 72px;
     --mobile-gutter: 20px;
     --mobile-radius: 18px;
+    --mobile-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
   }
 
-  /* ---- Header: logo left, hamburger right, never overlapping ---- */
-  html, body { overflow-x: hidden; }
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
 
+  /* ---------- Shared navigation ---------- */
+  .sidebar {
+    width: min(84vw, 300px) !important;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px 20px !important;
+    box-shadow: 6px 0 30px rgba(7, 27, 71, 0.32);
+  }
+  .sidebar .logo { font-size: 22px !important; margin-bottom: 18px !important; }
+  .sidebar-menu a,
+  .nav-sub a,
+  .nav-group-btn {
+    min-height: 44px;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+  .logout-btn { min-height: 46px; margin-top: 12px; }
+
+  .nav-toggle {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+    border-radius: 14px;
+    background: rgba(9, 20, 40, 0.72);
+    color: #fff;
+  }
+  .nav-toggle:focus-visible { outline: 2px solid #4f7cff; outline-offset: 3px; }
+  .nav-scrim.show { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+
+  .main-content,
+  .dashboard-layout > .main-content { padding: 14px !important; }
+
+  .topbar { gap: 10px; }
+  .topbar h1,
+  .topbar h2 { font-size: clamp(20px, 5.4vw, 26px) !important; line-height: 1.25; }
+  .topbar p { font-size: 12px; line-height: 1.5; }
+  .topbar-right,
+  .topbar-actions { width: 100%; justify-content: flex-start; }
+  .profile-image-btn { width: 42px; height: 42px; }
+  .profile-image { width: 40px; height: 40px; }
+
+  .notif-dropdown,
+  .admin-notif-dropdown,
+  .worker-notif-dropdown {
+    position: fixed !important;
+    top: 64px !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 70vh !important;
+    max-height: 70dvh !important;
+    overflow-y: auto;
+    box-shadow: 0 18px 44px rgba(7, 27, 71, 0.28);
+  }
+
+  /* ---------- Shared grids and cards ---------- */
+  .stats-grid,
+  .analytics-section,
+  .dd-stats,
+  .quick-actions,
+  .overview-grid,
+  .summary-grid,
+  .details-grid,
+  .bank-grid,
+  .phase-container,
+  .payment-summary,
+  .order-container,
+  .info-grid,
+  .project-details,
+  .form-row,
+  .form-row.two,
+  .payment-amounts,
+  .modal-info-grid,
+  .config-grid,
+  .schedule-grid,
+  .bottom-cards { grid-template-columns: 1fr !important; }
+
+  .stat-card,
+  .analytics-card,
+  .summary-card,
+  .project-card,
+  .order-card,
+  .worker-card,
+  .dd-card,
+  .delivery-card,
+  .info-card,
+  .detail-box,
+  .boat-card,
+  .payment-card,
+  .instruction-card,
+  .bank-card {
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--mobile-radius);
+    box-shadow: var(--mobile-shadow);
+  }
+
+  .section-header,
+  .table-header,
+  .progress-controls,
+  .dd-controls { flex-direction: column; align-items: stretch; gap: 10px; }
+
+  .section-header h2,
+  .table-header h2,
+  .flow-title,
+  .boat-preview h1,
+  .left-sidebar h1 { font-size: clamp(20px, 5.4vw, 26px) !important; line-height: 1.25; }
+
+  h1, h2, h3, h4, p, li, a, span { overflow-wrap: anywhere; }
+  p, li { line-height: 1.6; }
+
+  /* ---------- Forms, filters and tap targets ---------- */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 16px !important;
+    max-width: 100%;
+  }
+  input[type="range"] {
+    width: 100%;
+    height: 44px;
+    accent-color: #295dff;
+  }
+  label { font-size: 12px; font-weight: 600; }
+
+  button:not(.dot):not(.modal-close):not(.close-modal):not(.nav-toggle):not(#calPrev):not(#calNext) {
+    min-height: 44px;
+    border-radius: 12px;
+  }
+  .modal-footer,
+  .modal-actions,
+  .revision-actions,
+  .form-actions,
+  .button-group,
+  .guideline-nav,
+  .order-actions { flex-direction: column !important; }
+  .modal-footer button,
+  .modal-actions button,
+  .revision-actions button,
+  .form-actions button,
+  .button-group button,
+  .guideline-nav button { width: 100% !important; }
+
+  .filter-tabs,
+  .project-filters,
+  .dd-filters {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .filter-tab,
+  .proj-filter,
+  .dd-chip { flex: 0 0 auto; white-space: nowrap; }
+
+  .search-box,
+  .dd-search { width: 100% !important; max-width: none !important; min-width: 0; }
+  .dd-chip { flex: 1 1 auto; text-align: center; }
+
+  /* ---------- Tables become labelled cards ---------- */
+  .table-wrapper,
+  .table-container,
+  .table-scroll,
+  .table-responsive,
+  .sales-table-card { max-width: 100%; overflow: visible !important; }
+
+  .table-wrapper table,
+  .table-container table,
+  .table-scroll table,
+  .table-responsive table,
+  #salesTable {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .table-wrapper thead,
+  .table-container thead,
+  .table-scroll thead,
+  .table-responsive thead,
+  #salesTable thead { display: none; }
+  .table-wrapper tbody,
+  .table-container tbody,
+  .table-scroll tbody,
+  .table-responsive tbody,
+  #salesTable tbody { display: block; }
+
+  .table-wrapper tr,
+  .table-container tr,
+  .table-scroll tr,
+  .table-responsive tr,
+  #salesTable tbody tr {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--mobile-shadow);
+  }
+  .table-wrapper td,
+  .table-container td,
+  .table-scroll td,
+  .table-responsive td,
+  #salesTable td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding: 8px 0 !important;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: right !important;
+    font-size: 13px;
+  }
+  .table-wrapper td::before,
+  .table-container td::before,
+  .table-scroll td::before,
+  .table-responsive td::before,
+  #salesTable td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  .table-wrapper td:last-child,
+  .table-container td:last-child,
+  .table-scroll td:last-child,
+  .table-responsive td:last-child,
+  #salesTable td:last-child { border-bottom: 0; }
+  .table-wrapper td[colspan],
+  #salesTable td[colspan] { display: block; text-align: center !important; }
+  .table-wrapper td[colspan]::before,
+  #salesTable td[colspan]::before { content: none; }
+  .table-wrapper .customer-cell,
+  .table-wrapper .worker-cell { min-width: 0; }
+
+  /* ---------- Charts, timelines and Gantt ---------- */
+  .chart-card,
+  .donut-card,
+  .gantt-card,
+  .analytics-card { min-width: 0; }
+  .chart-card canvas,
+  .donut-card canvas { max-width: 100%; height: auto !important; }
+  .gantt-scroll,
+  .gantt-wrapper,
+  .gantt-container,
+  .timeline-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gantt { min-width: 500px; }
+
+  /* ---------- Modals, sheets and receipts ---------- */
+  .modal-overlay,
+  .receipt-overlay,
+  .view-modal { padding: 10px !important; align-items: flex-end; }
+  .modal-content,
+  .modal-box,
+  .receipt-modal,
+  .view-modal .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 92vh !important;
+    max-height: 92dvh !important;
+    padding: 18px !important;
+    border-radius: 18px 18px 14px 14px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .receipt-modal { max-height: 90dvh !important; }
+  .modal-header,
+  .receipt-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #fff;
+    padding-bottom: 10px;
+  }
+  .modal-footer,
+  .form-actions,
+  .button-group {
+    position: sticky;
+    bottom: -18px;
+    z-index: 3;
+    background: #fff;
+    padding-top: 10px;
+  }
+  .modal-content .close-modal,
+  .modal-content .modal-close {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    top: 8px;
+    right: 8px;
+  }
+
+  /* ---------- Landing: header and menu ---------- */
   .landing header { position: fixed; }
-
   .landing .navbar {
     min-height: var(--mobile-header);
     padding: 12px var(--mobile-gutter);
     gap: 12px;
   }
-
   .landing .logo img {
     width: 48px;
     height: 48px;
     border: 2px solid rgba(255, 255, 255, 0.32);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   }
-
   .landing .nav-toggle {
     display: inline-flex;
     width: 44px;
@@ -133,8 +582,6 @@
   }
   .landing .nav-toggle:active { transform: scale(0.96); }
   .landing .nav-toggle:focus-visible { outline: 2px solid #4f7cff; outline-offset: 3px; }
-
-  /* Dropdown menu stays inside the viewport. */
   .landing .nav-links {
     top: calc(100% + 6px);
     left: 14px;
@@ -154,20 +601,18 @@
     border-radius: 12px;
   }
 
-  /* ---- Hero: text on top, whole boat visible underneath ---- */
+  /* ---------- Landing: hero ---------- */
   .landing .carousel {
     height: 100svh;
     min-height: 620px;
     max-height: 900px;
   }
-
   .landing .carousel .list .item {
     display: flex;
     align-items: flex-start;
     padding: calc(var(--mobile-header) + 18px) var(--mobile-gutter) 0;
     background: radial-gradient(circle at 52% 74%, #123a6b 0%, #071b47 60%, #04122f 100%);
   }
-
   .landing .carousel .list .item img {
     position: absolute;
     top: 34%;
@@ -177,7 +622,6 @@
     object-fit: contain;
     object-position: center center;
   }
-
   .landing .carousel .list .item::after {
     background: linear-gradient(
       to bottom,
@@ -188,7 +632,6 @@
       rgba(4, 18, 47, 0.72) 100%
     );
   }
-
   .landing .carousel .content {
     position: relative;
     top: auto;
@@ -198,27 +641,23 @@
     margin: 0;
   }
   .landing .carousel .content > div { text-shadow: 0 2px 14px rgba(0, 0, 0, 0.45); }
-
   .landing .carousel .author {
     font-size: 10px;
     letter-spacing: 2.4px;
     line-height: 1.4;
     margin-bottom: 9px;
   }
-
   .landing .carousel .title {
     font-size: clamp(20px, 5.6vw, 26px);
     line-height: 1.14;
     letter-spacing: -0.2px;
     margin-bottom: 5px;
   }
-
   .landing .carousel .topic {
     font-size: clamp(24px, 6.6vw, 30px);
     line-height: 1.12;
     margin-bottom: 11px;
   }
-
   .landing .carousel .des {
     width: 100%;
     max-width: 100%;
@@ -226,8 +665,6 @@
     line-height: 1.55;
     margin-bottom: 18px;
   }
-
-  /* ---- Buttons: equal-width row, easy to tap ---- */
   .landing .buttons {
     flex-direction: row;
     align-items: stretch;
@@ -251,7 +688,6 @@
   }
   .landing .buttons button i { font-size: 13px; }
 
-  /* ---- Controls: centered at the bottom with breathing room ---- */
   .landing .arrows {
     left: 50%;
     right: auto;
@@ -272,20 +708,27 @@
   }
   .landing .arrows button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
-  /* ---- Sections: consistent rhythm and card sizing ---- */
+  /* ---------- Landing: sections ---------- */
   .landing .why-us,
   .landing .process,
   .landing .gallery,
-  .landing .testimonials-section {
-    padding: 56px var(--mobile-gutter);
-  }
+  .landing .testimonials-section { padding: 56px var(--mobile-gutter); }
+
+  .landing #whychooseus,
+  .landing #process,
+  .landing #gallery,
+  .landing #contact { scroll-margin-top: 80px; }
+
   .landing .section-title { font-size: clamp(23px, 6vw, 28px); line-height: 1.2; }
   .landing .section-subtitle { font-size: 13px; margin-bottom: 34px; }
 
   .landing .why-container,
   .landing .process-container,
   .landing .gallery-container,
-  .landing .testimonial-container { gap: 16px; }
+  .landing .testimonial-container {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
 
   .landing .why-card,
   .landing .step,
@@ -296,37 +739,189 @@
     border-radius: var(--mobile-radius);
   }
 
+  .landing .why-card {
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    column-gap: 12px;
+    align-items: start;
+    padding: 18px;
+  }
+  .landing .why-icon {
+    grid-row: span 2;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+  }
   .landing .why-card h3,
   .landing .step h3,
   .landing .glass-card h3,
-  .landing .gallery-item h3 { font-size: 20px; line-height: 1.25; }
-
+  .landing .gallery-item h3 { font-size: 18px; line-height: 1.25; }
+  .landing .why-card h3 { margin: 2px 0 4px; }
+  .landing .why-card p { grid-column: 2; }
   .landing .why-card p,
   .landing .step p,
   .landing .glass-card p,
   .landing .gallery-item p,
-  .landing .testimonial-card p { font-size: 13px; line-height: 1.65; }
+  .landing .testimonial-card p { font-size: 12.5px; line-height: 1.65; }
 
+  .landing .process-container { position: relative; }
+  .landing .step { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
   .landing .step img,
-  .landing .gallery-item img { height: clamp(170px, 48vw, 230px); }
+  .landing .gallery-item img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+  }
+
+  .landing .testimonial-card { padding: 18px; }
+  .landing .client-profile {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 10px;
+  }
+  .landing .client-profile img {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .landing .client-info h4 { font-size: 14px; }
+  .landing .client-info span { font-size: 11px; }
 
   .landing .footer { padding: 44px var(--mobile-gutter) 22px; }
+  .landing .footer-container { flex-direction: column; gap: 26px; }
   .landing .footer-brand h2 { font-size: 25px; }
+  .landing .footer-links a {
+    display: block;
+    min-height: 40px;
+    padding: 8px 0;
+  }
+  .landing .footer-contact a,
+  .landing .footer-contact p {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .landing .footer-cta {
+    width: 100%;
+    justify-content: center;
+    margin-top: 12px;
+  }
 
-  /* ---- Shared system polish on phones ---- */
-  .main-content,
-  .dashboard-layout > .main-content { padding: 14px !important; }
-  .topbar { gap: 10px; }
-  .topbar h1,
-  .topbar h2 { line-height: 1.25; }
-  .stat-card,
-  .summary-card,
-  .project-card,
-  .dd-card,
-  .why-card { border-radius: var(--mobile-radius); }
-  input:not([type="checkbox"]):not([type="radio"]),
-  select,
-  textarea { min-height: 44px; }
+  /* ---------- Customer dashboard / boat info ---------- */
+  .main-header { gap: 12px; padding: 14px !important; }
+  .main-header nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+  .main-header nav a { flex: 0 0 auto; white-space: nowrap; min-height: 40px; }
+  .hero-section,
+  .projects-section,
+  .boats-section { padding: 18px 14px; }
+  .hero-card { padding: 16px; border-radius: var(--mobile-radius); }
+  .hero-profile { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .project-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .project-content { padding: 14px; }
+  .project-image-container { height: clamp(170px, 48vw, 230px); }
+  .project-details { gap: 8px; }
+  .project-actions { flex-wrap: wrap; }
+  .project-actions button,
+  .project-actions a { flex: 1 1 140px; }
+
+  .boat-card { padding: 16px !important; border-radius: var(--mobile-radius); }
+  .boat-card img { height: clamp(170px, 48vw, 220px); object-fit: contain; }
+  .boat-card h2 { font-size: 22px; }
+  .boat-card .prev,
+  .boat-card .next,
+  .prev,
+  .next {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+
+  /* ---------- Ordering workflow ---------- */
+  .order-section { padding: 14px; }
+  .order-flow { padding: 18px 14px; border-radius: var(--mobile-radius); }
+  .step-indicator { gap: 6px; }
+  .step-labels { gap: 8px; }
+  .step-labels span { font-size: 10px; text-align: center; }
+  .step-line { max-width: 26px; }
+  .build-options { grid-template-columns: 1fr !important; }
+  .terms-box { max-height: 220px; }
+  .ack-checklist { max-height: 340px; padding: 14px; }
+  .signing-row { flex-direction: column; gap: 12px; }
+  #calendarWidget { width: 100%; }
+  #calBody button { min-height: 34px; font-size: 12px; }
+  #calendarHeader button { min-height: 36px; }
+  .guideline-nav { gap: 10px; }
+
+  /* ---------- 3D customizer phone tuning ---------- */
+  .viewer-wrapper { height: clamp(300px, 52svh, 520px); }
+  .app-container > .sidebar .boat-preview-card img { height: clamp(140px, 38vw, 200px); }
+  .control-group { margin-bottom: 12px; }
+  .range-box { flex-direction: column; align-items: stretch; gap: 4px; }
+
+  /* ---------- Payment, receipt and cancellation ---------- */
+  .payment-container { gap: 14px; }
+  .payment-header { text-align: left; }
+  .payment-header h1 { font-size: clamp(26px, 6.6vw, 32px); }
+  .banks-grid { grid-template-columns: 1fr !important; }
+  .bank-card { padding: 16px; }
+  .bank-detail-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .receipt-body { padding: 4px 0 12px; }
+  .receipt-section { padding: 10px 0; }
+  .receipt-footer { position: sticky; bottom: -18px; background: #fff; padding-top: 10px; }
+  #cancelPenaltyTable,
+  .specs-table { width: 100%; overflow-x: auto; display: block; }
+
+  /* ---------- Auth and profile ---------- */
+  .container {
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 12px auto !important;
+    border-radius: var(--mobile-radius) !important;
+  }
+  .left,
+  .right,
+  .left-side,
+  .right-side { width: 100%; padding: 22px !important; }
+  .right,
+  .right-side { min-height: auto !important; }
+  .overlay { padding: 26px 20px !important; }
+  .overlay h2 { font-size: 26px !important; }
+  .logo img { width: 56px; height: 56px; }
+  .left h1,
+  .left-side h1 { font-size: clamp(24px, 6vw, 30px) !important; }
+  .social-login button { width: 48px; height: 48px; font-size: 18px; }
+  .profile-image { width: 96px; height: 96px; }
+
+  /* ---------- Admin / manager workspaces ---------- */
+  .quick-actions { gap: 10px; }
+  .quick-actions a,
+  .quick-actions button { width: 100%; min-height: 46px; }
+  .customer-cell h4,
+  .worker-meta h4 { font-size: 13px; }
+  .customer-cell p,
+  .worker-meta p { font-size: 11px; }
+  .status-pill,
+  .avail-tag,
+  .specialty-tag,
+  .type-badge,
+  .worker-badge { max-width: 100%; font-size: 10px; }
+  .worker-chip,
+  .worker-tag { max-width: 100%; }
 }
 
 /* Standard phones — 376px to 430px */
@@ -341,9 +936,14 @@
 @media (max-width: 375px) {
   :root { --mobile-gutter: 16px; }
 
+  .main-content,
+  .dashboard-layout > .main-content { padding: 10px !important; }
+  .sidebar { width: min(88vw, 300px) !important; }
+  .topbar h1,
+  .topbar h2 { font-size: 19px !important; }
+
   .landing .navbar { padding: 10px 16px; }
   .landing .logo img { width: 44px; height: 44px; }
-
   .landing .carousel .list .item { padding-top: calc(var(--mobile-header) + 12px); }
   .landing .carousel .list .item img { top: 36%; height: 52%; }
   .landing .carousel .author { font-size: 9px; letter-spacing: 2px; }
@@ -358,6 +958,11 @@
 
   .landing .arrows { bottom: calc(12px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
   .landing .arrows button { width: 42px; height: 42px; }
-
   .landing .section-title { font-size: 22px; }
+  .landing .why-card { grid-template-columns: 40px 1fr; column-gap: 10px; padding: 14px; }
+  .landing .why-icon { width: 40px; height: 40px; }
+
+  .stat-card,
+  .analytics-card,
+  .summary-card { padding: 12px !important; }
 }
