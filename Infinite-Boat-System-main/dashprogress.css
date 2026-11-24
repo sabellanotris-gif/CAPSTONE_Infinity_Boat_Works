@@ -664,6 +664,92 @@
 }
 
 /* =====================
+   STABLE DELIVERY CARD SLOTS
+   Fixed order + reserved space so status/delay/rating changes
+   never push the delivery information around.
+===================== */
+#deliveryCard .delivery-card [data-delivery-slot] {
+    margin-bottom: 12px;
+}
+#deliveryCard .delivery-card [data-delivery-slot]:last-child {
+    margin-bottom: 0;
+}
+#deliveryCard .card-header[data-delivery-slot="status"] {
+    min-height: 58px;
+    align-items: flex-start;
+}
+#deliveryCard .card-badges {
+    min-height: 54px;
+    align-content: flex-start;
+}
+#deliveryCard .delivery-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+#deliveryCard .delivery-info-grid .detail-item {
+    min-height: 68px;
+}
+#deliveryCard .delivery-info-grid .detail-item:nth-child(5) {
+    grid-column: 1 / -1;
+}
+#deliveryCard .delivery-progress-slot {
+    min-height: 42px;
+}
+#deliveryCard .delivery-slot--delay {
+    height: 112px;
+    overflow: auto;
+}
+#deliveryCard .delivery-slot--rating {
+    height: 128px;
+    overflow: auto;
+}
+#deliveryCard .delay-info-box {
+    box-sizing: border-box;
+    margin-bottom: 0;
+}
+#deliveryCard .delivery-state-box {
+    box-sizing: border-box;
+    min-height: 100%;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+#deliveryCard .delivery-state-box h4 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+#deliveryCard .delivery-state-box p {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.45;
+}
+#deliveryCard .delivery-slot--action {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+#deliveryCard .delivery-action-empty {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+@media (max-width: 700px) {
+    #deliveryCard .card-header[data-delivery-slot="status"] { min-height: 74px; }
+    #deliveryCard .delivery-info-grid { grid-template-columns: 1fr; }
+    #deliveryCard .delivery-info-grid .detail-item:nth-child(5) { grid-column: auto; }
+    #deliveryCard .delivery-info-grid .detail-item { min-height: 62px; }
+    #deliveryCard .delivery-slot--delay { height: 176px; }
+}
+
+/* =====================
    CREATE WORKER MODAL
 ===================== */
 .modal-overlay {
@@ -742,6 +828,19 @@
 #deliveryModal .modal-section h4 {
     font-size:13px;font-weight:700;margin-bottom:10px;
     color:#334155;display:flex;align-items:center;gap:8px;
+}
+#deliveryModal .delivery-modal-slot {
+    height: 144px;
+    overflow: auto;
+    margin-bottom: 16px;
+}
+#deliveryModal .delivery-modal-slot[data-modal-slot="terms"] {
+    height: 120px;
+    margin-bottom: 4px;
+}
+#deliveryModal #snagListRows {
+    height: 56px;
+    overflow: auto;
 }
 #deliveryModal .form-group { margin-bottom:14px; }
 #deliveryModal .form-group label {

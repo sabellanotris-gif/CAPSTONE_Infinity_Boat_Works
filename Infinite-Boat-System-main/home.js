@@ -31,6 +31,201 @@ function escAttr(str) {
 let gOrders = [];
 let forceConfirmEdit = false;
 
+/* Gallery data is declared here so project cards can reuse the same images
+   during their first render. The boat catalog below still uses this map. */
+const boatGalleries = {
+    "Patrol Boat": ["./images/patrol (preview).png","./images/patrol (1).jpg","./images/patrol (2).jpg","./images/patrol (3).jpg","./images/patrol (1).png"],
+    "Speed Boat": ["./images/speed (preview).jpg","./images/speed.png","./images/speed1.png"],
+    "Parasail Boat": ["./images/parasail(preview).png","./images/parasaril.png"],
+    "1950 Passenger Boat": ["./images/1950(preview).png","./images/1950 (2).jpg","./images/1950 (3).jpg","./images/1950 (4).jpg","./images/1950 (5).jpg","./images/1950 (6).jpg","./images/1950 (7).jpg"],
+    "2680 Passenger Boat": ["./images/2680 (preview).png","./images/2680.png"]
+};
+
+/* Phone-only project preview helpers. Desktop rendering is untouched. */
+const MOBILE_PREVIEW_QUERY = "(max-width: 600px)";
+const mobilePreviewQuery = window.matchMedia
+    ? window.matchMedia(MOBILE_PREVIEW_QUERY)
+    : null;
+
+function isMobileProjectPreview() {
+    return mobilePreviewQuery
+        ? mobilePreviewQuery.matches
+        : window.innerWidth <= 600;
+}
+
+function mobileImageFile(src) {
+    try {
+        return decodeURIComponent(String(src || "").split("?")[0].split("/").pop());
+    } catch (err) {
+        return String(src || "").split("?")[0].split("/").pop();
+    }
+}
+
+function getMobileProjectGallery(order) {
+    const current = order?.boatImage || "./images/boat2.jpg";
+    const name = String(order?.boatName || "");
+    const lowerName = name.toLowerCase();
+    let gallery = boatGalleries[name];
+
+    if (!gallery && /passenger/.test(lowerName)) {
+        const currentFile = mobileImageFile(current).toLowerCase();
+        if (/1950/.test(currentFile)) gallery = boatGalleries["1950 Passenger Boat"];
+        else if (/2680/.test(currentFile)) gallery = boatGalleries["2680 Passenger Boat"];
+    }
+
+    if (!gallery) {
+        const currentFile = mobileImageFile(current).toLowerCase();
+        const match = Object.keys(boatGalleries).find(key =>
+            boatGalleries[key].some(src => mobileImageFile(src).toLowerCase() === currentFile)
+        );
+        if (match) gallery = boatGalleries[match];
+    }
+
+    const seen = new Set();
+    const images = [];
+    [current, ...(gallery || [])].forEach(src => {
+        const file = mobileImageFile(src).toLowerCase();
+        const variant = String(src || "").split("?")[0];
+        if (!variant || seen.has(file)) return;
+        seen.add(file);
+        images.push(variant);
+    });
+    return images;
+}
+
+function setupMobileProjectPreview(card, order) {
+    if (!card || card.dataset.mobileGalleryReady === "true") return;
+    const container = card.querySelector(".project-image-container");
+    const img = container?.querySelector(".project-image");
+    if (!container || !img) return;
+
+    card.dataset.mobileGalleryReady = "true";
+    container.classList.add("mobile-gallery");
+    img.classList.add("mobile-gallery-image");
+
+    const gallery = getMobileProjectGallery(order || {});
+    let index = 0;
+    let suppressClickUntil = 0;
+
+    if (gallery.length < 2) {
+        container.classList.add("mobile-gallery-single");
+    } else {
+        container.insertAdjacentHTML("beforeend", `
+            <button type="button" class="mobile-gallery-arrow prev" aria-label="Previous photo">&lsaquo;</button>
+            <button type="button" class="mobile-gallery-arrow next" aria-label="Next photo">&rsaquo;</button>
+            <span class="mobile-gallery-count" aria-live="polite">1 / ${gallery.length}</span>
+            <span class="mobile-gallery-dots" aria-hidden="true">${gallery
+                .map((_, i) => `<span class="mobile-gallery-dot${i === 0 ? " is-active" : ""}"></span>`)
+                .join("")}</span>
+        `);
+
+        const count = container.querySelector(".mobile-gallery-count");
+        const dots = [...container.querySelectorAll(".mobile-gallery-dot")];
+
+        const showImage = dir => {
+            index = (index + dir + gallery.length) % gallery.length;
+            img.src = gallery[index];
+            if (count) count.textContent = `${index + 1} / ${gallery.length}`;
+            dots.forEach((dot, i) => dot.classList.toggle("is-active", i === index));
+
+            if (img.animate && isMobileProjectPreview()) {
+                const offset = dir > 0 ? 20 : -20;
+                img.animate(
+                    [
+                        { opacity: 0.35, transform: `translateX(${offset}px)` },
+                        { opacity: 1, transform: "translateX(0)" }
+                    ],
+                    { duration: 240, easing: "ease-out" }
+                );
+            }
+        };
+
+        container.querySelectorAll(".mobile-gallery-arrow").forEach(button => {
+            button.addEventListener("click", event => {
+                event.preventDefault();
+                event.stopPropagation();
+                suppressClickUntil = Date.now() + 350;
+                showImage(button.classList.contains("next") ? 1 : -1);
+            });
+        });
+
+        let startX = null;
+        container.addEventListener("touchstart", event => {
+            if (event.touches.length === 1) startX = event.touches[0].clientX;
+        }, { passive: true });
+        container.addEventListener("touchend", event => {
+            if (startX == null || !event.changedTouches.length) return;
+            const distance = event.changedTouches[0].clientX - startX;
+            startX = null;
+            if (Math.abs(distance) < 35) return;
+            suppressClickUntil = Date.now() + 350;
+            showImage(distance < 0 ? 1 : -1);
+        }, { passive: true });
+    }
+
+    container.addEventListener("click", event => {
+        // Arrows manage their own clicks and stop propagation themselves.
+        // Only block the card-expand click that follows a swipe/image tap.
+        if (Date.now() < suppressClickUntil && !event.target.closest(".mobile-gallery-arrow")) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }, true);
+
+    let minimizeBtn = card.querySelector(".minimize-btn");
+    if (!minimizeBtn) {
+        const header = card.querySelector(".project-header");
+        if (header) {
+            minimizeBtn = document.createElement("button");
+            minimizeBtn.type = "button";
+            minimizeBtn.className = "minimize-btn mobile-only-minimize";
+            minimizeBtn.title = "View details";
+            minimizeBtn.textContent = "+";
+            const status = header.querySelector(".project-status");
+            if (status) header.insertBefore(minimizeBtn, status);
+            else header.appendChild(minimizeBtn);
+
+            minimizeBtn.addEventListener("click", event => {
+                event.stopPropagation();
+                const collapsed = card.classList.toggle("collapsed");
+                minimizeBtn.textContent = collapsed ? "+" : "−";
+            });
+        }
+    }
+
+    if (isMobileProjectPreview() && !card.classList.contains("collapsed")) {
+        card.classList.add("collapsed", "mobile-preview");
+        card.dataset.mobileAutoCollapsed = "true";
+        if (minimizeBtn) minimizeBtn.textContent = "+";
+    }
+}
+
+if (mobilePreviewQuery) {
+    const handleMobilePreviewChange = event => {
+        if (!event.matches) {
+            document.querySelectorAll('.project-card[data-mobile-auto-collapsed="true"]').forEach(card => {
+                card.classList.remove("collapsed", "mobile-preview");
+                card.removeAttribute("data-mobile-auto-collapsed");
+                const minimizeBtn = card.querySelector(".minimize-btn");
+                if (minimizeBtn) minimizeBtn.textContent = "−";
+            });
+            return;
+        }
+
+        document.querySelectorAll('.project-card[data-mobile-gallery-ready="true"]:not(.collapsed)').forEach(card => {
+            card.classList.add("collapsed", "mobile-preview");
+            card.dataset.mobileAutoCollapsed = "true";
+            const minimizeBtn = card.querySelector(".minimize-btn");
+            if (minimizeBtn) minimizeBtn.textContent = "+";
+        });
+    };
+    if (mobilePreviewQuery.addEventListener) {
+        mobilePreviewQuery.addEventListener("change", handleMobilePreviewChange);
+    } else if (mobilePreviewQuery.addListener) {
+        mobilePreviewQuery.addListener(handleMobilePreviewChange);
+    }
+}
+
 // Match the server's ownership rule: stored userId wins, with the verified
 // customer email as a recovery path for older/staff-created orders.
 function ownsCurrentOrder(order) {
@@ -792,6 +987,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             `;
 
             ordersGrid.appendChild(card);
+            setupMobileProjectPreview(card, order);
 
             if (order.paymentStep >= 1) {
                 renderWorkersPreview(workers, `workersPreview${idx}`);
@@ -938,6 +1134,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 </div>
             `;
             grid.appendChild(card);
+            setupMobileProjectPreview(card, order);
         }
     }
 
@@ -2965,14 +3162,6 @@ window.addEventListener("DOMContentLoaded", async () => {
                 ["Fuel Capacity", "200 L"]
             ]
         }
-    };
-
-    const boatGalleries = {
-        "Patrol Boat": ["./images/patrol (preview).png","./images/patrol (1).jpg","./images/patrol (2).jpg","./images/patrol (3).jpg","./images/patrol (1).png"],
-        "Speed Boat": ["./images/speed (preview).jpg","./images/speed.png","./images/speed1.png"],
-        "Parasail Boat": ["./images/parasail(preview).png","./images/parasaril.png"],
-        "1950 Passenger Boat": ["./images/1950(preview).png","./images/1950 (2).jpg","./images/1950 (3).jpg","./images/1950 (4).jpg","./images/1950 (5).jpg","./images/1950 (6).jpg","./images/1950 (7).jpg"],
-        "2680 Passenger Boat": ["./images/2680 (preview).png","./images/2680.png"]
     };
 
     function renderBoats() {

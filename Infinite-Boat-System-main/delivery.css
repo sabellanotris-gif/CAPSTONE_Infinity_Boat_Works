@@ -25,28 +25,53 @@ img { display: block; }
 ========================================= */
 .dd-stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
 .dd-stat {
+  --stat-accent: #cbd5e1;
+  --stat-soft: #f1f5f9;
   background: #fff;
   border-radius: 16px;
-  padding: 14px 16px;
+  padding: 14px;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border-left: 5px solid #cbd5e1;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  min-height: 104px;
+  border-left: 5px solid var(--stat-accent);
+  transition: transform .2s, box-shadow .2s;
 }
-.dd-stat-num { font-size: 26px; font-weight: 800; color: #071b47; }
-.dd-stat-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
-.dd-stat.preparing { border-left-color: #f59e0b; }
-.dd-stat.ready { border-left-color: #3b82f6; }
-.dd-stat.transit { border-left-color: #8b5cf6; }
-.dd-stat.delivered { border-left-color: #22c55e; }
-.dd-stat.overdue { border-left-color: #ef4444; }
-.dd-stat.overdue .dd-stat-num { color: #dc2626; }
+.dd-stat[data-filter] { cursor: pointer; }
+.dd-stat[data-filter]:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15, 23, 42, .09); }
+.dd-stat.active { outline: 2px solid var(--stat-accent); outline-offset: 2px; }
+.dd-stat-icon {
+  grid-column: 1;
+  grid-row: 1 / span 3;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--stat-soft);
+  color: var(--stat-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.dd-stat-num { grid-column: 2; font-size: 26px; font-weight: 800; color: #071b47; line-height: 1.05; }
+.dd-stat-label { grid-column: 2; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+.dd-stat-desc { grid-column: 2; font-size: 10px; color: #94a3b8; line-height: 1.3; }
+.dd-stat.preparing { --stat-accent: #f59e0b; --stat-soft: #fef3c7; }
+.dd-stat.ready { --stat-accent: #3b82f6; --stat-soft: #dbeafe; }
+.dd-stat.transit { --stat-accent: #8b5cf6; --stat-soft: #f3e8ff; }
+.dd-stat.delivered { --stat-accent: #22c55e; --stat-soft: #dcfce7; }
+.dd-stat.overdue { --stat-accent: #ef4444; --stat-soft: #fee2e2; }
+.dd-stat.overdue .dd-stat-num,
+.dd-stat.overdue .dd-stat-icon { color: #dc2626; }
 
 /* =========================================
    SEARCH + FILTERS
@@ -67,9 +92,29 @@ img { display: block; }
 }
 .dd-search i { color: #94a3b8; }
 .dd-search input { border: none; outline: none; background: none; width: 100%; font-size: 13px; }
+.dd-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 15px;
+  border-radius: 12px;
+  background: #071b47;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  transition: background .2s, transform .2s;
+}
+.dd-filter-btn:hover { background: #0c2b6d; transform: translateY(-1px); }
 .dd-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.dd-filters.is-hidden { display: none; }
 .dd-chip {
-  padding: 9px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
   border-radius: 999px;
   background: #fff;
   color: #475569;
@@ -78,14 +123,19 @@ img { display: block; }
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
   transition: 0.2s;
 }
+.dd-chip i { font-size: 12px; }
+.dd-chip:hover { color: #071b47; transform: translateY(-1px); }
 .dd-chip.active { background: #071b47; color: #fff; }
+.dd-stat[data-filter]:focus-visible,
+.dd-filter-btn:focus-visible,
+.dd-chip:focus-visible { outline: 3px solid rgba(41, 93, 255, .35); outline-offset: 2px; }
 
 /* =========================================
    PIPELINE BOARD
 ========================================= */
 .dd-board {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
 }
@@ -99,11 +149,12 @@ img { display: block; }
   max-height: 720px;
   overflow: hidden;
 }
+.dd-column--overdue { background: rgba(254, 242, 242, .6); border-color: #fecaca; }
 .dd-column-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 8px;
+  padding: 12px;
   font-size: 13px;
   font-weight: 800;
   color: #071b47;
@@ -112,21 +163,37 @@ img { display: block; }
   border-bottom: 1px solid #e2e8f0;
   flex: 0 0 auto;
 }
-.dd-col-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-.dd-col-dot.preparing { background:#f59e0b; }
-.dd-col-dot.ready { background:#3b82f6; }
-.dd-col-dot.transit { background:#8b5cf6; }
-.dd-col-dot.delivered { background:#22c55e; }
-.dd-col-count { margin-left: auto; background:#e2e8f0; color:#071b47; border-radius: 999px; font-size: 12px; padding: 2px 10px; }
+.dd-column--overdue .dd-column-header { border-bottom-color: #fecaca; }
+.dd-col-label { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
+.dd-col-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-size: 12px;
+  background: var(--col-soft, #e2e8f0);
+  color: var(--col-accent, #475569);
+}
+.dd-col-icon.preparing { --col-accent: #b45309; --col-soft: #fef3c7; }
+.dd-col-icon.ready { --col-accent: #1d4ed8; --col-soft: #dbeafe; }
+.dd-col-icon.transit { --col-accent: #6b21a8; --col-soft: #f3e8ff; }
+.dd-col-icon.delivered { --col-accent: #15803d; --col-soft: #dcfce7; }
+.dd-col-icon.overdue { --col-accent: #b91c1c; --col-soft: #fee2e2; }
+.dd-col-count { margin-left: auto; flex: 0 0 auto; background:#e2e8f0; color:#071b47; border-radius: 999px; font-size: 12px; padding: 2px 10px; }
+.dd-column--overdue .dd-col-count { background: #fee2e2; color: #b91c1c; }
 .dd-column-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 
 /* Board-level badges (kept separate from the shared modal card styles) */
-.dd-card .status-badge { padding: 4px 14px; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.dd-card .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; white-space: nowrap; }
 .dd-card .status-badge.preparing { background:#fef3c7; color:#b45309; }
 .dd-card .status-badge.ready { background:#dbeafe; color:#1d4ed8; }
 .dd-card .status-badge.transit { background:#f3e8ff; color:#6b21a8; }
 .dd-card .status-badge.delivered { background:#dcfce7; color:#15803d; }
-.dd-card .delay-badge { padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; background:#fef2f2; color:#dc2626; display:inline-flex; align-items:center; gap:4px; }
+.dd-card .status-badge.overdue { background:#fee2e2; color:#b91c1c; }
+.dd-card .delay-badge { padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; background:#fef2f2; color:#dc2626; display:inline-flex; align-items:center; gap:4px; white-space: nowrap; }
 
 .dd-card {
   background: #fff;
@@ -138,8 +205,23 @@ img { display: block; }
   flex-direction: column;
   gap: 8px;
 }
-.dd-card.is-delayed { border-left: 4px solid #ef4444; }
+/* The accent is an inset shadow, not a wider border, so a delay never changes
+   the card's inner width (and therefore never reflows the stable slots). */
+.dd-card.is-delayed,
+.dd-card.is-overdue { border-left-color: #ef4444; box-shadow: inset 4px 0 0 #ef4444, 0 2px 8px rgba(15, 23, 42, .05); }
+.dd-card.is-overdue { background: #fffafa; }
 .dd-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dd-card-thumb {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.dd-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.dd-card-identity-text { min-width: 0; }
 .dd-boat { font-size: 14px; font-weight: 800; color: #071b47; line-height: 1.3; }
 .dd-customer { font-size: 12px; color: #64748b; }
 .dd-orderid { font-size: 11px; color: #94a3b8; font-weight: 600; letter-spacing: .5px; }
@@ -175,7 +257,21 @@ img { display: block; }
 }
 .dd-manage-btn:hover { background: #0c2b6d; }
 
-.dd-empty-col { text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 10px; }
+/* Stable board card slots — every section keeps its position and height. */
+.dd-card .dd-card-top { height: 132px; align-content: flex-start; overflow: auto; }
+.dd-card .dd-card-identity { display: flex; align-items: center; gap: 10px; height: 72px; overflow: auto; }
+.dd-card .dd-meta { height: 180px; overflow: auto; }
+.dd-card .dd-badges { height: 30px; }
+.dd-card .dd-slot { min-height: 38px; }
+.dd-card .dd-slot--progress { min-height: 36px; }
+.dd-card .dd-slot--penalty { display: flex; align-items: center; height: 40px; overflow: auto; }
+.dd-card .dd-slot--action { height: 40px; display: flex; align-items: center; }
+.dd-card .dd-slot--action .dd-manage-btn { width: 100%; }
+.dd-card .penalty-line.is-muted { color: #64748b; font-weight: 500; }
+.dd-card .dd-action-empty { font-size: 12px; color: #94a3b8; }
+
+.dd-empty-col { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 10px; }
+.dd-empty-col i { font-size: 18px; color: #cbd5e1; }
 
 .dd-empty {
   background: #fff;
@@ -249,6 +345,19 @@ img { display: block; }
 #deliveryModal .modal-header-info p { font-size:12px; color:#94a3b8; }
 #deliveryModal .modal-section { margin-bottom:20px; }
 #deliveryModal .modal-section h4 { font-size:13px; font-weight:700; margin-bottom:10px; color:#334155; display:flex; align-items:center; gap:8px; }
+#deliveryModal .delivery-modal-slot {
+  height: 144px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+#deliveryModal .delivery-modal-slot[data-modal-slot="terms"] {
+  height: 120px;
+  margin-bottom: 4px;
+}
+#deliveryModal #snagListRows {
+  height: 56px;
+  overflow: auto;
+}
 #deliveryModal .form-group { margin-bottom:14px; }
 #deliveryModal .form-group label { display:block; font-size:12px; font-weight:600; color:#64748b; margin-bottom:6px; }
 #deliveryModal .form-group select,

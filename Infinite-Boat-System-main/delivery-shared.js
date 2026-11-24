@@ -256,34 +256,10 @@ export function renderDeliveryCard(order) {
     const badgeClass = statusClass(status);
     const cardStatusClass = delayed && status !== 'Delivered' ? 'status-delayed' : 'status-' + badgeClass;
     registerDeliveryOrder(order);
-    return `
-    <div class="delivery-card ${cardStatusClass}" style="margin:0;box-shadow:none;padding:0;border-left:none;">
-        <div class="card-header">
-            <div class="card-badges">
-                <span class="status-badge ${badgeClass}">${status}</span>
-                ${di.customerConfirmed ? `<span class="status-badge" style="background:#eff6ff;color:#1d4ed8;"><i class="fas fa-clipboard-check"></i> Customer confirmed</span>` : ''}
-                ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
-                ${di.termsAcknowledgedAt ? `<span class="delay-badge" style="background:#f0fdf4;color:#15803d;"><i class="fas fa-file-signature"></i> Terms signed</span>` : ''}
-            </div>
-            ${canViewDelivery() ? `<button class="manage-btn" onclick="openDeliveryModal('${order.orderId}')" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:${window.currentRole === 'admin' ? '#475569' : '#356cff'};color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-${window.currentRole === 'admin' ? 'eye' : 'edit'}"></i> ${window.currentRole === 'admin' ? 'View' : 'Manage'}</button>` : ''}
-        </div>
-        <div class="card-details resp-grid resp-grid--auto">
-            <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
-            <div class="detail-item"><h4>Actual Delivery</h4><p>${fmtDate(di.actualDeliveryDate)}</p></div>
-            <div class="detail-item"><h4>Location</h4><p>${escapeHtml(di.deliveryLocation || di.confirmLocation || 'TBC')}</p></div>
-            <div class="detail-item"><h4>Contact</h4><p>${escapeHtml(di.contactPerson || di.confirmContact || 'TBA')}</p></div>
-            <div class="detail-item"><h4>Sea Trial</h4><p>${di.seaTrialResults || 'Pending'}</p></div>
-        </div>
-        <div style="margin-bottom:12px;">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-                <span style="color:#64748b;">Delivery Progress</span>
-                <span style="font-weight:700;">${progress}%</span>
-            </div>
-            <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
-                <div style="height:100%;width:${progress}%;background:${delayed ? 'linear-gradient(90deg,#ef4444,#dc2626)' : 'linear-gradient(90deg,#356cff,#295dff)'};border-radius:3px;transition:width .4s;"></div>
-            </div>
-        </div>
-        ${delayed ? `
+
+    /* Every slot is always rendered. Neutral states keep the card height and
+       section order stable when a status, delay, or rating changes. */
+    const delayPanel = delayed ? `
         <div class="delay-info-box">
             <h4><i class="fas fa-exclamation-triangle"></i> Delivery Delay</h4>
             <div class="delay-details">
@@ -292,16 +268,59 @@ export function renderDeliveryCard(order) {
                 <div class="dd-item"><strong>Discount:</strong> ${fmtCurrency(delayInfo.penalty)}</div>
             </div>
             ${di.delayReason ? `<div style="margin-top:8px;font-size:12px;color:#991b1b;"><strong>Reason:</strong> ${di.delayReason}</div>` : ''}
-        </div>` : ''}
-        ${status === 'Delivered' && order.ratingInfo && order.ratingInfo.rating ? `
-        <div class="delay-info-box" style="background:#fffbeb;border-color:#fde68a;">
+        </div>` : `
+        <div class="delivery-state-box is-neutral">
+            <h4><i class="fas fa-circle-check"></i> Delivery Delay</h4>
+            <p>No delay recorded against the committed date.</p>
+        </div>`;
+
+    const ratingPanel = status === 'Delivered' && order.ratingInfo && order.ratingInfo.rating ? `
+        <div class="delay-info-box rating-box" style="background:#fffbeb;border-color:#fde68a;">
             <h4 style="color:#92400e;"><i class="fas fa-star"></i> Customer Rating</h4>
             <div style="display:flex;gap:4px;margin-bottom:6px;">
                 ${[1,2,3,4,5].map(i => '<i class="fas fa-star" style="color:' + (i <= order.ratingInfo.rating ? '#f59e0b' : '#d1d5db') + ';font-size:18px;"></i>').join('')}
             </div>
             ${order.ratingInfo.review ? `<p style="font-size:13px;color:#78350f;font-style:italic;">"${order.ratingInfo.review}"</p>` : ''}
             <p style="font-size:11px;color:#a16207;margin-top:4px;">${order.ratingInfo.customerName || 'Customer'} • ${new Date(order.ratingInfo.createdAt).toLocaleDateString()}</p>
-        </div>` : ''}
+        </div>` : `
+        <div class="delivery-state-box is-neutral">
+            <h4><i class="fas fa-star"></i> Customer Rating</h4>
+            <p>No customer rating has been submitted yet.</p>
+        </div>`;
+
+    const actionPanel = canViewDelivery() ? `
+        <button class="manage-btn" onclick="openDeliveryModal('${order.orderId}')" style="padding:8px 16px;font-size:12px;border:none;border-radius:12px;background:${window.currentRole === 'admin' ? '#475569' : '#356cff'};color:#fff;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;"><i class="fas fa-${window.currentRole === 'admin' ? 'eye' : 'edit'}"></i> ${window.currentRole === 'admin' ? 'View' : 'Manage'}</button>` : `
+        <span class="delivery-action-empty">Delivery actions unavailable</span>`;
+
+    return `
+    <div class="delivery-card ${cardStatusClass}" style="margin:0;box-shadow:none;padding:0;border-left:none;">
+        <div class="card-header" data-delivery-slot="status">
+            <div class="card-badges">
+                <span class="status-badge ${badgeClass}">${status}</span>
+                ${di.customerConfirmed ? `<span class="status-badge" style="background:#eff6ff;color:#1d4ed8;"><i class="fas fa-clipboard-check"></i> Customer confirmed</span>` : ''}
+                ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ''}
+                ${di.termsAcknowledgedAt ? `<span class="delay-badge" style="background:#f0fdf4;color:#15803d;"><i class="fas fa-file-signature"></i> Terms signed</span>` : ''}
+            </div>
+        </div>
+        <div class="card-details delivery-info-grid" data-delivery-slot="info">
+            <div class="detail-item"><h4>Committed Date</h4><p>${fmtDate(di.committedDeliveryDate)}</p></div>
+            <div class="detail-item"><h4>Actual Delivery</h4><p>${fmtDate(di.actualDeliveryDate)}</p></div>
+            <div class="detail-item"><h4>Location</h4><p>${escapeHtml(di.deliveryLocation || di.confirmLocation || 'TBC')}</p></div>
+            <div class="detail-item"><h4>Contact</h4><p>${escapeHtml(di.contactPerson || di.confirmContact || 'TBA')}</p></div>
+            <div class="detail-item"><h4>Sea Trial</h4><p>${di.seaTrialResults || 'Pending'}</p></div>
+        </div>
+        <div class="delivery-progress-slot" data-delivery-slot="progress" style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="color:#64748b;">Delivery Progress</span>
+                <span style="font-weight:700;">${progress}%</span>
+            </div>
+            <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:${progress}%;background:${delayed ? 'linear-gradient(90deg,#ef4444,#dc2626)' : 'linear-gradient(90deg,#356cff,#295dff)'};border-radius:3px;transition:width .4s;"></div>
+            </div>
+        </div>
+        <div class="delivery-slot--delay" data-delivery-slot="delay">${delayPanel}</div>
+        <div class="delivery-slot--rating" data-delivery-slot="rating">${ratingPanel}</div>
+        <div class="delivery-slot--action" data-delivery-slot="action">${actionPanel}</div>
     </div>`;
 }
 
@@ -359,6 +378,7 @@ export function openDeliveryModal(orderOrId) {
             <p>${order.orderId || ''} | Price: ${fmtCurrency(order.boatPrice)}</p>
         </div>
     </div>
+    <div class="delivery-modal-slot" data-modal-slot="confirmation">
     ${di.customerConfirmed ? `
     <div class="penalty-preview" style="background:#eff6ff;border-color:#bfdbfe;margin-bottom:16px;">
         <h5 style="color:#1d4ed8;"><i class="fas fa-clipboard-check"></i> Customer Delivery Confirmation</h5>
@@ -373,6 +393,7 @@ export function openDeliveryModal(orderOrId) {
         <h5><i class="fas fa-circle-info"></i> Customer Confirmation Pending</h5>
         <div style="font-size:13px;">The customer has not submitted their delivery details yet. Once they confirm in the customer portal, this order enters the delivery pipeline and their answers appear here.</div>
     </div>`}
+    </div>
     <div class="modal-section">
         <h4><i class="fas fa-flag"></i> Snag List <span id="snagCountBadge" style="font-size:11px;color:#dc2626;font-weight:800;margin-left:6px;"></span></h4>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -428,6 +449,7 @@ export function openDeliveryModal(orderOrId) {
                 <input type="date" id="modalActualDate" value="${di.actualDeliveryDate ? di.actualDeliveryDate.split('T')[0] : ''}" onchange="previewPenalty()">
             </div>
         </div>
+        <div class="delivery-modal-slot delivery-modal-slot--penalty" data-modal-slot="penalty" style="height:${window.currentRole === "admin" ? "296px" : "128px"};overflow:auto;margin-bottom:0;">
         <div id="penaltyPreview"></div>
         ${di.delayPenaltyWaived ? `
         <div class="penalty-preview penalty-none" style="margin-bottom:0;background:#f0fdf4;border-color:#bbf7d0;">
@@ -439,6 +461,7 @@ export function openDeliveryModal(orderOrId) {
             <div style="font-size:13px;color:#164e63;margin-bottom:10px;">The delay penalty of ${fmtCurrency(di.delayPenalty)} (${di.delayPenaltyPercent || 0}% of the boat price) is normally deducted from the remaining balance. As admin you can waive it if the customer should not be billed.</div>
             <button class="save-btn" id="waiverBtn" onclick="waiveDelayPenalty()" style="background:linear-gradient(135deg,#0f766e,#115e59);margin:0;"><i class="fas fa-stamp"></i> Waive Delay Penalty</button>
         </div>` : '')}
+        </div>
     </div>
     <div class="modal-section">
         <h4><i class="fas fa-location-dot"></i> Delivery Details</h4>
@@ -476,6 +499,7 @@ export function openDeliveryModal(orderOrId) {
             <textarea id="modalNotes" placeholder="Internal notes...">${di.deliveryNotes || ''}</textarea>
         </div>
     </div>
+    <div class="delivery-modal-slot" data-modal-slot="terms">
     ${di.termsAcknowledgedAt ? `
     <div class="penalty-preview" style="background:#f0fdf4;border-color:#bbf7d0;">
         <h5 style="color:#15803d;"><i class="fas fa-file-signature"></i> Delivery Terms Accepted</h5>
@@ -488,6 +512,7 @@ export function openDeliveryModal(orderOrId) {
         <h5><i class="fas fa-circle-info"></i> Customer Signature Pending</h5>
         <div style="font-size:13px;">The customer will be asked to sign the Delivery Terms in their project page once the boat is In Transit or Delivered.</div>
     </div>`}
+    </div>
     <button class="save-btn" id="saveDeliveryBtn" onclick="saveDelivery()"><i class="fas fa-save"></i> Save Delivery Details</button>`;
     applyDeliveryReadOnly(body);
     document.getElementById('deliveryModal').classList.add('show');

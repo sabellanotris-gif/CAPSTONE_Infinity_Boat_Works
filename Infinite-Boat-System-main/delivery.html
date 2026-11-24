@@ -45,43 +45,98 @@ window.onpageshow = function(e) {
 
     <!-- Stats strip -->
     <div class="dd-stats" id="ddStats">
-        <div class="dd-stat preparing"><span class="dd-stat-num" id="statPreparing">–</span><span class="dd-stat-label">Preparing</span></div>
-        <div class="dd-stat ready"><span class="dd-stat-num" id="statReady">–</span><span class="dd-stat-label">Ready for Delivery</span></div>
-        <div class="dd-stat transit"><span class="dd-stat-num" id="statTransit">–</span><span class="dd-stat-label">In Transit</span></div>
-        <div class="dd-stat delivered"><span class="dd-stat-num" id="statDelivered">–</span><span class="dd-stat-label">Delivered</span></div>
-        <div class="dd-stat overdue"><span class="dd-stat-num" id="statOverdue">–</span><span class="dd-stat-label">Overdue</span></div>
+        <div class="dd-stat preparing" data-filter="preparing" role="button" tabindex="0" aria-label="Filter to preparing deliveries">
+            <span class="dd-stat-icon"><i class="fa-solid fa-box"></i></span>
+            <span class="dd-stat-num" id="statPreparing">–</span>
+            <span class="dd-stat-label">Preparing</span>
+            <span class="dd-stat-desc">Awaiting final handover prep</span>
+        </div>
+        <div class="dd-stat ready" data-filter="ready" role="button" tabindex="0" aria-label="Filter to ready deliveries">
+            <span class="dd-stat-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+            <span class="dd-stat-num" id="statReady">–</span>
+            <span class="dd-stat-label">Ready for Delivery</span>
+            <span class="dd-stat-desc">Sea trial and paperwork done</span>
+        </div>
+        <div class="dd-stat transit" data-filter="transit" role="button" tabindex="0" aria-label="Filter to in-transit deliveries">
+            <span class="dd-stat-icon"><i class="fa-solid fa-ship"></i></span>
+            <span class="dd-stat-num" id="statTransit">–</span>
+            <span class="dd-stat-label">In Transit</span>
+            <span class="dd-stat-desc">On the way to the customer</span>
+        </div>
+        <div class="dd-stat delivered" data-filter="delivered" role="button" tabindex="0" aria-label="Filter to delivered orders">
+            <span class="dd-stat-icon"><i class="fa-solid fa-circle-check"></i></span>
+            <span class="dd-stat-num" id="statDelivered">–</span>
+            <span class="dd-stat-label">Delivered</span>
+            <span class="dd-stat-desc">Handover completed</span>
+        </div>
+        <div class="dd-stat overdue" data-filter="overdue" role="button" tabindex="0" aria-label="Filter to overdue deliveries">
+            <span class="dd-stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
+            <span class="dd-stat-num" id="statOverdue">–</span>
+            <span class="dd-stat-label">Overdue</span>
+            <span class="dd-stat-desc">Past committed delivery date</span>
+        </div>
     </div>
 
     <!-- Search + filters -->
     <div class="dd-controls">
         <div class="dd-search">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="ddSearch" placeholder="Search boat, customer, or order ID..." autocomplete="off">
+            <input type="text" id="ddSearch" placeholder="Search boat, customer, order ID, location, or contact..." autocomplete="off">
         </div>
+        <button type="button" class="dd-filter-btn" id="ddFilterToggle" aria-expanded="true" aria-controls="ddFilters">
+            <i class="fa-solid fa-sliders"></i><span>Filters</span>
+        </button>
         <div class="dd-filters" id="ddFilters">
-            <button class="dd-chip active" data-filter="all">All</button>
-            <button class="dd-chip" data-filter="delayed">Delayed</button>
-            <button class="dd-chip" data-filter="delivered">Delivered</button>
+            <button class="dd-chip active" data-filter="all"><i class="fa-solid fa-layer-group"></i>All</button>
+            <button class="dd-chip" data-filter="preparing"><i class="fa-solid fa-box"></i>Preparing</button>
+            <button class="dd-chip" data-filter="ready"><i class="fa-solid fa-screwdriver-wrench"></i>Ready</button>
+            <button class="dd-chip" data-filter="transit"><i class="fa-solid fa-ship"></i>In Transit</button>
+            <button class="dd-chip" data-filter="delivered"><i class="fa-solid fa-circle-check"></i>Delivered</button>
+            <button class="dd-chip" data-filter="overdue"><i class="fa-solid fa-triangle-exclamation"></i>Overdue</button>
         </div>
     </div>
 
     <!-- Pipeline board -->
     <div class="dd-board" id="ddBoard">
         <section class="dd-column" data-status="Preparing for Delivery">
-            <header class="dd-column-header"><span class="dd-col-dot preparing"></span>Preparing for Delivery<span class="dd-col-count" id="colPreparing">0</span></header>
+            <header class="dd-column-header">
+                <span class="dd-col-icon preparing"><i class="fa-solid fa-box"></i></span>
+                <span class="dd-col-label">Preparing for Delivery</span>
+                <span class="dd-col-count" id="colPreparing">0</span>
+            </header>
             <div class="dd-column-body" id="colBodyPreparing"></div>
         </section>
         <section class="dd-column" data-status="Ready for Delivery">
-            <header class="dd-column-header"><span class="dd-col-dot ready"></span>Ready for Delivery<span class="dd-col-count" id="colReady">0</span></header>
+            <header class="dd-column-header">
+                <span class="dd-col-icon ready"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+                <span class="dd-col-label">Ready for Delivery</span>
+                <span class="dd-col-count" id="colReady">0</span>
+            </header>
             <div class="dd-column-body" id="colBodyReady"></div>
         </section>
         <section class="dd-column" data-status="In Transit">
-            <header class="dd-column-header"><span class="dd-col-dot transit"></span>In Transit<span class="dd-col-count" id="colTransit">0</span></header>
+            <header class="dd-column-header">
+                <span class="dd-col-icon transit"><i class="fa-solid fa-ship"></i></span>
+                <span class="dd-col-label">In Transit</span>
+                <span class="dd-col-count" id="colTransit">0</span>
+            </header>
             <div class="dd-column-body" id="colBodyTransit"></div>
         </section>
         <section class="dd-column" data-status="Delivered">
-            <header class="dd-column-header"><span class="dd-col-dot delivered"></span>Delivered<span class="dd-col-count" id="colDelivered">0</span></header>
+            <header class="dd-column-header">
+                <span class="dd-col-icon delivered"><i class="fa-solid fa-circle-check"></i></span>
+                <span class="dd-col-label">Delivered</span>
+                <span class="dd-col-count" id="colDelivered">0</span>
+            </header>
             <div class="dd-column-body" id="colBodyDelivered"></div>
+        </section>
+        <section class="dd-column dd-column--overdue" data-status="Overdue">
+            <header class="dd-column-header">
+                <span class="dd-col-icon overdue"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                <span class="dd-col-label">Overdue</span>
+                <span class="dd-col-count" id="colOverdue">0</span>
+            </header>
+            <div class="dd-column-body" id="colBodyOverdue"></div>
         </section>
     </div>
 
@@ -121,6 +176,7 @@ window.onpageshow = function(e) {
 </div>
 
 <script src="toast.js"></script>
-<script type="module" src="delivery.js?v=7"></script>
+<script type="module" src="delivery.js?v=8"></script>
+<script src="mobile-nav.js"></script>
 </body>
 </html>
