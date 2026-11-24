@@ -129,12 +129,6 @@ async function loadAssignments() {
       headers: { Authorization: "Bearer " + token }
     });
     assignments = await res.json();
-    if (window.NavBadges) {
-      window.NavBadges.report("assignments", assignments, {
-        source: "assignments",
-        idOf: function (a) { return "assignment:" + (a.id || a.assignmentId || a.orderId || JSON.stringify(a)); }
-      });
-    }
     updateStats();
     renderAssignments();
   } catch (err) {
@@ -184,11 +178,11 @@ function renderAssignments() {
     const order = a.boat_orders || {};
     const phaseLabel = getPhaseLabel(a.phase) || "Pre-Assignment";
     const progress = clamp(Number(order.progress) || 0, 0, 100);
-    const boatImg = window.boatImageFor(order);
+    const boatImg = order.boatImage || "./images/boat.jpg";
     return `
       <div class="assignment-card" onclick="viewProject('${a.id}', '${a.orderId}')">
         <div class="card-img-wrap">
-          <img class="card-img" src="${escAttr(boatImg)}" alt="${escHtml(order.boatName || 'Boat')}" onerror="boatImageOnError(this)">
+          <img class="card-img" src="${escAttr(boatImg)}" alt="${escHtml(order.boatName || 'Boat')}" onerror="this.src='./images/boat.jpg'">
           <span class="status-badge ${escAttr(statusClass(a.status))}">${escHtml(a.status)}</span>
         </div>
         <div class="card-header">

@@ -2513,12 +2513,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     const notifications = generateNotifications();
-    if (window.NavBadges) {
-        window.NavBadges.syncItems("notifications", notifications, {
-            source: "home-local",
-            idOf: n => "local:" + (n.id || (n.msg + "|" + n.time))
-        });
-    }
     renderNotifications(notifications);
 
     loadDbNotifications().then(dbNotifications => {

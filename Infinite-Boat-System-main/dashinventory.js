@@ -1,5 +1,4 @@
 import { supabase, handleDbError } from "./supabase.js";
-import { matchesQuery, queryFromUrl, setUrlQuery } from "./search-helpers.js?v=1";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -114,13 +113,6 @@ async function renderInventory() {
   if (equipmentEl) equipmentEl.textContent = equip.length;
   if (inventoryValueEl) inventoryValueEl.textContent = '₱' + (totalValue / 1000000).toFixed(1) + 'M';
 
-  if (window.NavBadges) {
-    window.NavBadges.report("inventory", items, {
-      source: "inventory",
-      idOf: function (item) { return "inventory:" + (item.id || JSON.stringify(item)); }
-    });
-  }
-
   const CUSTOMIZATION_CATEGORIES = ['Engine', 'Seats', 'LED', 'Color'];
   tbody.innerHTML = items.map((item) => {
     const stock = item.stock || 0;
@@ -140,7 +132,6 @@ async function renderInventory() {
       </td>
     </tr>`;
   }).join('');
-  applyInventorySearch();
 }
 
 renderInventory();
@@ -245,29 +236,9 @@ document.querySelector('#inventoryTable')?.addEventListener('click', async (e) =
   }
 });
 
-function applyInventorySearch() {
-  const input = document.getElementById('searchInput');
-  const q = input ? input.value.trim() : '';
-  const rows = Array.prototype.slice.call(document.querySelectorAll('#inventoryTable tr'));
-  let shown = 0;
-  rows.forEach(row => {
-    const hit = matchesQuery(row.textContent, q);
-    row.style.display = hit ? '' : 'none';
-    if (hit) shown += 1;
+document.getElementById('searchInput')?.addEventListener('input', function () {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('#inventoryTable tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
-  const count = document.getElementById('inventoryResultCount');
-  if (count) {
-    count.textContent = !rows.length ? 'No items' : q ? `${shown} of ${rows.length} shown` : `${rows.length} items`;
-    count.classList.toggle('is-empty', rows.length > 0 && shown === 0);
-  }
-}
-
-const inventorySearchEl = document.getElementById('searchInput');
-inventorySearchEl?.addEventListener('input', function () {
-  setUrlQuery(this.value.trim());
-  applyInventorySearch();
 });
-
-// ?q= prefills the local search before the first render.
-const initialInventoryQuery = queryFromUrl().trim();
-if (initialInventoryQuery && inventorySearchEl) inventorySearchEl.value = initialInventoryQuery;

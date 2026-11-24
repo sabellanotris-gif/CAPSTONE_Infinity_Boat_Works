@@ -1,5 +1,4 @@
 import { supabase, API_BASE } from "./supabase.js";
-import { matchesQuery, searchableCustomerText, queryFromUrl, setUrlQuery } from "./search-helpers.js?v=1";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -118,7 +117,13 @@ function filterAndSort() {
   else if (currentFilter === 'completed') rows = rows.filter(c => c.completedOrders > 0);
   else if (currentFilter === 'none') rows = rows.filter(c => c.orderCount === 0);
   if (currentSearch) {
-    rows = rows.filter(c => matchesQuery(searchableCustomerText(c), currentSearch));
+    const q = currentSearch.toLowerCase();
+    rows = rows.filter(c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
+      (c.phone || '').toLowerCase().includes(q) ||
+      c.orders.some(o => String(o.boatName || '').toLowerCase().includes(q))
+    );
   }
   if (currentSort === 'revenue') rows.sort((a, b) => b.revenue - a.revenue);
   else if (currentSort === 'name') rows.sort((a, b) => a.name.localeCompare(b.name));
@@ -176,16 +181,6 @@ function render() {
   const rows = filterAndSort();
   renderStats(rows);
   renderTable(rows);
-  const count = document.getElementById('customerResultCount');
-  if (count) {
-    const narrowed = Boolean(currentSearch) || currentFilter !== 'all';
-    count.textContent = allCustomers.length === 0
-      ? 'No customers'
-      : narrowed
-        ? `${rows.length} of ${allCustomers.length} shown`
-        : `${allCustomers.length} customers`;
-    count.classList.toggle('is-empty', allCustomers.length > 0 && rows.length === 0);
-  }
 }
 
 function openCustomerModal(c) {
@@ -305,24 +300,12 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
 async function load() {
   const { profiles, orders, payments } = await fetchAll();
   allCustomers = buildCustomers(profiles, orders, payments);
-  if (window.NavBadges) {
-    window.NavBadges.report("customers", allCustomers, {
-      source: "customers",
-      idOf: function (c) { return "customer:" + (c.email || (c.profile && c.profile.id) || JSON.stringify(c)); }
-    });
-  }
   render();
 }
-const searchEl = document.getElementById('searchInput');
-searchEl.addEventListener('input', function() {
+document.getElementById('searchInput').addEventListener('input', function() {
   currentSearch = this.value.trim();
-  setUrlQuery(currentSearch);
   render();
 });
-
-// ?q= from global search (or a bookmark) prefills and filters immediately.
-currentSearch = queryFromUrl().trim();
-if (currentSearch && searchEl) searchEl.value = currentSearch;
 document.getElementById('sortSelect').addEventListener('change', function() {
   currentSort = this.value;
   render();

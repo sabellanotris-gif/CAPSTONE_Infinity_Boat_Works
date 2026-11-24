@@ -198,16 +198,6 @@ async function loadPayments() {
     if (totalPayments) totalPayments.textContent = fmt(totalAmount);
     if (approvedPayments) approvedPayments.textContent = approvedCount;
     if (pendingPayments) pendingPayments.textContent = pendingCount;
-
-    if (window.NavBadges) {
-        window.NavBadges.report("payments", payments, {
-            source: "payments",
-            idOf: function (payment) {
-                return "payment:" + (payment.id || payment.paymentId ||
-                    ((payment.orderId || "") + ":" + (payment.referenceNumber || JSON.stringify(payment))));
-            }
-        });
-    }
 }
 
 async function assignTeamForOrder(orderId) {

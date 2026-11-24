@@ -1,6 +1,5 @@
 import { supabase, handleDbError, sendEmailNotification, API_BASE, ensureSession } from "./supabase.js";
 import { getBoatBom } from "./boatData.js";
-import { matchesQuery, searchableOrderText, queryFromUrl, setUrlQuery } from "./search-helpers.js?v=1";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -24,17 +23,7 @@ function safeNum(val) {
   return isNaN(n) ? 0 : n;
 }
 
-function escapeHtml(value) {
-  return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 let orders = [];
-let orderSearch = '';
 let profilePhoneMap = {};
 const ordersGrid = document.getElementById('ordersGrid');
 const totalOrders = document.getElementById('totalOrders');
@@ -44,119 +33,12 @@ const completedOrders = document.getElementById('completedOrders');
 
 let revisionTargetIndex = -1;
 
-/* Live 3D preview for the order modal (admin + manager). */
-let orderBoatViewer = null;
-let viewingOrderIndex = -1;
-
-function orderViewerColors(cfg = {}) {
-    const hull = cfg.color || cfg.hullColor || cfg.lowerHullColor || '';
-    return {
-        hull,
-        body: hull,
-        door: hull,
-        roof: cfg.roofColor || '',
-        deck: cfg.floorColor || cfg.deckColor || '',
-        floor: cfg.floorColor || cfg.deckColor || '',
-        lowerHull: cfg.lowerHullColor || '',
-        rail: cfg.railColor || '',
-    };
-}
-
-function viewedOrder() {
-    return viewingOrderIndex >= 0 ? orders[viewingOrderIndex] : null;
-}
-
-function destroyOrderViewer() {
-    if (window.closeThreeFullscreen) window.closeThreeFullscreen();
-    if (!orderBoatViewer) return;
-    try { orderBoatViewer.destroy(); } catch (e) { /* non-fatal */ }
-    orderBoatViewer = null;
-}
-
-function updateOrderPlayBtn(rotating) {
-    const btn = document.getElementById('orderPlayBtn');
-    if (!btn) return;
-    btn.textContent = rotating ? '⏸ Pause 360°' : '▶ Rotate 360°';
-    btn.setAttribute('aria-pressed', rotating ? 'true' : 'false');
-}
-
-window.showOrderPhoto = function () {
-    const img = document.getElementById('orderPreviewImg');
-    const mount = document.getElementById('orderThreeMount');
-    const play = document.getElementById('orderPlayBtn');
-    destroyOrderViewer();
-    if (img) img.style.display = '';
-    if (mount) { mount.style.display = 'none'; mount.innerHTML = ''; }
-    if (play) play.style.display = 'none';
-};
-
-window.showOrderThree = async function () {
-    const order = viewedOrder();
-    const mount = document.getElementById('orderThreeMount');
-    const img = document.getElementById('orderPreviewImg');
-    const play = document.getElementById('orderPlayBtn');
-    if (!order || !mount) return;
-
-    destroyOrderViewer();
-    if (img) img.style.display = 'none';
-    mount.style.display = 'block';
-    mount.innerHTML = '';
-    if (play) { play.style.display = 'block'; play.textContent = '▶ Rotate 360°'; }
-
-    try {
-        const { createBoatViewer } = await import('./boatViewer.js');
-        if (!mount.isConnected || viewedOrder() !== order) return;
-        orderBoatViewer = createBoatViewer(mount, {
-            colors: orderViewerColors(order.customConfig || {}),
-            background: 0xeef3f8,
-            autoRotate: true,
-            onAutoRotateChange: updateOrderPlayBtn,
-        });
-        updateOrderPlayBtn(orderBoatViewer.isAutoRotating());
-    } catch (e) {
-        console.error('[orders] 3D viewer failed:', e);
-        mount.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;color:#b91c1c;">3D view unavailable.</div>';
-    }
-};
-
-window.toggleOrderRotation = function () {
-    if (!orderBoatViewer) return;
-    updateOrderPlayBtn(orderBoatViewer.toggleAutoRotate());
-};
-
-window.openOrderThreeFullscreen = async function () {
-    if (!orderBoatViewer) await window.showOrderThree();
-    if (!orderBoatViewer) return;
-    const mount = document.getElementById('orderThreeMount');
-    if (!mount) return;
-    const order = viewedOrder();
-    window.openThreeFullscreen({
-        viewer: orderBoatViewer,
-        mount,
-        title: (order?.boatName || 'Custom Boat') + ' — 3D Preview',
-    });
-};
-
 function renderOrders(filter) {
     if (!ordersGrid) return;
 
     let displayOrders = orders;
     if (filter && filter !== 'All') {
-        displayOrders = displayOrders.filter(o => o.status === filter);
-    }
-    if (orderSearch) {
-        displayOrders = displayOrders.filter(o => matchesQuery(searchableOrderText(o), orderSearch));
-    }
-
-    const resultCount = document.getElementById('orderResultCount');
-    if (resultCount) {
-        const narrowed = Boolean(orderSearch) || (filter && filter !== 'All');
-        resultCount.textContent = orders.length === 0
-            ? 'No orders'
-            : narrowed
-                ? `${displayOrders.length} of ${orders.length} shown`
-                : `${orders.length} orders`;
-        resultCount.classList.toggle('is-empty', orders.length > 0 && displayOrders.length === 0);
+        displayOrders = orders.filter(o => o.status === filter);
     }
 
     ordersGrid.innerHTML = '';
@@ -177,7 +59,7 @@ function renderOrders(filter) {
         const isCancelled = order.status === 'Cancelled';
         const schedule = window.parseContractSchedule(order);
 
-        const safeImg = window.boatImageFor(order);
+        const safeImg = order.boatImage || './images/boat1.jpg';
         const safeName = order.boatName || 'Boat';
         const safeCustomer = order.customerName || 'Unknown';
         const safePayment = order.paymentMethod || 'N/A';
@@ -185,7 +67,7 @@ function renderOrders(filter) {
         const safeProgress = order.progress || 0;
         ordersGrid.innerHTML += `
         <div class="order-card">
-            <img src="${escapeHtml(safeImg)}" alt="Boat" onerror="boatImageOnError(this)">
+            <img src="${safeImg}" alt="Boat">
             <div class="order-info">
                 <div class="order-top">
                     <div>
@@ -620,8 +502,6 @@ document.getElementById('revisionModal').addEventListener('click', (e) => {
 });
 
 function viewOrder(index) {
-    destroyOrderViewer();
-    viewingOrderIndex = index;
     const order = orders[index];
     const modal = document.getElementById('viewModal');
     const body = document.getElementById('modalBody');
@@ -643,24 +523,6 @@ function viewOrder(index) {
         <div><strong>Phase</strong><p>${order.orderPhase || 'N/A'}</p></div>
         <div><strong>Build Type</strong><p>${order.buildType === 'custom' ? 'Custom Build' : 'Standard Build'}</p></div>
     </div>`;
-
-    if (order.buildType === 'custom' && order.customConfig) {
-        const previewSrc = window.boatImageFor(order);
-        html += `
-    <hr><h4 class="section-title purple"><i class="fa-solid fa-cube"></i> CUSTOM BOAT PREVIEW</h4>
-    <div class="order-three-wrap">
-        <div class="order-three-actions">
-            <button type="button" onclick="showOrderPhoto()"><i class="fa-solid fa-image"></i> Photo</button>
-            <button type="button" class="is-purple" onclick="showOrderThree()"><i class="fa-solid fa-cube"></i> 3D View</button>
-            <button type="button" class="is-purple" onclick="openOrderThreeFullscreen()"><i class="fa-solid fa-expand"></i> Fullscreen</button>
-        </div>
-        <div class="order-three-stage">
-            <img id="orderPreviewImg" class="order-three-img" src="${escapeHtml(previewSrc)}" alt="Custom Boat Preview" onerror="boatImageOnError(this)">
-            <div id="orderThreeMount" class="order-three-mount"></div>
-            <button id="orderPlayBtn" class="order-three-play" type="button" onclick="toggleOrderRotation()" style="display:none;">▶ Rotate 360°</button>
-        </div>
-    </div>`;
-    }
 
     const parsedSchedule = window.parseContractSchedule(order);
     if (parsedSchedule) {
@@ -714,14 +576,10 @@ function viewOrder(index) {
 }
 
 document.getElementById('closeModal').addEventListener('click', () => {
-    destroyOrderViewer();
-    viewingOrderIndex = -1;
     document.getElementById('viewModal').classList.remove('show');
 });
 document.getElementById('viewModal').addEventListener('click', (e) => {
     if (e.target === document.getElementById('viewModal')) {
-        destroyOrderViewer();
-        viewingOrderIndex = -1;
         document.getElementById('viewModal').classList.remove('show');
     }
 });
@@ -783,30 +641,12 @@ function updateSummary() {
     if (pendingOrders) pendingOrders.innerText = orders.filter(o => o.status === 'Pending' || o.status === 'Pending Signing').length;
     if (approvedOrders) approvedOrders.innerText = orders.filter(o => o.status === 'Approved').length;
     if (completedOrders) completedOrders.innerText = orders.filter(o => o.status === 'Completed').length;
-
-    if (window.NavBadges) {
-        window.NavBadges.report("orders-list", orders, {
-            source: "orders",
-            idOf: function (order) { return "order:" + (order.orderId || JSON.stringify(order)); }
-        });
-    }
 }
 
 function getActiveFilter() {
     const active = document.querySelector('.filter-btn.active');
     return active ? active.innerText.trim() : 'All';
 }
-
-const orderSearchEl = document.getElementById('orderSearch');
-orderSearchEl?.addEventListener('input', function () {
-    orderSearch = this.value.trim();
-    setUrlQuery(orderSearch);
-    renderOrders(getActiveFilter());
-});
-
-// ?q= from global search prefills and filters as soon as orders load.
-orderSearch = queryFromUrl().trim();
-if (orderSearch && orderSearchEl) orderSearchEl.value = orderSearch;
 
 const filterButtons = document.querySelectorAll('.filter-btn');
 filterButtons.forEach((button) => {
@@ -834,6 +674,11 @@ window.updateProgress = updateProgress;
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
         if (profile) window.currentRole = profile.role;
     }
+    if (window.currentRole === 'manager') {
+        const addBtns = document.querySelectorAll('.add-btn');
+        addBtns.forEach(btn => { btn.style.display = 'none'; });
+    }
+
     const result = await handleDbError(
         supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
         "Load orders"

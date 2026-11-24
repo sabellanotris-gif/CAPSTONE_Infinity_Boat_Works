@@ -14,15 +14,6 @@ window.handleLogout = async function () {
   window.currentRole = auth.profile.role;
 })();
 
-function escapeHtml(value) {
-  return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 async function loadAnalytics() {
   const result = await handleDbError(
     supabase.from("boat_orders").select("*"),
@@ -43,27 +34,19 @@ async function loadAnalytics() {
   if (conversionEl) conversionEl.textContent = orders.length > 0 ? Math.round((orders.filter(o => o.status === 'Completed').length / orders.length) * 100) + '%' : '0%';
   if (revenueGrowthEl) revenueGrowthEl.textContent = '₱' + (totalValue / 1000000).toFixed(1) + 'M';
 
-  const boatInfo = {};
+  const boatCount = {};
   orders.forEach(o => {
     const name = o.boatName || 'Unknown';
-    const image = window.boatImageFor(o);
-    if (!boatInfo[name]) {
-      boatInfo[name] = { count: 0, image };
-    }
-    boatInfo[name].count += 1;
-    // Prefer an order with a real saved photo over the generic fallback.
-    if (boatInfo[name].image === window.DEFAULT_BOAT_IMAGE && image !== window.DEFAULT_BOAT_IMAGE) {
-      boatInfo[name].image = image;
-    }
+    boatCount[name] = (boatCount[name] || 0) + 1;
   });
 
-  const sorted = Object.entries(boatInfo).sort((a, b) => b[1].count - a[1].count);
+  const sorted = Object.entries(boatCount).sort((a, b) => b[1] - a[1]);
   const topBoatsList = document.getElementById('topBoatsList');
   if (topBoatsList) {
-    topBoatsList.innerHTML = sorted.slice(0, 3).map(([name, info], i) =>
+    topBoatsList.innerHTML = sorted.slice(0, 3).map(([name, count], i) =>
       `<div class="boat-item">
-        <img src="${escapeHtml(info.image)}" alt="${escapeHtml(name)}" onerror="boatImageOnError(this)">
-        <div><h4>${escapeHtml(name)}</h4><p>${info.count} Orders</p></div>
+        <img src="./images/boat${(i % 4) + 1}.jpg" alt="${name}">
+        <div><h4>${name}</h4><p>${count} Orders</p></div>
         <span>#${i + 1}</span>
       </div>`
     ).join('');
@@ -374,4 +357,34 @@ document.querySelector('.report-btn')?.addEventListener('click', async () => {
   }
 
   doc.save('analytics_report_' + new Date().toISOString().slice(0, 10) + '.pdf');
+});
+
+document.getElementById('csvExportBtn')?.addEventListener('click', async () => {
+  const result = await handleDbError(
+    supabase.from("boat_orders").select("*"),
+    "Export CSV"
+  );
+  const orders = (result && !result.error ? result.data : []) || [];
+
+  const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const lines = [
+    ['Customer', 'Boat Model', 'Price (PHP)', 'Status', 'Date'].map(esc).join(',')
+  ];
+  orders.forEach(o => {
+    lines.push([
+      o.customerName || 'Unknown',
+      o.boatName || 'Boat',
+      parsePrice(o.boatPrice),
+      o.status || 'Pending',
+      o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-PH') : 'N/A'
+    ].map(esc).join(','));
+  });
+
+  const blob = new Blob(["\ufeff" + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'analytics_report_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
 });

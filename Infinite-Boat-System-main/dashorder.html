@@ -14,20 +14,8 @@
 <link rel="stylesheet" href="admin-type.css">
     <link rel="icon" type="image/jpeg" href="./images/Rlogo.jpg">
     <link rel="stylesheet" href="responsive.css">
-    <link rel="stylesheet" href="global-search.css?v=1">
-    <link rel="stylesheet" href="three-fullscreen.css?v=1">
-    <link rel="stylesheet" href="nav-badges.css?v=1">
-    <script src="nav-badges.js?v=1"></script>
     <link rel="stylesheet" href="mobile.css">
 
-    <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-      }
-    }
-    </script>
 </head>
 <body>
 <script>
@@ -54,14 +42,7 @@ window.onpageshow = function(e) {
             <h1>Boat Orders</h1>
             <p>Manage customer orders, approvals, payments, and verification documents.</p>
         </div>
-    </div>
-
-    <div class="order-search-row">
-        <div class="order-search-box">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="orderSearch" placeholder="Search customer, order ID, boat, phone..." autocomplete="off">
-        </div>
-        <span id="orderResultCount" class="result-count"></span>
+        <button class="add-btn"><i class="fa-solid fa-plus"></i> + New Order</button>
     </div>
 
     <div class="filter-container">
@@ -111,10 +92,7 @@ window.onpageshow = function(e) {
 </div>
 
 <script src="toast.js"></script>
-    <script src="boat-image.js?v=1"></script>
-    <script src="three-fullscreen.js?v=1"></script>
-<script type="module" src="dashorder.js?v=3"></script>
+<script type="module" src="dashorder.js?v=1"></script>
 <script src="mobile-nav.js"></script>
-    <script src="global-search.js?v=1"></script>
 </body>
 </html>

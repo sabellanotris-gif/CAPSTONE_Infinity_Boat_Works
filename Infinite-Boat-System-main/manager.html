@@ -17,14 +17,11 @@
 <link rel="stylesheet" href="admin-type.css">
     <link rel="icon" type="image/jpeg" href="./images/Rlogo.jpg">
     <link rel="stylesheet" href="responsive.css">
-    <link rel="stylesheet" href="global-search.css?v=1">
-    <link rel="stylesheet" href="nav-badges.css?v=1">
-    <script src="nav-badges.js?v=1"></script>
     <link rel="stylesheet" href="mobile.css">
 
 </head>
 
-<body class="dash-manager">
+<body>
 
 <script>
 window.onpageshow = function(e) {
@@ -76,13 +73,13 @@ window.onpageshow = function(e) {
 
     <section class="quick-actions">
         <a href="dashorder.html" style="text-decoration:none;color:inherit;">
-            <button class="quick-action-btn"><i class="fa-solid fa-list-check"></i> View Orders</button>
+            <button><i class="fa-solid fa-list-check"></i> View Orders</button>
         </a>
         <a href="dashprogress.html" style="text-decoration:none;color:inherit;">
-            <button class="quick-action-btn"><i class="fa-solid fa-ship"></i> Manage Progress</button>
+            <button><i class="fa-solid fa-ship"></i> Manage Progress</button>
         </a>
         <a href="dashprogress.html" style="text-decoration:none;color:inherit;">
-            <button class="quick-action-btn"><i class="fa-solid fa-users"></i> Create Team</button>
+            <button><i class="fa-solid fa-users"></i> Create Team</button>
         </a>
     </section>
 
@@ -94,8 +91,8 @@ window.onpageshow = function(e) {
                     <h2 id="statActive">0</h2>
                 </div>
             </div>
-            <h3 class="kpi-label">Active Projects</h3>
-            <p class="kpi-sub">In construction</p>
+            <h3>Active Projects</h3>
+            <p>In construction</p>
         </div>
 
         <div class="analytics-card">
@@ -104,8 +101,8 @@ window.onpageshow = function(e) {
                     <h2 id="statCompleted">0</h2>
                 </div>
             </div>
-            <h3 class="kpi-label">Completed</h3>
-            <p class="kpi-sub">Ready for delivery</p>
+            <h3>Completed</h3>
+            <p>Ready for delivery</p>
         </div>
 
         <div class="analytics-card">
@@ -114,18 +111,18 @@ window.onpageshow = function(e) {
                     <h2 id="statPending">0</h2>
                 </div>
             </div>
-            <h3 class="kpi-label">Awaiting Approval</h3>
-            <p class="kpi-sub">Pending orders</p>
+            <h3>Awaiting Approval</h3>
+            <p>Pending orders</p>
         </div>
 
     </section>
 
-    <section class="dashboard-card manager-recent-card">
-        <div class="card-header">
-            <h2><i class="fa-solid fa-ship"></i> Recent Boat Projects</h2>
-            <a class="card-link" href="dashorder.html">View all →</a>
+    <section style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h3 style="margin:0;font-size:16px;"><i class="fa-solid fa-ship"></i> Recent Boat Projects</h3>
+            <a href="dashorder.html" style="font-size:13px;color:#2563eb;text-decoration:none;">View all →</a>
         </div>
-        <div id="recentOrders" class="dash-rows"></div>
+        <div id="recentOrders"></div>
     </section>
 
 </main>
@@ -135,6 +132,5 @@ window.onpageshow = function(e) {
 <script type="module" src="manager.js"></script>
 
 <script src="mobile-nav.js"></script>
-    <script src="global-search.js?v=1"></script>
 </body>
 </html>
