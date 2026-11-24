@@ -8,6 +8,7 @@ let viewer = null;
 let viewerContainer = null;
 const pendingColors = {};
 const pendingDimensions = { lengthFactor: 1, beamFactor: 1 };
+let pendingBackground = null;
 let autoRotateListener = null;
 
 export let initialized = false;
@@ -40,14 +41,16 @@ export function initThreeViewer() {
   }
 
   viewerContainer = container;
-  viewer = createBoatViewer(container, {
+  const viewerOptions = {
     colors: pendingColors,
     dimensions: pendingDimensions,
     // Open the 3D view already spinning a full 360°, while staying freely
     // orbitable by dragging (the spin pauses during the drag, then resumes).
     autoRotate: true,
     onAutoRotateChange: notifyAutoRotate,
-  });
+  };
+  if (pendingBackground) viewerOptions.background = pendingBackground;
+  viewer = createBoatViewer(container, viewerOptions);
   // Replay any name/flag set before the viewer existed.
   if (pendingName) viewer.setName(pendingName.text, pendingName.font, pendingName.color, pendingName.placements);
   if (pendingFlag) viewer.setFlag(pendingFlag.type, pendingFlag.imageDataUrl, pendingFlag.placements);
@@ -101,6 +104,13 @@ export function setFloorColor(hex) { pushColor('floor', hex); }
 export function setLowerHullColor(hex) { pushColor('lowerHull', hex); }
 export function setRailColor(hex) { pushColor('rail', hex); }
 
+// 3D stage background. Stored before the viewer exists and replayed when the
+// viewer is created, so picking a swatch works even before the first frame.
+export function setThreeBackground(hex) {
+  pendingBackground = hex;
+  if (viewer && typeof viewer.setBackground === 'function') viewer.setBackground(hex);
+}
+
 // Boat name / flag decals. Safe to call before the viewer exists — the
 // values are replayed once the 3D view is initialised.
 let pendingName = null;
@@ -149,11 +159,17 @@ export function resetThree() {
  * Capture the 3D boat as a JPEG data URL for the admin dashboard.
  * Falls back to an off-screen render when the viewer was never opened.
  */
-export async function captureThreePreview(colors = {}, dimensions = pendingDimensions) {
+export async function captureThreePreview(colors = {}, dimensions = pendingDimensions, background = null) {
+  // The live viewer already carries the chosen background, so its snapshot
+  // matches what the customer saw. Only the off-screen fallback needs it.
   if (viewer && viewer.isReady()) {
     const shot = viewer.getSnapshot(900, 0.85);
     if (shot) return shot;
   }
   const merged = { ...pendingColors, ...colors };
-  return captureBoatSnapshot({ colors: merged, dimensions });
+  return captureBoatSnapshot({
+    colors: merged,
+    dimensions,
+    background: background || pendingBackground || undefined,
+  });
 }

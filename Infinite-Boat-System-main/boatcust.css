@@ -312,6 +312,23 @@ select{
     display:none;
 }
 
+/* 3D background presets reuse the swatch styles but need a visible edge so
+   the white and light-gray choices do not disappear against the panel. */
+.background-colors .color{
+    border-color:rgba(15,23,42,0.14);
+}
+
+.background-colors .color.active{
+    border-color:#2563eb;
+}
+
+.background-note{
+    display:block;
+    margin-top:8px;
+    font-size:11px;
+    color:#94a3b8;
+}
+
 .wheel-wrap{
     display:flex;
     flex-direction:column;

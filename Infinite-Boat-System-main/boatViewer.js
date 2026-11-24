@@ -22,6 +22,18 @@ export function preloadBoatModel() {
   } catch (e) { /* non-fatal */ }
 }
 
+// Accept either a hex string or the numeric colors used by THREE so callers
+// can switch the 3D background without recreating the canvas.
+function toBackgroundHex(value) {
+  if (typeof value === 'number') {
+    return '#' + value.toString(16).padStart(6, '0');
+  }
+  const text = String(value || '').trim();
+  if (/^0x[0-9a-f]{6}$/i.test(text)) return '#' + text.slice(2);
+  if (/^#[0-9a-f]{6}$/i.test(text)) return text;
+  return '';
+}
+
 function materialsOf(mesh) {
   if (!mesh || !mesh.material) return [];
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -110,7 +122,9 @@ export function createBoatViewer(container, options = {}) {
   let height = el.clientHeight || opts.fallbackHeight;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(opts.background);
+  const initialBackground = toBackgroundHex(opts.background) || '#87ceeb';
+  scene.background = new THREE.Color(initialBackground);
+  el.dataset.viewerBackground = initialBackground;
 
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000);
   camera.position.set(15, 10, 20);
@@ -742,6 +756,14 @@ export function createBoatViewer(container, options = {}) {
       });
       applyPendingColors();
     },
+    // Repaint the 3D stage in place. Safe to call at any time; the canvas,
+    // camera, and the boat model are left untouched.
+    setBackground(value) {
+      const hex = toBackgroundHex(value);
+      if (!hex) return;
+      scene.background = new THREE.Color(hex);
+      el.dataset.viewerBackground = hex;
+    },
     // Boat name decal: text drawn to a canvas texture, anchored to the
     // model's local bounding box. Safe to call before the model loads.
     setName(text, font, color, placements = ['sides']) {
@@ -873,6 +895,7 @@ export function createBoatViewer(container, options = {}) {
 export async function captureBoatSnapshot({
   colors = {},
   dimensions = null,
+  background = 0xeef3f8,
   width = 900,
   height = 560,
   timeout = 8000,
@@ -891,7 +914,7 @@ export async function captureBoatSnapshot({
       dimensions,
       autoRotate: false,
       interactive: false,
-      background: 0xeef3f8,
+      background,
       fallbackWidth: width,
       fallbackHeight: height,
     });

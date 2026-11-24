@@ -1170,6 +1170,7 @@ body.minimal-mode .analytics-card p {
 .modal-header img {
   width: 56px;
   height: 56px;
+  flex: 0 0 auto;
   border-radius: 12px;
   object-fit: cover;
 }

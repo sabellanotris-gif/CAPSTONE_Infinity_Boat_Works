@@ -1,6 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions, setBoatName, setBoatFlag } from "./boat3d.js";
+import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setThreeBackground, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions, setBoatName, setBoatFlag } from "./boat3d.js";
 import { createColorWheel } from "./colorWheel.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
@@ -33,6 +33,17 @@ const DEFAULT_LOWER_HULL_HEX = '#2563eb';
 const DEFAULT_RAIL_HEX = '#F0F0F0';
 const DEFAULT_ROOF_HEX = '#D9DDE0';
 const DEFAULT_FLOOR_HEX = '#8B7355';
+const DEFAULT_BACKGROUND_HEX = '#87ceeb';
+
+// Free, visual-only presets for the 3D stage. They are never priced and are
+// not part of the saved boat configuration.
+const BACKGROUND_PRESETS = [
+  { name: 'Sky Blue', hex: '#87ceeb' },
+  { name: 'White', hex: '#ffffff' },
+  { name: 'Light Gray', hex: '#eef3f8' },
+  { name: 'Dark Navy', hex: '#0f172a' },
+  { name: 'Ocean', hex: '#0ea5e9' },
+];
 
 // The 7 shared primary presets rendered in every color section. Anything
 // picked from the custom wheel (or any non-preset hex) is charged like a
@@ -56,6 +67,7 @@ let deckColor = DEFAULT_FLOOR_HEX;
 let roofColor = DEFAULT_ROOF_HEX;
 let lowerHullColor = DEFAULT_LOWER_HULL_HEX;
 let railColor = DEFAULT_RAIL_HEX;
+let backgroundHex = DEFAULT_BACKGROUND_HEX;
 let colorPrice = 0;
 let deckColorPrice = 0;
 let roofColorPrice = 0;
@@ -65,6 +77,26 @@ let inventoryItems = { engines: [], colors: [], deckColors: [], railColors: [] }
 
 function sameColor(a, b) {
   return String(a || '').toLowerCase() === String(b || '').toLowerCase();
+}
+
+function setBackgroundChoice(hex) {
+  backgroundHex = hex;
+  setThreeBackground(hex);
+  document.querySelectorAll('.colors.background-colors .color').forEach(el => {
+    el.classList.toggle('active', sameColor(el.dataset.background, hex));
+  });
+}
+
+function buildBackgroundSwatches() {
+  const container = document.querySelector('.colors.background-colors');
+  if (!container) return;
+  container.innerHTML = BACKGROUND_PRESETS.map(p => `
+    <div class="color${sameColor(p.hex, backgroundHex) ? ' active' : ''}"
+         data-background="${p.hex}" style="background:${p.hex}" title="${p.name}"></div>
+  `).join('');
+  container.querySelectorAll('.color').forEach(el => {
+    el.addEventListener('click', () => setBackgroundChoice(el.dataset.background));
+  });
 }
 
 function isDefaultBodyColor(hex) {
@@ -895,6 +927,7 @@ document.querySelector('.reset-btn').addEventListener('click', () => {
   roofColor = DEFAULT_ROOF_HEX;
   lowerHullColor = DEFAULT_LOWER_HULL_HEX;
   railColor = DEFAULT_RAIL_HEX;
+  setBackgroundChoice(DEFAULT_BACKGROUND_HEX);
   COLOR_SECTIONS.forEach(section => {
     const panel = document.getElementById('wheelPanel-' + section.key);
     const toggle = document.querySelector(`.wheel-toggle[data-wheel="${section.key}"]`);
@@ -1260,7 +1293,7 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
       floor: deckColor,
       lowerHull: lowerHullColor,
       rail: railColor,
-    }, getDimensionFactors());
+    }, getDimensionFactors(), backgroundHex);
   } catch (e) {
     boatPreviewImage = '';
   }
@@ -1408,6 +1441,8 @@ setupWheelToggles();
 COLOR_SECTIONS.forEach(section => {
   buildPresetSwatches(section, section.getHex());
 });
+buildBackgroundSwatches();
+setBackgroundChoice(backgroundHex);
 // The 3D viewer is the only preview; show it as soon as the module loads.
 showThreeView();
 applyBoatSpecDefaults();

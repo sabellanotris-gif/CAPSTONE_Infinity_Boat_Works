@@ -603,11 +603,7 @@ window.showPaymentInfo = function (paymentId) {
 
     document.getElementById('paymentInfoBody').innerHTML = `
         <div class="modal-header">
-            <div class="image-fs-wrap image-fs-wrap--modal" data-image-fullscreen data-image-src="${escapeHtml(paymentPhotoSrc)}"
-                 data-image-title="${escapeHtml(paymentBoatName)} — Boat Photo" data-image-alt="${escapeHtml(paymentBoatName)} boat photo">
-                <img src="${escapeHtml(paymentPhotoSrc)}" alt="${escapeHtml(paymentBoatName)} boat photo" onerror="boatImageOnError(this)">
-                <button type="button" class="image-fs-open" aria-label="View boat photo fullscreen"><i class="fa-solid fa-expand"></i></button>
-            </div>
+            <img src="${escapeHtml(paymentPhotoSrc)}" alt="${escapeHtml(paymentBoatName)} boat photo" onerror="boatImageOnError(this)">
             <div>
                 <h2>${escapeHtml(paymentBoatName)}</h2>
                 <p>Payment by: ${payment.customerName || 'Unknown'}</p>

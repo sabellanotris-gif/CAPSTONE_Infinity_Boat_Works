@@ -158,20 +158,13 @@ async function loadPayments() {
         const boatSrc = escapeHtml(window.boatImageFor(payment));
         const proofRaw = getProofImage(payment);
         const proofSrc = proofRaw ? escapeHtml(proofRaw) : '';
-        const proofFullscreenAttrs = proofSrc
-            ? `data-image-fullscreen data-image-src="${proofSrc}" data-image-title="${escapeHtml(boatName)} — Uploaded Proof" data-image-alt="${escapeHtml(boatName)} payment proof"`
-            : '';
 
         return `
         <div class="payment-card">
             <div class="payment-left">
                 <div class="payment-header">
                     <div class="boat-info">
-                        <div class="image-fs-wrap image-fs-wrap--boat" data-image-fullscreen data-image-src="${boatSrc}"
-                             data-image-title="${escapeHtml(boatName)} — Boat Photo" data-image-alt="${escapeHtml(boatName)} boat photo">
-                            <img src="${boatSrc}" class="boat-image" alt="${escapeHtml(boatName)} boat photo" onerror="boatImageOnError(this)">
-                            <button type="button" class="image-fs-open" aria-label="View boat photo fullscreen"><i class="fa-solid fa-expand"></i></button>
-                        </div>
+                        <img src="${boatSrc}" class="boat-image" alt="${escapeHtml(boatName)} boat photo" onerror="boatImageOnError(this)">
                         <div>
                             <h2>${escapeHtml(boatName)}</h2>
                             <p>Customer: ${escapeHtml(payment.customerName || 'Unknown')}</p>
@@ -205,10 +198,7 @@ async function loadPayments() {
             </div>
             <div class="payment-right">
                 <h3>Uploaded Proof</h3>
-                <div class="image-fs-wrap image-fs-wrap--proof" ${proofFullscreenAttrs}>
-                    <img src="${proofSrc}" class="proof-image" alt="${escapeHtml(boatName)} payment proof">
-                    ${proofSrc ? '<button type="button" class="image-fs-open" aria-label="View payment proof fullscreen"><i class="fa-solid fa-expand"></i></button>' : ''}
-                </div>
+                <img src="${proofSrc}" class="proof-image" alt="${escapeHtml(boatName)} payment proof">
                 <div class="proof-footer">
                     <span>Uploaded Screenshot</span>
                     <i class="fa-solid fa-image"></i>
