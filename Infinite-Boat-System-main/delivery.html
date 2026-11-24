@@ -86,6 +86,9 @@ window.onpageshow = function(e) {
         <button type="button" class="dd-filter-btn" id="ddFilterToggle" aria-expanded="true" aria-controls="ddFilters">
             <i class="fa-solid fa-sliders"></i><span>Filters</span>
         </button>
+        <button type="button" class="dd-view-btn" id="ddViewToggle" aria-pressed="false" aria-controls="ddBoard ddAllView">
+            <i class="fa-solid fa-table-list"></i><span>View All</span>
+        </button>
         <div class="dd-filters" id="ddFilters">
             <button class="dd-chip active" data-filter="all"><i class="fa-solid fa-layer-group"></i>All</button>
             <button class="dd-chip" data-filter="preparing"><i class="fa-solid fa-box"></i>Preparing</button>
@@ -105,6 +108,11 @@ window.onpageshow = function(e) {
                 <span class="dd-col-count" id="colPreparing">0</span>
             </header>
             <div class="dd-column-body" id="colBodyPreparing"></div>
+            <footer class="dd-col-nav" data-carousel="preparing" hidden>
+                <button type="button" class="dd-col-arrow" data-carousel-step="-1" aria-label="Previous preparing order" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="dd-col-pos" id="colPosPreparing" aria-live="polite">0 / 0</span>
+                <button type="button" class="dd-col-arrow" data-carousel-step="1" aria-label="Next preparing order" disabled><i class="fa-solid fa-chevron-right"></i></button>
+            </footer>
         </section>
         <section class="dd-column" data-status="Ready for Delivery">
             <header class="dd-column-header">
@@ -113,6 +121,11 @@ window.onpageshow = function(e) {
                 <span class="dd-col-count" id="colReady">0</span>
             </header>
             <div class="dd-column-body" id="colBodyReady"></div>
+            <footer class="dd-col-nav" data-carousel="ready" hidden>
+                <button type="button" class="dd-col-arrow" data-carousel-step="-1" aria-label="Previous ready order" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="dd-col-pos" id="colPosReady" aria-live="polite">0 / 0</span>
+                <button type="button" class="dd-col-arrow" data-carousel-step="1" aria-label="Next ready order" disabled><i class="fa-solid fa-chevron-right"></i></button>
+            </footer>
         </section>
         <section class="dd-column" data-status="In Transit">
             <header class="dd-column-header">
@@ -121,6 +134,11 @@ window.onpageshow = function(e) {
                 <span class="dd-col-count" id="colTransit">0</span>
             </header>
             <div class="dd-column-body" id="colBodyTransit"></div>
+            <footer class="dd-col-nav" data-carousel="transit" hidden>
+                <button type="button" class="dd-col-arrow" data-carousel-step="-1" aria-label="Previous in-transit order" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="dd-col-pos" id="colPosTransit" aria-live="polite">0 / 0</span>
+                <button type="button" class="dd-col-arrow" data-carousel-step="1" aria-label="Next in-transit order" disabled><i class="fa-solid fa-chevron-right"></i></button>
+            </footer>
         </section>
         <section class="dd-column" data-status="Delivered">
             <header class="dd-column-header">
@@ -129,6 +147,11 @@ window.onpageshow = function(e) {
                 <span class="dd-col-count" id="colDelivered">0</span>
             </header>
             <div class="dd-column-body" id="colBodyDelivered"></div>
+            <footer class="dd-col-nav" data-carousel="delivered" hidden>
+                <button type="button" class="dd-col-arrow" data-carousel-step="-1" aria-label="Previous delivered order" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="dd-col-pos" id="colPosDelivered" aria-live="polite">0 / 0</span>
+                <button type="button" class="dd-col-arrow" data-carousel-step="1" aria-label="Next delivered order" disabled><i class="fa-solid fa-chevron-right"></i></button>
+            </footer>
         </section>
         <section class="dd-column dd-column--overdue" data-status="Overdue">
             <header class="dd-column-header">
@@ -137,8 +160,16 @@ window.onpageshow = function(e) {
                 <span class="dd-col-count" id="colOverdue">0</span>
             </header>
             <div class="dd-column-body" id="colBodyOverdue"></div>
+            <footer class="dd-col-nav" data-carousel="overdue" hidden>
+                <button type="button" class="dd-col-arrow" data-carousel-step="-1" aria-label="Previous overdue order" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="dd-col-pos" id="colPosOverdue" aria-live="polite">0 / 0</span>
+                <button type="button" class="dd-col-arrow" data-carousel-step="1" aria-label="Next overdue order" disabled><i class="fa-solid fa-chevron-right"></i></button>
+            </footer>
         </section>
     </div>
+
+    <!-- Full-width alternative view -->
+    <div id="ddAllView" class="dd-all-view" hidden></div>
 
     <div id="ddEmpty" class="dd-empty" style="display:none;">
         <i class="fa-solid fa-truck-ramp-box"></i>
@@ -176,7 +207,7 @@ window.onpageshow = function(e) {
 </div>
 
 <script src="toast.js"></script>
-<script type="module" src="delivery.js?v=8"></script>
+<script type="module" src="delivery.js?v=9"></script>
 <script src="mobile-nav.js"></script>
 </body>
 </html>

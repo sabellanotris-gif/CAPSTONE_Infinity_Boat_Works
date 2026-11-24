@@ -25,7 +25,7 @@ window.handleLogout = async function () {
   window.location.href = "index.html";
 };
 
-const STATUS_ORDER = ["Preparing for Delivery", "Ready for Delivery", "In Transit", "Delivered"];
+const STATUS_ORDER = ["Preparing for Delivery", "Ready for Delivery", "In Transit", "Delivered", "Overdue"];
 const FILTER_STATUS = {
   all: "all",
   preparing: "Preparing for Delivery",
@@ -45,6 +45,14 @@ const STATUS_ICONS = {
 let allOrders = [];
 let currentFilter = "all";
 let searchQuery = "";
+let viewAll = false;
+const carouselIndex = {
+  preparing: 0,
+  ready: 0,
+  transit: 0,
+  delivered: 0,
+  overdue: 0,
+};
 
 function statusClass(status) {
   return status === "Preparing for Delivery" ? "preparing"
@@ -187,17 +195,85 @@ function cardHtml(order) {
 }
 
 const COLUMN_IDS = {
-  "Preparing for Delivery": { body: "colBodyPreparing", count: "colPreparing", icon: "fa-box", empty: "No preparing orders" },
-  "Ready for Delivery": { body: "colBodyReady", count: "colReady", icon: "fa-screwdriver-wrench", empty: "No ready orders" },
-  "In Transit": { body: "colBodyTransit", count: "colTransit", icon: "fa-ship", empty: "No in-transit orders" },
-  "Delivered": { body: "colBodyDelivered", count: "colDelivered", icon: "fa-circle-check", empty: "No delivered orders" },
-  "Overdue": { body: "colBodyOverdue", count: "colOverdue", icon: "fa-triangle-exclamation", empty: "No overdue orders" },
+  "Preparing for Delivery": { key: "preparing", body: "colBodyPreparing", count: "colPreparing", pos: "colPosPreparing", icon: "fa-box", empty: "No preparing orders" },
+  "Ready for Delivery": { key: "ready", body: "colBodyReady", count: "colReady", pos: "colPosReady", icon: "fa-screwdriver-wrench", empty: "No ready orders" },
+  "In Transit": { key: "transit", body: "colBodyTransit", count: "colTransit", pos: "colPosTransit", icon: "fa-ship", empty: "No in-transit orders" },
+  "Delivered": { key: "delivered", body: "colBodyDelivered", count: "colDelivered", pos: "colPosDelivered", icon: "fa-circle-check", empty: "No delivered orders" },
+  "Overdue": { key: "overdue", body: "colBodyOverdue", count: "colOverdue", pos: "colPosOverdue", icon: "fa-triangle-exclamation", empty: "No overdue orders" },
 };
 
 function emptyColumnHtml(status, noResults) {
   const icon = noResults ? "fa-magnifying-glass" : (COLUMN_IDS[status]?.icon || "fa-inbox");
   const message = noResults ? "No matches" : (COLUMN_IDS[status]?.empty || "Nothing here yet");
   return `<div class="dd-empty-col"><i class="fa-solid ${icon}"></i><span>${message}</span></div>`;
+}
+
+// Compact row used only by View All. It deliberately does not use .dd-card or
+// data-delivery-slot so the board's fixed-slot measurements stay untouched.
+function allRowHtml(order) {
+  const di = order.deliveryInfo || {};
+  registerDeliveryOrder(order);
+  const status = getDeliveryStatus(order);
+  const board = boardStatus(order);
+  const overdue = isOverdue(order);
+  const delayed = isDelayed(order);
+  const delayInfo = delayed ? calcDeliveryDelay(order.boatPrice, di.committedDeliveryDate, di.actualDeliveryDate) : { days: 0, penalty: 0, percent: 0 };
+  const progress = Number(di.deliveryProgress) || 0;
+  const late = di.committedDeliveryDate && !di.actualDeliveryDate && new Date(di.committedDeliveryDate) < new Date();
+  const action = canViewDelivery()
+    ? `<button class="dd-manage-btn" onclick="openDeliveryModal('${esc(order.orderId)}')"><i class="fa-solid ${window.currentRole === 'admin' ? 'fa-eye' : 'fa-pen-to-square'}"></i> ${window.currentRole === 'admin' ? 'View Delivery' : 'Manage Delivery'}</button>`
+    : `<span class="dd-action-empty">No delivery actions</span>`;
+
+  return `
+  <article class="dd-all-row${overdue ? " is-overdue" : ""}">
+    <div class="dd-all-status">
+      <span class="status-badge ${statusClass(status)}"><i class="fa-solid ${STATUS_ICONS[board] || "fa-circle"}"></i> ${esc(status)}</span>
+      ${overdue ? `<span class="status-badge overdue"><i class="fa-solid fa-triangle-exclamation"></i> Overdue</span>` : ""}
+      ${delayed ? `<span class="delay-badge"><i class="fas fa-exclamation-triangle"></i> ${delayInfo.days}d late</span>` : ""}
+    </div>
+    <div class="dd-all-boat">
+      <span class="dd-card-thumb"><img src="${esc(boatImageFor(order))}" alt="${esc(order.boatName || "Boat")}" loading="lazy" onerror="this.onerror=null;this.src='./images/boat2.jpg';"></span>
+      <span class="dd-all-identity">
+        <strong>${esc(order.boatName || "Untitled boat")}</strong>
+        <span>${esc(order.customerName || "Unknown customer")}</span>
+        <small>${esc(order.orderId)}</small>
+      </span>
+    </div>
+    <div class="dd-all-dates">
+      <span><i class="fa-solid fa-calendar-day"></i> Committed: <strong class="${late ? "late" : ""}">${esc(fmtDate(di.committedDeliveryDate))}</strong></span>
+      <span><i class="fa-solid fa-calendar-check"></i> Actual: <strong>${esc(fmtDate(di.actualDeliveryDate))}</strong></span>
+    </div>
+    <div class="dd-all-contact">
+      <span><i class="fa-solid fa-location-dot"></i> ${esc(di.deliveryLocation || di.confirmLocation || "Location TBC")}</span>
+      <span><i class="fa-solid fa-user-check"></i> ${esc(di.contactPerson || di.confirmContact || "TBA")}</span>
+    </div>
+    <div class="dd-all-progress">
+      <div class="progress-text"><span>Progress</span><span style="font-weight:700;color:#071b47;">${progress}%</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
+    </div>
+    <div class="dd-all-action">${action}</div>
+  </article>`;
+}
+
+function renderAllView(visible) {
+  const root = document.getElementById("ddAllView");
+  if (!root) return;
+  if (visible.length === 0) {
+    root.innerHTML = '<div class="dd-empty-col"><i class="fa-solid fa-magnifying-glass"></i><span>No matching orders</span></div>';
+    return;
+  }
+  root.innerHTML = STATUS_ORDER.map((status) => {
+    const items = visible.filter((o) => boardStatus(o) === status);
+    if (!items.length) return "";
+    return `<section class="dd-all-group">
+      <h3>
+        <span class="dd-col-icon ${statusClass(status)}"><i class="fa-solid ${STATUS_ICONS[status] || "fa-circle"}"></i></span>
+        <span>${status}</span>
+        <span class="dd-col-count">${items.length}</span>
+      </h3>
+      ${items.map(allRowHtml).join("")}
+    </section>`;
+  }).join("");
 }
 
 function render() {
@@ -218,14 +294,22 @@ function render() {
 
   const board = document.getElementById("ddBoard");
   const empty = document.getElementById("ddEmpty");
+  const allView = document.getElementById("ddAllView");
   if (allOrders.length === 0) {
     board.style.display = "none";
+    if (allView) allView.hidden = true;
     empty.style.display = "block";
     return;
   }
 
-  board.style.display = "grid";
   empty.style.display = "none";
+  if (viewAll) {
+    board.style.display = "none";
+    if (allView) allView.hidden = false;
+  } else {
+    board.style.display = "grid";
+    if (allView) allView.hidden = true;
+  }
 
   const visible = visibleOrders();
   const noResults = visible.length === 0;
@@ -238,9 +322,55 @@ function render() {
   Object.entries(COLUMN_IDS).forEach(([status, ids]) => {
     const inColumn = grouped[status] || [];
     document.getElementById(ids.count).textContent = inColumn.length;
+
+    let index = carouselIndex[ids.key] || 0;
+    if (inColumn.length === 0) index = 0;
+    else index = Math.min(Math.max(index, 0), inColumn.length - 1);
+    carouselIndex[ids.key] = index;
+
     document.getElementById(ids.body).innerHTML = inColumn.length === 0
       ? emptyColumnHtml(status, noResults)
-      : inColumn.map(cardHtml).join("");
+      : cardHtml(inColumn[index]);
+
+    const pos = document.getElementById(ids.pos);
+    if (pos) pos.textContent = inColumn.length ? `${index + 1} / ${inColumn.length}` : "0 / 0";
+
+    const nav = document.querySelector(`[data-carousel="${ids.key}"]`);
+    if (nav) {
+      nav.hidden = inColumn.length === 0;
+      nav.querySelectorAll("[data-carousel-step]").forEach((btn) => {
+        const step = Number(btn.dataset.carouselStep);
+        btn.disabled = inColumn.length <= 1 || (step < 0 ? index === 0 : index === inColumn.length - 1);
+      });
+    }
+  });
+
+  renderAllView(visible);
+}
+
+function setViewAll(enabled) {
+  viewAll = enabled;
+  const btn = document.getElementById("ddViewToggle");
+  if (btn) {
+    btn.setAttribute("aria-pressed", String(enabled));
+    const label = btn.querySelector("span");
+    if (label) label.textContent = enabled ? "Board" : "View All";
+    const icon = btn.querySelector("i");
+    if (icon) icon.className = enabled ? "fa-solid fa-table-columns" : "fa-solid fa-table-list";
+  }
+  render();
+}
+
+function wireCarousel() {
+  const board = document.getElementById("ddBoard");
+  board?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-carousel-step]");
+    if (!btn || btn.disabled) return;
+    const nav = btn.closest("[data-carousel]");
+    const key = nav?.dataset.carousel;
+    if (!key || !(key in carouselIndex)) return;
+    carouselIndex[key] += Number(btn.dataset.carouselStep);
+    render();
   });
 }
 
@@ -281,6 +411,9 @@ function wireControls() {
     const hidden = filters?.classList.toggle("is-hidden");
     toggle.setAttribute("aria-expanded", String(!hidden));
   });
+
+  document.getElementById("ddViewToggle")?.addEventListener("click", () => setViewAll(!viewAll));
+  wireCarousel();
 }
 
 (async function init() {
