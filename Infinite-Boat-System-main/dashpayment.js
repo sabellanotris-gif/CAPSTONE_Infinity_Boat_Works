@@ -92,6 +92,15 @@ function parseAmount(str) {
     return parseFloat(String(str || '0').replace(/[₱,]/g, '')) || 0;
 }
 
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function normalizePayment(p) {
     if (!p) return p;
     p.amountPaid   = p.amountPaid ?? p.amount ?? 0;
@@ -145,16 +154,27 @@ async function loadPayments() {
 
         const fmtAmount = fmt(payment.amountPaid);
         const fmtRemaining = fmt(payment.remainingBalance);
+        const boatName = payment.boatName || 'Boat';
+        const boatSrc = escapeHtml(window.boatImageFor(payment));
+        const proofRaw = getProofImage(payment);
+        const proofSrc = proofRaw ? escapeHtml(proofRaw) : '';
+        const proofFullscreenAttrs = proofSrc
+            ? `data-image-fullscreen data-image-src="${proofSrc}" data-image-title="${escapeHtml(boatName)} — Uploaded Proof" data-image-alt="${escapeHtml(boatName)} payment proof"`
+            : '';
 
         return `
         <div class="payment-card">
             <div class="payment-left">
                 <div class="payment-header">
                     <div class="boat-info">
-                        <img src="${payment.boatImage}" class="boat-image">
+                        <div class="image-fs-wrap image-fs-wrap--boat" data-image-fullscreen data-image-src="${boatSrc}"
+                             data-image-title="${escapeHtml(boatName)} — Boat Photo" data-image-alt="${escapeHtml(boatName)} boat photo">
+                            <img src="${boatSrc}" class="boat-image" alt="${escapeHtml(boatName)} boat photo" onerror="boatImageOnError(this)">
+                            <button type="button" class="image-fs-open" aria-label="View boat photo fullscreen"><i class="fa-solid fa-expand"></i></button>
+                        </div>
                         <div>
-                            <h2>${payment.boatName || 'Boat'}</h2>
-                            <p>Customer: ${payment.customerName || 'Unknown'}</p>
+                            <h2>${escapeHtml(boatName)}</h2>
+                            <p>Customer: ${escapeHtml(payment.customerName || 'Unknown')}</p>
                         </div>
                     </div>
                     <span class="status ${status.toLowerCase()}">${status}</span>
@@ -185,7 +205,10 @@ async function loadPayments() {
             </div>
             <div class="payment-right">
                 <h3>Uploaded Proof</h3>
-                <img src="${getProofImage(payment)}" class="proof-image">
+                <div class="image-fs-wrap image-fs-wrap--proof" ${proofFullscreenAttrs}>
+                    <img src="${proofSrc}" class="proof-image" alt="${escapeHtml(boatName)} payment proof">
+                    ${proofSrc ? '<button type="button" class="image-fs-open" aria-label="View payment proof fullscreen"><i class="fa-solid fa-expand"></i></button>' : ''}
+                </div>
                 <div class="proof-footer">
                     <span>Uploaded Screenshot</span>
                     <i class="fa-solid fa-image"></i>

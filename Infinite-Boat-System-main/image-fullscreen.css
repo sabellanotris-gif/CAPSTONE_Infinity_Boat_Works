@@ -1,0 +1,187 @@
+/* =========================================================
+   PAYMENT / BOAT PHOTO FULLSCREEN VIEWER
+   Lightweight image overlay. No new data or business logic.
+   ========================================================= */
+
+body.image-fs-open {
+  overflow: hidden;
+}
+
+.image-fs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 32000;
+  display: flex;
+  flex-direction: column;
+  background: #0b1220;
+  color: #f8fafc;
+}
+
+.image-fs-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  background: rgba(15, 23, 42, .96);
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+
+.image-fs-title {
+  font: 700 14px/1.3 'Poppins', sans-serif;
+  color: #fff;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.image-fs-hint {
+  font: 500 11px/1.3 'Poppins', sans-serif;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.image-fs-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  background: #eef3f8;
+}
+
+.image-fs-image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, .25);
+  transform-origin: center center;
+  transition: transform .15s ease;
+}
+
+.image-fs-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(15, 23, 42, .96);
+  border-top: 1px solid rgba(255, 255, 255, .1);
+}
+
+.image-fs-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 42px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 10px;
+  background: #1e293b;
+  color: #f8fafc;
+  font: 700 12px/1 'Poppins', sans-serif;
+  cursor: pointer;
+  transition: background .15s, transform .15s;
+}
+
+.image-fs-control:hover:not(:disabled) { background: #334155; }
+.image-fs-control:active:not(:disabled) { transform: translateY(1px); }
+.image-fs-control:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.image-fs-control:disabled { opacity: .45; cursor: default; }
+
+.image-fs-control--primary { background: #295dff; border-color: #4f7cff; }
+.image-fs-control--primary:hover:not(:disabled) { background: #1d4ed8; }
+.image-fs-control--close { background: #b91c1c; border-color: #ef4444; }
+.image-fs-control--close:hover:not(:disabled) { background: #dc2626; }
+
+/* Small expand affordance on existing payment images. */
+.image-fs-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  cursor: zoom-in;
+}
+
+.image-fs-wrap img {
+  display: block;
+}
+
+.image-fs-open {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, .78);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  cursor: zoom-in;
+  opacity: 0;
+  transition: opacity .15s, background .15s;
+}
+
+.image-fs-wrap:hover .image-fs-open,
+.image-fs-wrap:focus-within .image-fs-open {
+  opacity: 1;
+}
+
+.image-fs-open:hover {
+  background: #295dff;
+}
+
+.image-fs-wrap--boat {
+  width: 80px;
+  height: 64px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.image-fs-wrap--proof {
+  display: block;
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.image-fs-wrap--modal {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+@media (hover: none) {
+  .image-fs-open { opacity: 1; }
+}
+
+@media (max-width: 600px) {
+  .image-fs-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 10px 12px;
+  }
+  .image-fs-hint { font-size: 10px; }
+  .image-fs-stage { padding: 14px; }
+  .image-fs-toolbar { gap: 6px; padding: 10px 8px; }
+  .image-fs-control { min-height: 36px; padding: 7px 10px; font-size: 11px; }
+}

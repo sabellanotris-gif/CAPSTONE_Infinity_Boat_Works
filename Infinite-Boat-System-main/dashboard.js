@@ -594,16 +594,22 @@ window.showPaymentInfo = function (paymentId) {
     const order = allOrders.find(o => o.orderId === payment.orderId);
     const status = payment.status || 'Pending';
     const sc = getPaymentStatusClass(status);
+    const paymentBoatName = order?.boatName || payment.boatName || 'Boat';
+    const paymentPhotoSrc = window.boatImageFor({
+        customConfig: order?.customConfig || payment.customConfig,
+        boatImage: order?.boatImage || payment.boatImage,
+        boatName: order?.boatName || payment.boatName
+    });
 
     document.getElementById('paymentInfoBody').innerHTML = `
         <div class="modal-header">
-            <img src="${escapeHtml(window.boatImageFor({
-                customConfig: order?.customConfig || payment.customConfig,
-                boatImage: order?.boatImage || payment.boatImage,
-                boatName: order?.boatName || payment.boatName
-            }))}" alt="Boat" onerror="boatImageOnError(this)">
+            <div class="image-fs-wrap image-fs-wrap--modal" data-image-fullscreen data-image-src="${escapeHtml(paymentPhotoSrc)}"
+                 data-image-title="${escapeHtml(paymentBoatName)} — Boat Photo" data-image-alt="${escapeHtml(paymentBoatName)} boat photo">
+                <img src="${escapeHtml(paymentPhotoSrc)}" alt="${escapeHtml(paymentBoatName)} boat photo" onerror="boatImageOnError(this)">
+                <button type="button" class="image-fs-open" aria-label="View boat photo fullscreen"><i class="fa-solid fa-expand"></i></button>
+            </div>
             <div>
-                <h2>${order?.boatName || payment.boatName || 'Boat'}</h2>
+                <h2>${escapeHtml(paymentBoatName)}</h2>
                 <p>Payment by: ${payment.customerName || 'Unknown'}</p>
                 <span class="status ${sc}" style="display:inline-block;margin-top:6px;font-size:12px;padding:4px 12px;">${status}</span>
                 ${order?.buildType === 'custom' ? '<span class="custom-badge" style="font-size:12px;padding:3px 10px;">Custom Build</span>' : ''}
