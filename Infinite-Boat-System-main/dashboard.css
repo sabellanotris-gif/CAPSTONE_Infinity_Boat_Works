@@ -737,6 +737,50 @@ body.minimal-mode .analytics-card p {
   padding: 0 16px 4px;
 }
 
+/* Under Review is always visible and starts collapsed; press to reveal rows. */
+.dash-admin .accordion-section--review {
+  border: 1px solid #ede9fe;
+  border-radius: 12px;
+  background: #faf9ff;
+  overflow: hidden;
+}
+
+.dash-admin .accordion-section--review .accordion-header {
+  background: #f3efff;
+  padding: 14px 16px;
+}
+
+.dash-admin .accordion-section--review .accordion-header:hover {
+  background: #ebe5ff;
+}
+
+.dash-admin .accordion-section--review .accordion-header strong {
+  color: #5b21b6;
+  font-size: 14px;
+}
+
+.dash-admin .accordion-section--review .accordion-arrow {
+  color: #7c3aed;
+  font-size: 15px;
+}
+
+.dash-admin .accordion-section--review .section-count {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.dash-admin .accordion-header:focus-visible {
+  outline: 2px solid var(--dash-accent);
+  outline-offset: -2px;
+}
+
+.accordion-empty {
+  padding: 18px 4px;
+  text-align: center;
+  color: var(--dash-muted);
+  font-size: 13px;
+}
+
 .project-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1.2fr auto auto;

@@ -226,7 +226,7 @@ function renderLiveProjects() {
     if (!container) return;
 
     const groups = [
-        { label: "Under Review", statuses: ["Under Review"], icon: "fa-wand-magic-sparkles", color: "#7c3aed" },
+        { label: "Under Review", statuses: ["Under Review"], icon: "fa-wand-magic-sparkles", color: "#7c3aed", alwaysShow: true, collapsed: true },
         { label: "Pending Signing", statuses: ["Pending Signing"], icon: "fa-file-pen", color: "#2563eb" },
         { label: "In Progress", statuses: ["Approved"], icon: "fa-hard-hat", color: "#16a34a" },
         { label: "Completed", statuses: ["Completed"], icon: "fa-circle-check", color: "#22c55e" },
@@ -234,26 +234,43 @@ function renderLiveProjects() {
     ];
 
     let html = '';
+    let visibleCount = 0;
     for (const g of groups) {
         const items = allOrders.filter(o => g.statuses.includes(o.status));
-        if (items.length === 0) continue;
+        if (items.length === 0 && !g.alwaysShow) continue;
+        visibleCount += 1;
+        const isCollapsed = !!g.collapsed;
+        const reviewClass = g.alwaysShow ? ' accordion-section--review' : '';
+        const body = items.length
+            ? items.map(o => renderProjectRow(o)).join('')
+            : '<div class="accordion-empty">No projects under review yet.</div>';
         html += `
-        <div class="accordion-section">
-            <div class="accordion-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        <div class="accordion-section${reviewClass}${isCollapsed ? ' collapsed' : ''}">
+            <div class="accordion-header" role="button" tabindex="0" aria-expanded="${!isCollapsed}" onclick="toggleAccordion(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion(this);}">
                 <div>
                     <i class="fa-solid ${g.icon}" style="color:${g.color}"></i>
                     <strong>${g.label}</strong>
                     <span class="section-count">${items.length}</span>
                 </div>
-                <i class="fa-solid fa-chevron-down accordion-arrow"></i>
+                <i class="fa-solid fa-chevron-down accordion-arrow" aria-hidden="true"></i>
             </div>
             <div class="accordion-body">
-                ${items.map(o => renderProjectRow(o)).join('')}
+                ${body}
             </div>
         </div>`;
     }
-    container.innerHTML = html || '<div style="padding:30px;text-align:center;color:#94a3b8;">No orders found.</div>';
+    if (visibleCount === 0) {
+        html = '<div style="padding:30px;text-align:center;color:#94a3b8;">No orders found.</div>';
+    }
+    container.innerHTML = html;
 }
+
+window.toggleAccordion = function (header) {
+    const section = header.parentElement;
+    if (!section) return;
+    const collapsed = section.classList.toggle('collapsed');
+    header.setAttribute('aria-expanded', String(!collapsed));
+};
 
 function escapeHtml(value) {
     return String(value == null ? '' : value)
