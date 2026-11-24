@@ -255,14 +255,13 @@ function renderLiveProjects() {
                 <i class="fa-solid fa-chevron-down accordion-arrow" aria-hidden="true"></i>
             </div>
             <div class="accordion-body">
-                ${body}
+                <div class="accordion-body-inner">${body}</div>
             </div>
         </div>`;
     }
-    if (visibleCount === 0) {
-        html = '<div style="padding:30px;text-align:center;color:#94a3b8;">No orders found.</div>';
-    }
-    container.innerHTML = html;
+    container.innerHTML = visibleCount === 0
+        ? '<div style="padding:30px;text-align:center;color:#94a3b8;">No orders found.</div>'
+        : `<div class="accordion-list">${html}</div>`;
 }
 
 window.toggleAccordion = function (header) {

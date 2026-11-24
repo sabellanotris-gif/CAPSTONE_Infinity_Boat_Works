@@ -670,11 +670,20 @@ body.minimal-mode .analytics-card p {
 /* =========================================
    ACCORDION / PROJECT ROWS
 ========================================= */
-.accordion-section {
-  border: 1px solid #eef2f7;
+/* Sections live inside one shared surface — no separated boxes or gaps. */
+.accordion-list {
+  border: 1px solid var(--dash-line);
   border-radius: 12px;
-  margin-bottom: 8px;
   overflow: hidden;
+  background: #fff;
+}
+
+.accordion-section {
+  border-bottom: 1px solid var(--dash-line);
+}
+
+.accordion-section:last-child {
+  border-bottom: 0;
 }
 
 .accordion-header {
@@ -729,20 +738,31 @@ body.minimal-mode .analytics-card p {
   transform: rotate(-90deg);
 }
 
+/* Smoothly reflow the shared list when a header is toggled. */
 .accordion-section.collapsed .accordion-body {
-  display: none;
+  grid-template-rows: 0fr;
 }
 
 .accordion-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.25s ease;
+}
+
+.accordion-body-inner {
+  min-height: 0;
+  overflow: hidden;
   padding: 0 16px 4px;
+}
+
+.accordion-section.collapsed .accordion-body-inner {
+  padding-bottom: 0;
 }
 
 /* Under Review is always visible and starts collapsed; press to reveal rows. */
 .dash-admin .accordion-section--review {
-  border: 1px solid #ede9fe;
-  border-radius: 12px;
   background: #faf9ff;
-  overflow: hidden;
+  box-shadow: inset 3px 0 0 #7c3aed;
 }
 
 .dash-admin .accordion-section--review .accordion-header {
@@ -1595,7 +1615,8 @@ body.dash-manager {
 @media (prefers-reduced-motion: reduce) {
   .analytics-card,
   .quick-actions .quick-action-btn,
-  .card-header .card-link {
+  .card-header .card-link,
+  .accordion-body {
     transition: none !important;
   }
   .analytics-card:hover,
