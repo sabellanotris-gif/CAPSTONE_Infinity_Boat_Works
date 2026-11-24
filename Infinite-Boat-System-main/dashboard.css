@@ -5,6 +5,12 @@
   font-family: 'Poppins', sans-serif;
 }
 
+/* Reserve the scrollbar track so expanding/collapsing a card never shifts
+   every card sideways when the page becomes tall enough to scroll. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   background: #eef3fb;
   overflow-x: hidden;
