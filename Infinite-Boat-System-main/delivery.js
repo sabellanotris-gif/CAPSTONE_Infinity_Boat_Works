@@ -4,6 +4,7 @@
 // ahead. Pending customer confirmation does not show here.
 
 import { supabase } from "./supabase.js";
+import { matchesQuery, searchableOrderText, queryFromUrl, setUrlQuery } from "./search-helpers.js?v=1";
 import {
   DELIVERY_TERMS,
   getDeliveryStatus,
@@ -88,61 +89,10 @@ function boatImageFor(order) {
   return customPreview || order.boatImage || "./images/boat2.jpg";
 }
 
-function searchableText(order) {
-  const di = order.deliveryInfo || {};
-  const parts = [
-    order.boatName,
-    order.customerName,
-    order.orderId,
-    order.customerEmail,
-    order.customerPhone,
-    order.customerAddress,
-    order.boatType,
-    order.buildType,
-    order.notes,
-    di.customerName,
-    di.customerEmail,
-    di.customerPhone,
-    di.deliveryLocation,
-    di.confirmLocation,
-    di.contactPerson,
-    di.confirmContact,
-    di.confirmName,
-    di.confirmSignature,
-    di.acknowledgmentName,
-    di.deliveryNotes,
-    di.delayReason,
-    di.seaTrialResults,
-  ];
-  if (Array.isArray(di.snagList)) {
-    di.snagList.forEach((snag) => {
-      if (!snag) return;
-      parts.push(snag.title, snag.note, snag.notes, snag.description, snag.status);
-    });
-  }
-  if (Array.isArray(di.checklist)) {
-    di.checklist.forEach((item) => {
-      parts.push(typeof item === "string" ? item : item && (item.label || item.name || item.title));
-    });
-  } else if (di.checklist && typeof di.checklist === "object") {
-    Object.values(di.checklist).forEach((item) => {
-      parts.push(typeof item === "string" ? item : item && (item.label || item.name || item.title));
-    });
-  }
-  if (order.ratingInfo) {
-    parts.push(order.ratingInfo.customerName, order.ratingInfo.comment, order.ratingInfo.review);
-  }
-  return parts.filter((part) => part !== null && part !== undefined && part !== "").join(" ").toLowerCase();
-}
-
 function visibleOrders() {
-  const terms = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
   return allOrders.filter((o) => {
     if (currentFilter !== "all" && boardStatus(o) !== FILTER_STATUS[currentFilter]) return false;
-    if (terms.length) {
-      const hay = searchableText(o);
-      if (!terms.every((term) => hay.includes(term))) return false;
-    }
+    if (searchQuery && !matchesQuery(searchableOrderText(o), searchQuery)) return false;
     return true;
   });
 }
@@ -425,10 +375,18 @@ function setFilter(filter) {
 
 function wireControls() {
   const search = document.getElementById("ddSearch");
-  search?.addEventListener("input", () => {
-    searchQuery = search.value.trim().toLowerCase();
-    render();
-  });
+  if (search) {
+    const fromUrl = queryFromUrl().trim();
+    if (fromUrl) {
+      search.value = fromUrl;
+      searchQuery = fromUrl.toLowerCase();
+    }
+    search.addEventListener("input", () => {
+      searchQuery = search.value.trim().toLowerCase();
+      setUrlQuery(search.value.trim());
+      render();
+    });
+  }
 
   document.querySelectorAll("#ddFilters .dd-chip").forEach((btn) => {
     btn.addEventListener("click", () => setFilter(btn.dataset.filter));

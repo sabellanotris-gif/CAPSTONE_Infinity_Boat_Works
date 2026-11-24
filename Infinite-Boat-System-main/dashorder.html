@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="admin-type.css">
     <link rel="icon" type="image/jpeg" href="./images/Rlogo.jpg">
     <link rel="stylesheet" href="responsive.css">
+    <link rel="stylesheet" href="global-search.css?v=1">
     <link rel="stylesheet" href="mobile.css">
 
 </head>
@@ -43,6 +44,14 @@ window.onpageshow = function(e) {
             <p>Manage customer orders, approvals, payments, and verification documents.</p>
         </div>
         <button class="add-btn"><i class="fa-solid fa-plus"></i> + New Order</button>
+    </div>
+
+    <div class="order-search-row">
+        <div class="order-search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="orderSearch" placeholder="Search customer, order ID, boat, phone..." autocomplete="off">
+        </div>
+        <span id="orderResultCount" class="result-count"></span>
     </div>
 
     <div class="filter-container">
@@ -92,7 +101,8 @@ window.onpageshow = function(e) {
 </div>
 
 <script src="toast.js"></script>
-<script type="module" src="dashorder.js?v=1"></script>
+<script type="module" src="dashorder.js?v=2"></script>
 <script src="mobile-nav.js"></script>
+    <script src="global-search.js?v=1"></script>
 </body>
 </html>

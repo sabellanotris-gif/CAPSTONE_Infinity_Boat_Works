@@ -1,5 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, API_BASE, ensureSession } from "./supabase.js";
 import { getBoatBom } from "./boatData.js";
+import { matchesQuery, searchableOrderText, queryFromUrl, setUrlQuery } from "./search-helpers.js?v=1";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -24,6 +25,7 @@ function safeNum(val) {
 }
 
 let orders = [];
+let orderSearch = '';
 let profilePhoneMap = {};
 const ordersGrid = document.getElementById('ordersGrid');
 const totalOrders = document.getElementById('totalOrders');
@@ -38,7 +40,21 @@ function renderOrders(filter) {
 
     let displayOrders = orders;
     if (filter && filter !== 'All') {
-        displayOrders = orders.filter(o => o.status === filter);
+        displayOrders = displayOrders.filter(o => o.status === filter);
+    }
+    if (orderSearch) {
+        displayOrders = displayOrders.filter(o => matchesQuery(searchableOrderText(o), orderSearch));
+    }
+
+    const resultCount = document.getElementById('orderResultCount');
+    if (resultCount) {
+        const narrowed = Boolean(orderSearch) || (filter && filter !== 'All');
+        resultCount.textContent = orders.length === 0
+            ? 'No orders'
+            : narrowed
+                ? `${displayOrders.length} of ${orders.length} shown`
+                : `${orders.length} orders`;
+        resultCount.classList.toggle('is-empty', orders.length > 0 && displayOrders.length === 0);
     }
 
     ordersGrid.innerHTML = '';
@@ -647,6 +663,17 @@ function getActiveFilter() {
     const active = document.querySelector('.filter-btn.active');
     return active ? active.innerText.trim() : 'All';
 }
+
+const orderSearchEl = document.getElementById('orderSearch');
+orderSearchEl?.addEventListener('input', function () {
+    orderSearch = this.value.trim();
+    setUrlQuery(orderSearch);
+    renderOrders(getActiveFilter());
+});
+
+// ?q= from global search prefills and filters as soon as orders load.
+orderSearch = queryFromUrl().trim();
+if (orderSearch && orderSearchEl) orderSearchEl.value = orderSearch;
 
 const filterButtons = document.querySelectorAll('.filter-btn');
 filterButtons.forEach((button) => {

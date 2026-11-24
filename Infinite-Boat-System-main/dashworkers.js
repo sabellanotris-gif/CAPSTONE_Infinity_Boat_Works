@@ -3,6 +3,7 @@
    Manager view: no action buttons, clean profile read-only.
    ========================================= */
 import { supabase, API_BASE } from "./supabase.js";
+import { matchesQuery, flatText, queryFromUrl, setUrlQuery } from "./search-helpers.js?v=1";
 
 window.handleLogout = async function () {
   await supabase.auth.signOut();
@@ -355,8 +356,17 @@ function renderStats() {
   document.getElementById("statAvailable").textContent = allWorkers.filter(w => w.available && w.status === "Active").length;
 }
 
+function updateCount(id, shown, total, query) {
+  var count = document.getElementById(id);
+  if (!count) return;
+  count.textContent = !total ? 'No records'
+    : query ? shown + ' of ' + total + ' shown'
+    : total + ' records';
+  count.classList.toggle('is-empty', total > 0 && shown === 0);
+}
+
 function applyFilter() {
-  var search = (document.getElementById('searchInput').value || '').toLowerCase();
+  var search = (document.getElementById('searchInput').value || '').trim();
   var s = document.getElementById('specialtyFilter').value;
   var f = document.getElementById('statusFilter').value;
   var filtered = allWorkers.filter(function(w) {
@@ -368,12 +378,13 @@ function applyFilter() {
     else if (f === 'linked' && !w.hasAccount) return false;
     else if (f === 'unlinked' && w.hasAccount) return false;
     if (!search) return true;
-    return (w.name || '').toLowerCase().includes(search) ||
-           (w.email || '').toLowerCase().includes(search) ||
-           (w.phone || '').toLowerCase().includes(search) ||
-           (w.specialty || '').toLowerCase().includes(search);
+    return matchesQuery(flatText(
+      w.name, w.email, w.phone, w.specialty, w.role, w.status,
+      w.available ? 'Available Ready' : 'Busy'
+    ), search);
   });
   renderTable(filtered);
+  updateCount('workerResultCount', filtered.length, allWorkers.length, search);
 }
 
 function renderTable(workers) {
@@ -404,9 +415,18 @@ function renderTable(workers) {
   });
 }
 
-document.getElementById('searchInput')?.addEventListener('input', applyFilter);
+document.getElementById('searchInput')?.addEventListener('input', function () {
+  setUrlQuery(this.value.trim());
+  applyFilter();
+});
 document.getElementById('specialtyFilter')?.addEventListener('change', applyFilter);
 document.getElementById('statusFilter')?.addEventListener('change', applyFilter);
+
+var initialWorkerQuery = queryFromUrl().trim();
+if (initialWorkerQuery) {
+  var initialWorkerInput = document.getElementById('searchInput');
+  if (initialWorkerInput) initialWorkerInput.value = initialWorkerQuery;
+}
 
 function openWorkerProfile(w) {
   detailWorker = w;
@@ -463,7 +483,7 @@ async function loadRegistrations() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     allRegistrations = await res.json();
     updateRegStats();
-    renderRegistrations(allRegistrations);
+    applyRegFilter();
   } catch (err) {
     grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-exclamation"></i><h3>Failed to load registrations</h3><p>Try refreshing the page.</p></div>';
   }
@@ -512,14 +532,15 @@ function renderRegistrations(regs) {
   grid.querySelectorAll('[data-reject]').forEach(function(b) { b.addEventListener('click', function() { rejectReg(b.getAttribute('data-reject')); }); });
 }
 function applyRegFilter() {
-  var q = (document.getElementById('regSearchInput').value || '').toLowerCase();
+  var q = (document.getElementById('regSearchInput').value || '').trim();
   var s = document.getElementById('regStatusFilter').value;
   var filtered = allRegistrations.filter(function(r) {
     if (s && r.status !== s) return false;
     if (!q) return true;
-    return (r.name || '').toLowerCase().includes(q) || (r.email || '').toLowerCase().includes(q);
+    return matchesQuery(flatText(r.name, r.email, r.phone, r.specialty, r.status, r.createdAt, r.reviewedAt), q);
   });
   renderRegistrations(filtered);
+  updateCount('regResultCount', filtered.length, allRegistrations.length, q);
 }
 document.getElementById('regSearchInput')?.addEventListener('input', applyRegFilter);
 document.getElementById('regStatusFilter')?.addEventListener('change', applyRegFilter);
