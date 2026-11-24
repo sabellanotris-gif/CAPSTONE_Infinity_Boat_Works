@@ -250,42 +250,6 @@ body.minimal-mode .analytics-card p {
   }
 }
 
-/* Per-card collapse: keep the header, hide everything below it */
-.dashboard-card.collapsed > *:not(.card-header) {
-  display: none;
-}
-
-.dashboard-card.collapsed .card-header {
-  margin-bottom: 0;
-}
-
-.card-collapse-btn {
-  background: #eef3fb;
-  color: #295dff;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  margin-left: 12px;
-  flex: 0 0 auto;
-  transition: 0.25s;
-}
-
-.card-collapse-btn:hover {
-  background: #dde8fb;
-}
-
-.card-collapse-btn i {
-  transition: transform 0.25s;
-}
-
-.dashboard-card.collapsed .card-collapse-btn i {
-  transform: rotate(-90deg);
-}
-
 .notif-badge {
   position: absolute;
   top: -4px;
@@ -748,6 +712,70 @@ body.minimal-mode .analytics-card p {
 
 .project-row:last-child {
   border-bottom: none;
+}
+
+/* Status tabs inside Live Boat Projects — one list visible at a time. */
+.project-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.project-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #eef3fb;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s, color 0.2s;
+}
+
+.project-tab:hover {
+  background: #e8efff;
+  color: #295dff;
+}
+
+.project-tab.active {
+  background: #295dff;
+  color: #fff;
+}
+
+.project-tab.active .section-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.project-tab-panel {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.project-tab-empty {
+  padding: 30px 12px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.dashboard-card[data-card-id="liveProjects"] {
+  min-height: 0;
+}
+
+.manager-projects-card {
+  margin-top: 24px;
+}
+
+@media (max-width: 768px) {
+  .project-tab-panel {
+    max-height: 220px;
+  }
 }
 
 .project-info {

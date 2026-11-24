@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Project Manager — Infinity Boat Works</title>
-<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="dashboard.css?v=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -117,19 +117,19 @@ window.onpageshow = function(e) {
 
     </section>
 
-    <section style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:24px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:16px;"><i class="fa-solid fa-ship"></i> Recent Boat Projects</h3>
+    <section class="dashboard-card manager-projects-card">
+        <div class="card-header">
+            <h2><i class="fa-solid fa-ship"></i> Live Boat Projects</h2>
             <a href="dashorder.html" style="font-size:13px;color:#2563eb;text-decoration:none;">View all →</a>
         </div>
-        <div id="recentOrders"></div>
+        <div id="managerProjectsContainer"></div>
     </section>
 
 </main>
 
 </div>
 
-<script type="module" src="manager.js"></script>
+<script type="module" src="manager.js?v=1"></script>
 
 <script src="mobile-nav.js"></script>
 </body>

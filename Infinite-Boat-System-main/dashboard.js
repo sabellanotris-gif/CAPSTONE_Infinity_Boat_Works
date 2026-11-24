@@ -218,41 +218,70 @@ function loadDashboardData() {
 }
 
 /* =============================================
-   LIVE PROJECTS — Accordion Sections
+   LIVE PROJECTS — Status Tabs
    ============================================= */
+
+let activeProjectTab = 'Under Review';
+
+const PROJECT_TABS = [
+    { label: "Under Review", statuses: ["Under Review"], icon: "fa-wand-magic-sparkles", color: "#7c3aed" },
+    { label: "In Progress", statuses: ["Approved", "In Progress"], icon: "fa-hard-hat", color: "#16a34a" },
+    { label: "Completed", statuses: ["Completed"], icon: "fa-circle-check", color: "#22c55e" }
+];
 
 function renderLiveProjects() {
     const container = document.getElementById('liveProjectsContainer');
     if (!container) return;
 
-    const groups = [
-        { label: "Under Review", statuses: ["Under Review"], icon: "fa-wand-magic-sparkles", color: "#7c3aed" },
-        { label: "Pending Signing", statuses: ["Pending Signing"], icon: "fa-file-pen", color: "#2563eb" },
-        { label: "In Progress", statuses: ["Approved"], icon: "fa-hard-hat", color: "#16a34a" },
-        { label: "Completed", statuses: ["Completed"], icon: "fa-circle-check", color: "#22c55e" },
-        { label: "Cancelled / Rejected", statuses: ["Cancelled", "Rejected"], icon: "fa-ban", color: "#dc2626" }
-    ];
-
-    let html = '';
-    for (const g of groups) {
-        const items = allOrders.filter(o => g.statuses.includes(o.status));
-        if (items.length === 0) continue;
-        html += `
-        <div class="accordion-section">
-            <div class="accordion-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                <div>
+    container.innerHTML = `
+        <div class="project-tabs" role="tablist" aria-label="Boat project status">
+            ${PROJECT_TABS.map(g => `
+                <button type="button" class="project-tab" role="tab" data-tab="${g.label}"
+                        aria-controls="projectTabPanel" aria-selected="false" tabindex="-1">
                     <i class="fa-solid ${g.icon}" style="color:${g.color}"></i>
-                    <strong>${g.label}</strong>
-                    <span class="section-count">${items.length}</span>
-                </div>
-                <i class="fa-solid fa-chevron-down accordion-arrow"></i>
-            </div>
-            <div class="accordion-body">
-                ${items.map(o => renderProjectRow(o)).join('')}
-            </div>
-        </div>`;
-    }
-    container.innerHTML = html || '<div style="padding:30px;text-align:center;color:#94a3b8;">No orders found.</div>';
+                    <span>${g.label}</span>
+                    <span class="section-count">${allOrders.filter(o => g.statuses.includes(o.status)).length}</span>
+                </button>`).join('')}
+        </div>
+        <div class="project-tab-panel" id="projectTabPanel" role="tabpanel"></div>`;
+
+    container.querySelectorAll('.project-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeProjectTab = btn.dataset.tab;
+            updateProjectTabPanel(container);
+        });
+        btn.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            e.preventDefault();
+            const tabs = [...container.querySelectorAll('.project-tab')];
+            const step = e.key === 'ArrowRight' ? 1 : -1;
+            const next = tabs[(tabs.indexOf(btn) + step + tabs.length) % tabs.length];
+            activeProjectTab = next.dataset.tab;
+            updateProjectTabPanel(container);
+            next.focus();
+        });
+    });
+
+    updateProjectTabPanel(container);
+}
+
+function updateProjectTabPanel(container) {
+    const group = PROJECT_TABS.find(g => g.label === activeProjectTab) || PROJECT_TABS[0];
+    activeProjectTab = group.label;
+    const items = allOrders.filter(o => group.statuses.includes(o.status));
+
+    container.querySelectorAll('.project-tab').forEach(btn => {
+        const active = btn.dataset.tab === group.label;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        btn.tabIndex = active ? 0 : -1;
+    });
+
+    const panel = container.querySelector('.project-tab-panel');
+    if (!panel) return;
+    panel.innerHTML = items.length
+        ? items.map(o => renderProjectRow(o)).join('')
+        : `<div class="project-tab-empty">No ${group.label.toLowerCase()} projects yet.</div>`;
 }
 
 function renderProjectRow(o) {
@@ -1060,55 +1089,14 @@ function setupAdminRealtime() {
 setupAdminRealtime();
 
 // =====================================================
-// MINIMAL MODE + COLLAPSIBLE CARDS
+// MINIMAL MODE
 // =====================================================
 // Persisted in localStorage so the admin's layout choice survives reloads:
 //   boatadmin.minimalMode    '1' | '0'
-//   boatadmin.collapsedCards JSON array of data-card-id values
 (function setupMinimalDashboard() {
   const MINIMAL_KEY = 'boatadmin.minimalMode';
-  const COLLAPSED_KEY = 'boatadmin.collapsedCards';
   const minimalBtn = document.getElementById('compactModeBtn');
   const minimalIcon = minimalBtn?.querySelector('i');
-
-  function getCollapsedIds() {
-    try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]'); } catch { return []; }
-  }
-  function saveCollapsedIds(ids) {
-    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(ids)); } catch { /* non-fatal */ }
-  }
-
-  // Inject a collapse button into every dashboard card header.
-  const cards = Array.from(document.querySelectorAll('.dashboard-card[data-card-id]'));
-  cards.forEach((card) => {
-    const header = card.querySelector('.card-header');
-    if (!header || header.querySelector('.card-collapse-btn')) return;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'card-collapse-btn';
-    btn.setAttribute('aria-label', 'Collapse section');
-    btn.setAttribute('aria-expanded', 'true');
-    btn.innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
-    btn.addEventListener('click', () => {
-      const collapsed = card.classList.toggle('collapsed');
-      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-      const ids = getCollapsedIds().filter((id) => id !== card.dataset.cardId);
-      if (collapsed) ids.push(card.dataset.cardId);
-      saveCollapsedIds(ids);
-    });
-    header.appendChild(btn);
-  });
-
-  // Restore collapsed state.
-  const savedCollapsed = getCollapsedIds();
-  if (savedCollapsed.length > 0) {
-    cards.forEach((card) => {
-      if (!savedCollapsed.includes(card.dataset.cardId)) return;
-      card.classList.add('collapsed');
-      const btn = card.querySelector('.card-collapse-btn');
-      if (btn) btn.setAttribute('aria-expanded', 'false');
-    });
-  }
 
   // Minimal mode keeps only the essentials: a slim stats strip and the
   // full-width Live Boat Projects list. Everything else is hidden.
