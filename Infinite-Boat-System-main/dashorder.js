@@ -834,11 +834,6 @@ window.updateProgress = updateProgress;
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
         if (profile) window.currentRole = profile.role;
     }
-    if (window.currentRole === 'manager') {
-        const addBtns = document.querySelectorAll('.add-btn');
-        addBtns.forEach(btn => { btn.style.display = 'none'; });
-    }
-
     const result = await handleDbError(
         supabase.from("boat_orders").select("*").order("createdAt", { ascending: false }),
         "Load orders"
