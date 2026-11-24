@@ -72,11 +72,14 @@ function renderApprovals() {
    ============================================= */
 
 let approvalViewer = null;
+let approvalViewerIndex = -1;
 
 function destroyApprovalViewer() {
+    if (window.closeThreeFullscreen) window.closeThreeFullscreen();
     if (!approvalViewer) return;
     try { approvalViewer.destroy(); } catch (e) { /* non-fatal */ }
     approvalViewer = null;
+    approvalViewerIndex = -1;
 }
 
 function approvalColors(cfg = {}) {
@@ -134,6 +137,7 @@ window.showApprovalThree = async function (idx) {
             autoRotate: true,
             onAutoRotateChange: (rotating) => updateApprovalPlayBtn(idx, rotating),
         });
+        approvalViewerIndex = idx;
         updateApprovalPlayBtn(idx, approvalViewer.isAutoRotating());
     } catch (e) {
         console.error('[approvals] 3D viewer failed:', e);
@@ -144,6 +148,21 @@ window.showApprovalThree = async function (idx) {
 window.toggleApprovalRotation = function (idx) {
     if (!approvalViewer) return;
     updateApprovalPlayBtn(idx, approvalViewer.toggleAutoRotate());
+};
+
+window.openApprovalThreeFullscreen = async function (idx) {
+    if (!approvalViewer || approvalViewerIndex !== idx) {
+        await window.showApprovalThree(idx);
+    }
+    if (!approvalViewer) return;
+    const mount = document.getElementById(`approvalThree-${idx}`);
+    if (!mount) return;
+    const cfg = allApprovals[idx]?.data?.customConfig || {};
+    window.openThreeFullscreen({
+        viewer: approvalViewer,
+        mount,
+        title: (cfg.boatName || 'Custom Boat') + ' — 3D Preview',
+    });
 };
 
 function renderScheduleCard(a, idx) {
@@ -264,10 +283,15 @@ function renderScheduleCard(a, idx) {
                         style="padding:6px 12px;border:1px solid #a855f7;border-radius:7px;background:#faf5ff;color:#6b21a8;font:600 11px Poppins,sans-serif;cursor:pointer;">
                         <i class="fas fa-cube"></i> 3D View
                     </button>
+                    <button type="button" onclick="openApprovalThreeFullscreen(${idx})"
+                        style="padding:6px 12px;border:1px solid #a855f7;border-radius:7px;background:#faf5ff;color:#6b21a8;font:600 11px Poppins,sans-serif;cursor:pointer;">
+                        <i class="fas fa-expand"></i> Fullscreen
+                    </button>
                 </div>
                 <div style="position:relative;min-height:260px;border-radius:10px;border:1px solid #d8b4fe;overflow:hidden;background:#eef3f8;display:flex;align-items:center;justify-content:center;">
                     ${customConfig.boatPreviewImage ? `
                     <img id="approvalPreview-${idx}" src="${customConfig.boatPreviewImage}" alt="Custom Boat Preview"
+                         onerror="boatImageOnError(this)"
                          style="max-width:100%;max-height:280px;object-fit:contain;" />` : `
                     <span id="approvalPreview-${idx}" style="font-size:12px;color:#64748b;">No saved photo - use 3D view</span>`}
                     <div id="approvalThree-${idx}" style="display:none;position:absolute;inset:0;"></div>

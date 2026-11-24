@@ -255,6 +255,15 @@ function renderLiveProjects() {
     container.innerHTML = html || '<div style="padding:30px;text-align:center;color:#94a3b8;">No orders found.</div>';
 }
 
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function renderProjectRow(o) {
     const progress = o.progress || 0;
     const stage = getBuildStage(progress, o.status, o);
@@ -262,7 +271,7 @@ function renderProjectRow(o) {
     return `
     <div class="project-row">
         <div class="project-info">
-            <img src="${o.buildType === 'custom' && o.customConfig?.boatPreviewImage ? o.customConfig.boatPreviewImage : (o.boatImage || './images/boat1.jpg')}">
+            <img src="${escapeHtml(window.boatImageFor(o))}" onerror="boatImageOnError(this)">
             <div>
                 <h3>${o.boatName || 'Boat'}</h3>
                 <p>Client: ${o.customerName || 'Unknown'} ${o.buildType === 'custom' ? '<span class="custom-badge">Custom</span>' : ''}</p>
@@ -285,6 +294,7 @@ function renderProjectRow(o) {
    ============================================= */
 
 window.showOrderInfo = function (orderId) {
+    destroyDashViewer();
     const order = allOrders.find(o => o.orderId === orderId);
     if (!order) return alert('Order not found.');
 
@@ -311,7 +321,7 @@ window.showOrderInfo = function (orderId) {
 
     document.getElementById('orderInfoBody').innerHTML = `
         <div class="modal-header">
-            <img src="${order.boatImage || './images/boat1.jpg'}" alt="Boat">
+            <img src="${escapeHtml(window.boatImageFor(order))}" alt="Boat" onerror="boatImageOnError(this)">
             <div>
                 <h2>${order.boatName || 'Boat'}</h2>
                 <p>Order ID: ${order.orderId}</p>
@@ -354,11 +364,16 @@ window.showOrderInfo = function (orderId) {
                     style="padding:7px 14px;border:1px solid #a855f7;border-radius:8px;background:#faf5ff;color:#6b21a8;font:600 12px Poppins,sans-serif;cursor:pointer;">
                     <i class="fa-solid fa-cube"></i> 3D View
                 </button>
+                <button type="button" onclick="openDashThreeFullscreen('${order.orderId}')"
+                    style="padding:7px 14px;border:1px solid #a855f7;border-radius:8px;background:#faf5ff;color:#6b21a8;font:600 12px Poppins,sans-serif;cursor:pointer;">
+                    <i class="fa-solid fa-expand"></i> Fullscreen
+                </button>
             </div>
             <div id="customBoatStage"
                 style="position:relative;min-height:280px;border-radius:12px;border:2px solid #d8b4fe;overflow:hidden;background:#eef3f8;display:flex;align-items:center;justify-content:center;">
                 ${order.customConfig.boatPreviewImage ? `
                 <img id="customPreviewImg" src="${order.customConfig.boatPreviewImage}" alt="Custom Boat Preview"
+                     onerror="boatImageOnError(this)"
                      style="max-width:100%;max-height:280px;object-fit:contain;cursor:pointer;"
                      onclick="window.open('${order.customConfig.boatPreviewImage}', '_blank')" />` : `
                 <span id="customPreviewImg" style="font-size:13px;color:#64748b;">No saved preview</span>`}
@@ -438,6 +453,7 @@ function updateDashPlayBtn(rotating) {
 }
 
 function destroyDashViewer() {
+    if (window.closeThreeFullscreen) window.closeThreeFullscreen();
     if (!dashBoatViewer) return;
     try { dashBoatViewer.destroy(); } catch (e) { /* non-fatal */ }
     dashBoatViewer = null;
@@ -487,6 +503,19 @@ window.showCustomThree = async function (orderId) {
 window.toggleDashRotation = function () {
     if (!dashBoatViewer) return;
     updateDashPlayBtn(dashBoatViewer.toggleAutoRotate());
+};
+
+window.openDashThreeFullscreen = async function (orderId) {
+    if (!dashBoatViewer) await window.showCustomThree(orderId);
+    if (!dashBoatViewer) return;
+    const mount = document.getElementById('customThreeMount');
+    if (!mount) return;
+    const order = allOrders.find(o => o.orderId === orderId);
+    window.openThreeFullscreen({
+        viewer: dashBoatViewer,
+        mount,
+        title: (order?.boatName || 'Custom Boat') + ' — 3D Preview',
+    });
 };
 
 /* =============================================
@@ -539,7 +568,11 @@ window.showPaymentInfo = function (paymentId) {
 
     document.getElementById('paymentInfoBody').innerHTML = `
         <div class="modal-header">
-            <img src="${order?.buildType === 'custom' && order?.customConfig?.boatPreviewImage ? order.customConfig.boatPreviewImage : (order?.boatImage || payment.boatImage || './images/boat1.jpg')}" alt="Boat">
+            <img src="${escapeHtml(window.boatImageFor({
+                customConfig: order?.customConfig || payment.customConfig,
+                boatImage: order?.boatImage || payment.boatImage,
+                boatName: order?.boatName || payment.boatName
+            }))}" alt="Boat" onerror="boatImageOnError(this)">
             <div>
                 <h2>${order?.boatName || payment.boatName || 'Boat'}</h2>
                 <p>Payment by: ${payment.customerName || 'Unknown'}</p>

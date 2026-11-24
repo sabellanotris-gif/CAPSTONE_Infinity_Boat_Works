@@ -20,6 +20,15 @@ function cleanPrice(val) {
     return parseFloat(String(val || '0').replace(/[₱,$\s]/g, '')) || 0;
 }
 
+function escapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 async function fetchLiveData() {
     let orders = [], payments = [];
 
@@ -132,7 +141,7 @@ function renderTransactions(orders, payments) {
     const p = cleanPrice(o.boatPrice || o.price);
     if (p > 0) {
       all.push({
-        img: o.boatImage || './images/boat1.jpg',
+        img: window.boatImageFor(o),
         boat: o.boatName || 'Boat',
         customer: o.customerName || o.name || 'Unknown',
         price: '₱' + p.toLocaleString(),
@@ -145,9 +154,14 @@ function renderTransactions(orders, payments) {
   payments.forEach(p => {
     const amt = cleanPrice(p.amountPaid || p.amount);
     if (amt > 0) {
+      const linkedOrder = orders.find(o => String(o.orderId) === String(p.orderId) || String(o.id) === String(p.orderId));
       all.push({
-        img: p.boatImage || './images/boat1.jpg',
-        boat: p.boatName || 'Payment',
+        img: window.boatImageFor({
+          customConfig: p.customConfig || linkedOrder?.customConfig,
+          boatImage: p.boatImage || linkedOrder?.boatImage,
+          boatName: p.boatName || linkedOrder?.boatName
+        }),
+        boat: p.boatName || linkedOrder?.boatName || 'Payment',
         customer: p.customerName || 'Unknown',
         price: '₱' + amt.toLocaleString(),
         status: p.status === 'Approved' ? 'Paid' : (p.status === 'Pending' ? 'Pending' : p.status || 'Pending'),
@@ -167,10 +181,10 @@ function renderTransactions(orders, payments) {
 
   container.innerHTML = recent.map(t => `
     <div class="transaction-item">
-      <img src="${t.img}">
+      <img src="${escapeHtml(t.img)}" onerror="boatImageOnError(this)">
       <div class="transaction-info">
-        <h4>${t.boat}</h4>
-        <p>${t.customer}</p>
+        <h4>${escapeHtml(t.boat)}</h4>
+        <p>${escapeHtml(t.customer)}</p>
       </div>
       <div class="transaction-price">${t.price}</div>
       <span class="${t.statusClass}">${t.status}</span>
