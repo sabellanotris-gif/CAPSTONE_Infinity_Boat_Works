@@ -192,7 +192,7 @@ body.minimal-mode .dashboard-card[data-card-id="recentPayments"] {
   display: none;
 }
 
-body.minimal-mode .dashboard-grid.primary-grid {
+body.minimal-mode .dashboard-masonry.primary-grid {
   grid-template-columns: 1fr;
 }
 
@@ -250,9 +250,22 @@ body.minimal-mode .analytics-card p {
   }
 }
 
-/* Per-card collapse: keep the header, hide everything below it */
-.dashboard-card.collapsed > *:not(.card-header) {
-  display: none;
+/* Per-card collapse: smooth, independent expand/collapse */
+.dashboard-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-content: start;
+  transition: grid-template-rows 0.25s ease, padding 0.25s ease;
+}
+
+.dashboard-card.collapsed {
+  grid-template-rows: auto 0fr;
+  padding-bottom: 0;
+}
+
+.card-collapse-body {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .dashboard-card.collapsed .card-header {
@@ -624,6 +637,34 @@ body.minimal-mode .analytics-card p {
   grid-template-columns: 1.8fr 1fr;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+/* Masonry-style dashboard: each column stacks and sizes itself independently.
+   Expanding one card never stretches or adds space to another card. */
+.dashboard-masonry {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 8px;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.dashboard-masonry--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dash-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-masonry,
+  .dashboard-masonry--three {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-card {
@@ -1604,78 +1645,6 @@ body.dash-manager {
   min-height: 0;
 }
 
-/* Stable card geometry — expanding content scrolls inside; neighbours never move. */
-.dash-admin .dashboard-card,
-.dash-manager .dashboard-card {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.dash-admin .dashboard-card > :not(.card-header),
-.dash-manager .dashboard-card > :not(.card-header) {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
-.dash-admin [data-card-id="liveProjects"],
-.dash-admin [data-card-id="recentPayments"] {
-  height: 340px;
-}
-
-.dash-admin [data-card-id="inventoryAlerts"],
-.dash-admin [data-card-id="analyticsOverview"] {
-  height: 480px;
-}
-
-.dash-admin [data-card-id="upcomingMilestones"],
-.dash-admin [data-card-id="overdueTasks"],
-.dash-admin [data-card-id="projectsByPhase"] {
-  height: 220px;
-}
-
-.dash-manager .manager-recent-card {
-  height: 300px;
-}
-
-/* Collapsed cards keep their exact height so neighbours never shift. */
-.dash-admin .dashboard-card.collapsed::after,
-.dash-manager .dashboard-card.collapsed::after {
-  content: "Collapsed — use the chevron to expand";
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 4px;
-  border-radius: 10px;
-  background: #fafbfd;
-  color: var(--dash-muted);
-  font-size: 13px;
-}
-
-@media (max-width: 900px) {
-  .dash-admin [data-card-id="liveProjects"],
-  .dash-admin [data-card-id="recentPayments"] {
-    height: 300px;
-  }
-  .dash-admin [data-card-id="inventoryAlerts"],
-  .dash-admin [data-card-id="analyticsOverview"] {
-    height: 400px;
-  }
-  .dash-admin [data-card-id="upcomingMilestones"],
-  .dash-admin [data-card-id="overdueTasks"],
-  .dash-admin [data-card-id="projectsByPhase"] {
-    height: 200px;
-  }
-  .dash-manager .manager-recent-card {
-    height: 280px;
-  }
-}
-
 .dash-admin a:focus-visible,
 .dash-admin button:focus-visible,
 .dash-manager a:focus-visible,
@@ -1688,7 +1657,8 @@ body.dash-manager {
   .analytics-card,
   .quick-actions .quick-action-btn,
   .card-header .card-link,
-  .accordion-body {
+  .accordion-body,
+  .dashboard-card {
     transition: none !important;
   }
   .analytics-card:hover,
