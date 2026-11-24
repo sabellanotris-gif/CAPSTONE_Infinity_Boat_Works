@@ -1642,10 +1642,19 @@ body.dash-manager {
   height: 300px;
 }
 
-/* A fully collapsed card shrinks to its header — no leftover blank surface. */
-.dash-admin .dashboard-card.collapsed,
-.dash-manager .dashboard-card.collapsed {
-  height: auto;
+/* Collapsed cards keep their exact height so neighbours never shift. */
+.dash-admin .dashboard-card.collapsed::after,
+.dash-manager .dashboard-card.collapsed::after {
+  content: "Collapsed — use the chevron to expand";
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  border-radius: 10px;
+  background: #fafbfd;
+  color: var(--dash-muted);
+  font-size: 13px;
 }
 
 @media (max-width: 900px) {
