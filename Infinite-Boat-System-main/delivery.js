@@ -281,6 +281,13 @@ function render() {
   document.getElementById("statDelivered").textContent = stats.delivered;
   document.getElementById("statOverdue").textContent = stats.overdue;
 
+  if (window.NavBadges) {
+    window.NavBadges.report("delivery", allOrders, {
+      source: "delivery",
+      idOf: function (order) { return "delivery:" + (order.orderId || JSON.stringify(order)); }
+    });
+  }
+
   const board = document.getElementById("ddBoard");
   const empty = document.getElementById("ddEmpty");
   const allView = document.getElementById("ddAllView");

@@ -114,6 +114,13 @@ async function renderInventory() {
   if (equipmentEl) equipmentEl.textContent = equip.length;
   if (inventoryValueEl) inventoryValueEl.textContent = '₱' + (totalValue / 1000000).toFixed(1) + 'M';
 
+  if (window.NavBadges) {
+    window.NavBadges.report("inventory", items, {
+      source: "inventory",
+      idOf: function (item) { return "inventory:" + (item.id || JSON.stringify(item)); }
+    });
+  }
+
   const CUSTOMIZATION_CATEGORIES = ['Engine', 'Seats', 'LED', 'Color'];
   tbody.innerHTML = items.map((item) => {
     const stock = item.stock || 0;

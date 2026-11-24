@@ -783,6 +783,13 @@ function updateSummary() {
     if (pendingOrders) pendingOrders.innerText = orders.filter(o => o.status === 'Pending' || o.status === 'Pending Signing').length;
     if (approvedOrders) approvedOrders.innerText = orders.filter(o => o.status === 'Approved').length;
     if (completedOrders) completedOrders.innerText = orders.filter(o => o.status === 'Completed').length;
+
+    if (window.NavBadges) {
+        window.NavBadges.report("orders-list", orders, {
+            source: "orders",
+            idOf: function (order) { return "order:" + (order.orderId || JSON.stringify(order)); }
+        });
+    }
 }
 
 function getActiveFilter() {

@@ -2476,6 +2476,12 @@ window.submitCreateWorker = async function() { return; };
         "Load orders"
     );
     orders = (result && !result.error ? result.data : []) || [];
+    if (window.NavBadges) {
+      window.NavBadges.report("boat-progress", orders, {
+        source: "progress-orders",
+        idOf: function (order) { return "progress:" + (order.orderId || JSON.stringify(order)); }
+      });
+    }
     populateSelect();
     await populateWorkerSelect();
     await renderMasterWorkers();

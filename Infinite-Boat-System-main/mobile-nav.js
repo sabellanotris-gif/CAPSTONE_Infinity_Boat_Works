@@ -145,6 +145,20 @@
     return el.getAttribute("href") || "";
   }
 
+  function sourceKey(el) {
+    if (!el) return "";
+    if (window.NavBadges && typeof window.NavBadges.keyForElement === "function") {
+      return window.NavBadges.keyForElement(el) || "";
+    }
+    return el.getAttribute("data-nav-key") || "";
+  }
+
+  function keyAttrs(el) {
+    var key = sourceKey(el);
+    if (!key) return "";
+    return ' data-nav-key="' + escapeHtml(key) + '"';
+  }
+
   function collectSources() {
     var sidebar = Array.prototype.slice.call(document.querySelectorAll(".sidebar-menu a"));
     var header = Array.prototype.slice.call(document.querySelectorAll("header nav a, .main-header nav a"));
@@ -319,6 +333,7 @@
     var active = isActiveSource(source) ? " is-active" : "";
     return (
       '<button type="button" class="mobile-tab' + active + '" data-mobile-index="' + index + '"' +
+      keyAttrs(source) +
       ' aria-label="' + escapeHtml(label) + '">' +
         '<span class="mobile-tab-icon" aria-hidden="true"><i class="fa-solid ' + icon + '"></i></span>' +
         '<span class="mobile-tab-label">' + escapeHtml(label) + '</span>' +
@@ -330,7 +345,8 @@
     var label = sourceLabel(source);
     var icon = sourceIcon(source);
     return (
-      '<button type="button" class="mobile-sheet-item" data-mobile-index="' + index + '">' +
+      '<button type="button" class="mobile-sheet-item" data-mobile-index="' + index + '"' +
+      keyAttrs(source) + '>' +
         '<span class="mobile-sheet-icon" aria-hidden="true"><i class="fa-solid ' + icon + '"></i></span>' +
         '<span class="mobile-sheet-label">' + escapeHtml(label) + '</span>' +
         '<i class="fa-solid fa-chevron-right mobile-sheet-chevron" aria-hidden="true"></i>' +
@@ -358,8 +374,16 @@
       html += tabHtml(collected.primary[i], i, label);
     }
 
+    var moreKeys = [];
+    for (var k = 0; k < collected.more.length; k += 1) {
+      var moreKey = sourceKey(collected.more[k]);
+      if (moreKey && moreKeys.indexOf(moreKey) === -1) moreKeys.push(moreKey);
+    }
+
     html +=
-      '<button type="button" class="mobile-tab mobile-tab-more" data-mobile-more aria-expanded="false" aria-controls="mobileSheet">' +
+      '<button type="button" class="mobile-tab mobile-tab-more" data-mobile-more' +
+      (moreKeys.length ? ' data-nav-keys="' + escapeHtml(moreKeys.join(" ")) + '"' : "") +
+      ' aria-expanded="false" aria-controls="mobileSheet">' +
         '<span class="mobile-tab-icon" aria-hidden="true"><i class="fa-solid fa-ellipsis"></i></span>' +
         '<span class="mobile-tab-label">More</span>' +
       '</button>';
@@ -379,7 +403,7 @@
 
   function signatureOf(collected) {
     return collected.primary.concat(collected.more).map(function (el) {
-      return sourceLabel(el) + "|" + sourceHref(el) + "|" + (isActiveSource(el) ? "1" : "0");
+      return sourceLabel(el) + "|" + sourceHref(el) + "|" + sourceKey(el) + "|" + (isActiveSource(el) ? "1" : "0");
     }).join(";;");
   }
 

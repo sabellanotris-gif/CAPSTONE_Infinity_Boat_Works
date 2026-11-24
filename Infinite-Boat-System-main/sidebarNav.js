@@ -21,35 +21,35 @@
 
   /* adminOnly entries are removed entirely for non-admin roles. */
   var NAV = [
-    { label: "Dashboard", href: "dashboard.html", managerHref: "manager.html" },
+    { key: "dashboard", label: "Dashboard", href: "dashboard.html", managerHref: "manager.html" },
     {
       key: "sales",
       label: "Sales & Finance",
       children: [
-        { label: "Sales Report", href: "dashsales.html" },
-        { label: "Payments", href: "dashpayment.html", adminOnly: true },
-        { label: "Analytics", href: "dashanalytics.html" }
+        { key: "sales-report", label: "Sales Report", href: "dashsales.html" },
+        { key: "payments", label: "Payments", href: "dashpayment.html", adminOnly: true },
+        { key: "analytics", label: "Analytics", href: "dashanalytics.html" }
       ]
     },
     {
       key: "orders",
       label: "Orders & Customers",
       children: [
-        { label: "Orders", href: "dashorder.html" },
-        { label: "Customers", href: "dashcustomer.html", adminOnly: true }
+        { key: "orders-list", label: "Orders", href: "dashorder.html" },
+        { key: "customers", label: "Customers", href: "dashcustomer.html", adminOnly: true }
       ]
     },
     {
       key: "production",
       label: "Production",
       children: [
-        { label: "Boat Progress", href: "dashprogress.html" },
-        { label: "Workers", href: "dashworkers.html" },
-        { label: "Delivery", href: "delivery.html" },
-        { label: "Inventory", href: "dashinventory.html", adminOnly: true }
+        { key: "boat-progress", label: "Boat Progress", href: "dashprogress.html" },
+        { key: "workers", label: "Workers", href: "dashworkers.html" },
+        { key: "delivery", label: "Delivery", href: "delivery.html" },
+        { key: "inventory", label: "Inventory", href: "dashinventory.html", adminOnly: true }
       ]
     },
-    { label: "Approvals", href: "dashapproval.html", adminOnly: true },
+    { key: "approvals", label: "Approvals", href: "dashapproval.html", adminOnly: true },
 
   ];
 
@@ -108,14 +108,20 @@
       if (!item.children) {
         if (item.adminOnly && !isAdmin) return null;
         var href = hrefFor(item, role);
-        return { label: item.label, href: href, active: isActive(href) };
+        return { label: item.label, href: href, active: isActive(href), key: item.key || "" };
       }
 
       var kids = item.children
         .filter(function (child) { return isAdmin || !child.adminOnly; })
         .map(function (child) {
           var childHref = hrefFor(child, role);
-          return { label: child.label, href: childHref, active: isActive(childHref) };
+          return {
+            label: child.label,
+            href: childHref,
+            active: isActive(childHref),
+            key: child.key || "",
+            parent: item.key || ""
+          };
         });
 
       if (kids.length === 0) return null;
@@ -160,7 +166,10 @@
      RENDER
      ========================================= */
   function linkHtml(item) {
-    return '<a href="' + item.href + '"' + (item.active ? ' class="active"' : "") + ">" + item.label + "</a>";
+    var attrs = "";
+    if (item.key) attrs += ' data-nav-key="' + item.key + '"';
+    if (item.parent) attrs += ' data-nav-parent="' + item.parent + '"';
+    return '<a href="' + item.href + '"' + attrs + (item.active ? ' class="active"' : "") + ">" + item.label + "</a>";
   }
 
   function nodeHtml(node, state) {
@@ -169,10 +178,12 @@
     var open = isGroupOpen(node, state);
     var classes = "nav-group" + (open ? "" : " collapsed") + (node.current ? " is-current" : "");
     var kids = node.children.map(linkHtml).join("");
+    var childKeys = node.children.map(function (child) { return child.key; }).filter(Boolean).join(" ");
 
     return (
       '<div class="' + classes + '">' +
       '<button type="button" class="nav-group-btn" data-nav-key="' + node.key + '"' +
+      (childKeys ? ' data-nav-keys="' + childKeys + '"' : "") +
       ' aria-expanded="' + (open ? "true" : "false") + '">' + node.label + "</button>" +
       '<div class="nav-sub">' + kids + "</div>" +
       "</div>"

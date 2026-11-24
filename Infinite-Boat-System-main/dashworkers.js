@@ -497,6 +497,13 @@ function updateRegStats() {
   document.getElementById('regRejectedCount').textContent = rejected;
   var badge = document.getElementById('pendingBadge');
   if (pending > 0) { badge.textContent = pending; badge.style.display = 'inline-block'; } else { badge.style.display = 'none'; }
+
+  if (window.NavBadges) {
+    window.NavBadges.report("workers", allRegistrations.filter(function (r) { return r.status === 'pending'; }), {
+      source: "registrations",
+      idOf: function (r) { return "registration:" + (r.id || JSON.stringify(r)); }
+    });
+  }
 }
 function renderRegistrations(regs) {
   var grid = document.getElementById('registrationsGrid');

@@ -305,6 +305,12 @@ document.getElementById('confirmDeleteBtn').addEventListener('click', async () =
 async function load() {
   const { profiles, orders, payments } = await fetchAll();
   allCustomers = buildCustomers(profiles, orders, payments);
+  if (window.NavBadges) {
+    window.NavBadges.report("customers", allCustomers, {
+      source: "customers",
+      idOf: function (c) { return "customer:" + (c.email || (c.profile && c.profile.id) || JSON.stringify(c)); }
+    });
+  }
   render();
 }
 const searchEl = document.getElementById('searchInput');

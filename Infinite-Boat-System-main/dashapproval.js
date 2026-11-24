@@ -42,6 +42,13 @@ function updateFilterCounts() {
     if (schedBtn) schedBtn.innerHTML = `<i class="fas fa-calendar-check"></i> Schedule (${scheduleCount})`;
     if (payBtn) payBtn.innerHTML = `<i class="fas fa-credit-card"></i> Payment (${paymentCount})`;
     if (allBtn) allBtn.innerHTML = `All Pending (${scheduleCount + paymentCount})`;
+
+    if (window.NavBadges) {
+        window.NavBadges.report("approvals", allApprovals, {
+            source: "approvals",
+            idOf: function (item) { return "approval:" + item.type + ":" + (item.id || JSON.stringify(item)); }
+        });
+    }
 }
 
 function renderApprovals() {

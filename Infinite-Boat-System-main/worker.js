@@ -129,6 +129,12 @@ async function loadAssignments() {
       headers: { Authorization: "Bearer " + token }
     });
     assignments = await res.json();
+    if (window.NavBadges) {
+      window.NavBadges.report("assignments", assignments, {
+        source: "assignments",
+        idOf: function (a) { return "assignment:" + (a.id || a.assignmentId || a.orderId || JSON.stringify(a)); }
+      });
+    }
     updateStats();
     renderAssignments();
   } catch (err) {

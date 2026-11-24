@@ -860,6 +860,12 @@ function renderAdminNotifications(notes) {
         seen.add(key);
         return true;
     }).slice(0, 20);
+    if (window.NavBadges) {
+        window.NavBadges.syncItems("notifications", localNotes, {
+            source: "dashboard-local",
+            idOf: n => "local:" + (n.id || (n.msg + "|" + n.time))
+        });
+    }
     renderAdminNotifications(merged);
 })();
 
