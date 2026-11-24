@@ -1503,8 +1503,27 @@ body.dash-manager {
   font-size: 13px;
 }
 
+/* Tighter section rhythm — removes the oversized gaps without touching content. */
+.dash-admin .topbar,
+.dash-manager .topbar,
+.dash-admin .quick-actions,
+.dash-manager .quick-actions,
+.dash-admin .analytics-section,
+.dash-manager .analytics-section,
+.dash-admin .dashboard-grid,
+.dash-manager .dashboard-grid {
+  margin-bottom: 8px;
+}
+
+.dash-admin .analytics-section,
+.dash-manager .analytics-section,
+.dash-admin .dashboard-grid,
+.dash-manager .dashboard-grid {
+  gap: 8px;
+}
+
 .manager-recent-card {
-  margin-top: 14px;
+  margin-top: 8px;
 }
 
 .dash-admin a:focus-visible,
