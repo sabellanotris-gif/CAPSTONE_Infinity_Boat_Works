@@ -71,20 +71,21 @@ window.handleLogout = async function () {
   const recent = orders.slice(0, 6);
   const list = document.getElementById("recentOrders");
   if (recent.length === 0) {
-    list.innerHTML = '<div style="padding:28px;text-align:center;color:#94a3b8;font-size:14px;">No boat projects yet.</div>';
+    list.innerHTML = '<div class="dash-empty">No boat projects yet.</div>';
     return;
   }
 
   list.innerHTML = recent.map(o => {
-    const statusColor = o.status === "Completed" ? "#22c55e"
-      : o.status === "Rejected" || o.status === "Cancelled" ? "#ef4444"
-      : o.status === "Approved" || o.status === "In Progress" ? "#2563eb" : "#f59e0b";
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e2e8f0;">' +
-      '<div>' +
-        '<strong style="font-size:14px;color:#0f172a;">' + esc(o.boatName) + '</strong>' +
-        '<div style="font-size:12px;color:#64748b;">' + esc(o.customerName || "Unknown") + ' · ' + (o.progress || 0) + '% complete</div>' +
+    const statusClass = String(o.status || "pending")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "pending";
+    return '<div class="dash-row">' +
+      '<div class="dash-row-main">' +
+        '<strong class="dash-row-title">' + esc(o.boatName) + '</strong>' +
+        '<div class="dash-row-meta">' + esc(o.customerName || "Unknown") + ' · ' + (o.progress || 0) + '% complete</div>' +
       '</div>' +
-      '<span style="font-size:11px;font-weight:600;color:' + statusColor + ';background:' + statusColor + '1a;padding:4px 10px;border-radius:999px;white-space:nowrap;">' + esc(o.status) + '</span>' +
+      '<span class="dash-status dash-status--' + statusClass + '">' + esc(o.status) + '</span>' +
     '</div>';
   }).join("");
 })();

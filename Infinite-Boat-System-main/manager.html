@@ -24,7 +24,7 @@
 
 </head>
 
-<body>
+<body class="dash-manager">
 
 <script>
 window.onpageshow = function(e) {
@@ -76,13 +76,13 @@ window.onpageshow = function(e) {
 
     <section class="quick-actions">
         <a href="dashorder.html" style="text-decoration:none;color:inherit;">
-            <button><i class="fa-solid fa-list-check"></i> View Orders</button>
+            <button class="quick-action-btn"><i class="fa-solid fa-list-check"></i> View Orders</button>
         </a>
         <a href="dashprogress.html" style="text-decoration:none;color:inherit;">
-            <button><i class="fa-solid fa-ship"></i> Manage Progress</button>
+            <button class="quick-action-btn"><i class="fa-solid fa-ship"></i> Manage Progress</button>
         </a>
         <a href="dashprogress.html" style="text-decoration:none;color:inherit;">
-            <button><i class="fa-solid fa-users"></i> Create Team</button>
+            <button class="quick-action-btn"><i class="fa-solid fa-users"></i> Create Team</button>
         </a>
     </section>
 
@@ -94,8 +94,8 @@ window.onpageshow = function(e) {
                     <h2 id="statActive">0</h2>
                 </div>
             </div>
-            <h3>Active Projects</h3>
-            <p>In construction</p>
+            <h3 class="kpi-label">Active Projects</h3>
+            <p class="kpi-sub">In construction</p>
         </div>
 
         <div class="analytics-card">
@@ -104,8 +104,8 @@ window.onpageshow = function(e) {
                     <h2 id="statCompleted">0</h2>
                 </div>
             </div>
-            <h3>Completed</h3>
-            <p>Ready for delivery</p>
+            <h3 class="kpi-label">Completed</h3>
+            <p class="kpi-sub">Ready for delivery</p>
         </div>
 
         <div class="analytics-card">
@@ -114,18 +114,18 @@ window.onpageshow = function(e) {
                     <h2 id="statPending">0</h2>
                 </div>
             </div>
-            <h3>Awaiting Approval</h3>
-            <p>Pending orders</p>
+            <h3 class="kpi-label">Awaiting Approval</h3>
+            <p class="kpi-sub">Pending orders</p>
         </div>
 
     </section>
 
-    <section style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);margin-top:24px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:16px;"><i class="fa-solid fa-ship"></i> Recent Boat Projects</h3>
-            <a href="dashorder.html" style="font-size:13px;color:#2563eb;text-decoration:none;">View all →</a>
+    <section class="dashboard-card manager-recent-card">
+        <div class="card-header">
+            <h2><i class="fa-solid fa-ship"></i> Recent Boat Projects</h2>
+            <a class="card-link" href="dashorder.html">View all →</a>
         </div>
-        <div id="recentOrders"></div>
+        <div id="recentOrders" class="dash-rows"></div>
     </section>
 
 </main>

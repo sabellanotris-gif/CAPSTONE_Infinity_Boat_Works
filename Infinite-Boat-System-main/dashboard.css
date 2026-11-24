@@ -1298,3 +1298,231 @@ body.minimal-mode .analytics-card p {
     padding: 16px;
   }
 }
+
+/* =========================================
+   DASHBOARD VISUAL POLISH
+   Shared surface language for admin + manager.
+   Frontend-only: no data, route, or handler changes.
+   ========================================= */
+:root {
+  --dash-accent: #295dff;
+  --dash-accent-soft: #e8efff;
+  --dash-ink: #071b47;
+  --dash-muted: #64748b;
+  --dash-surface: #ffffff;
+  --dash-line: #e7edf7;
+  --dash-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+body.dash-manager {
+  --dash-accent: #0f9d76;
+  --dash-accent-soft: #e6f7f1;
+  --dash-ink: #123b34;
+}
+
+.dash-manager .topbar h1 span {
+  color: var(--dash-accent);
+}
+
+.dash-admin .analytics-card,
+.dash-manager .analytics-card,
+.dash-admin .dashboard-card,
+.dash-manager .dashboard-card {
+  border: 1px solid var(--dash-line);
+  box-shadow: var(--dash-shadow);
+}
+
+.analytics-card {
+  padding: 18px 14px;
+}
+
+.analytics-card:hover {
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.10);
+}
+
+.circle {
+  width: 76px;
+  height: 76px;
+}
+
+.circle::before {
+  width: 54px;
+  height: 54px;
+}
+
+.circle h2 {
+  font-size: 18px;
+}
+
+.analytics-card .kpi-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dash-ink);
+  margin-bottom: 2px;
+}
+
+.analytics-card .kpi-sub {
+  font-size: 12px;
+  color: var(--dash-muted);
+}
+
+.quick-actions .quick-action-btn {
+  border: 1px solid var(--dash-line);
+  border-radius: 14px;
+  padding: 9px 16px;
+  background: var(--dash-surface);
+  color: var(--dash-ink);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--dash-shadow);
+}
+
+.quick-actions .quick-action-btn i {
+  color: var(--dash-accent);
+}
+
+.quick-actions .quick-action-btn:hover,
+.quick-actions .quick-action-btn:focus-visible {
+  background: var(--dash-accent);
+  border-color: var(--dash-accent);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.quick-actions .quick-action-btn:hover i,
+.quick-actions .quick-action-btn:focus-visible i {
+  color: #fff;
+}
+
+.card-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-header h2 i {
+  color: var(--dash-accent);
+  font-size: 15px;
+}
+
+.card-header .card-link {
+  background: var(--dash-accent-soft);
+  padding: 6px 12px;
+  border-radius: 10px;
+  color: var(--dash-accent);
+  font-size: 13px;
+  font-weight: 600;
+  transition: 0.2s;
+}
+
+.card-header .card-link:hover,
+.card-header .card-link:focus-visible {
+  background: var(--dash-accent);
+  color: #fff;
+}
+
+.dash-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--dash-line);
+}
+
+.dash-row:last-child {
+  border-bottom: 0;
+}
+
+.dash-row-main {
+  min-width: 0;
+}
+
+.dash-row-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dash-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-row-meta {
+  display: block;
+  font-size: 12px;
+  color: var(--dash-muted);
+  margin-top: 2px;
+}
+
+.dash-status {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.dash-status--completed {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.dash-status--approved,
+.dash-status--in-progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.dash-status--pending,
+.dash-status--under-review,
+.dash-status--pending-signing,
+.dash-status--revision-required {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.dash-status--cancelled,
+.dash-status--rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.dash-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--dash-muted);
+  font-size: 13px;
+}
+
+.manager-recent-card {
+  margin-top: 14px;
+}
+
+.dash-admin a:focus-visible,
+.dash-admin button:focus-visible,
+.dash-manager a:focus-visible,
+.dash-manager button:focus-visible {
+  outline: 2px solid var(--dash-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analytics-card,
+  .quick-actions .quick-action-btn,
+  .card-header .card-link {
+    transition: none !important;
+  }
+  .analytics-card:hover,
+  .quick-actions .quick-action-btn:hover {
+    transform: none !important;
+  }
+}
