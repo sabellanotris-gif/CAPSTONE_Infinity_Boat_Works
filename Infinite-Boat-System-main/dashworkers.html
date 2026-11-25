@@ -32,7 +32,10 @@
             <h1>Workers</h1>
             <p class="lg-sub">Your team roster — every hand on deck, every skill on the yard.</p>
         </div>
-        <button class="btn-primary btn-lg" id="registerNewWorkerBtn"><i class="fa-solid fa-user-plus"></i> Register New Worker</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn-primary btn-lg" id="releaseAllWorkersBtn" style="display:none;background:#f59e0b;border-color:#f59e0b;"><i class="fa-solid fa-user-clock"></i> Release All Workers</button>
+            <button class="btn-primary btn-lg" id="registerNewWorkerBtn"><i class="fa-solid fa-user-plus"></i> Register New Worker</button>
+        </div>
     </div>
 
     <div class="stats-grid">
@@ -285,6 +288,20 @@
         <div class="modal-actions">
             <button class="qa-btn ghost" onclick="closeWorkerModal('deleteModal')">Cancel</button>
             <button class="qa-btn danger" id="workerDeleteConfirmBtn" disabled><i class="fa-solid fa-trash-can"></i> Delete Forever</button>
+        </div>
+    </div>
+</div>
+
+<!-- TEMPORARY: Evaluation/defense only. Remove after defense. -->
+<div class="view-modal" id="releaseAllModal">
+    <div class="modal-content delete-modal-content">
+        <button class="close-modal" onclick="closeWorkerModal('releaseAllModal')">×</button>
+        <div class="delete-icon"><i class="fa-solid fa-user-clock"></i></div>
+        <h2>Release all workers?</h2>
+        <p class="delete-warn">This will complete <strong>all active worker assignments</strong> across all orders so workers become available again. Use this for evaluation/testing only. <strong>Remove this feature after defense.</strong></p>
+        <div class="modal-actions">
+            <button class="qa-btn ghost" onclick="closeWorkerModal('releaseAllModal')">Cancel</button>
+            <button class="qa-btn danger" id="releaseAllConfirmBtn"><i class="fa-solid fa-user-clock"></i> Release All Workers</button>
         </div>
     </div>
 </div>

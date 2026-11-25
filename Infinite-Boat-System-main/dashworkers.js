@@ -171,6 +171,9 @@ window.togglePassword = function(inputId, btn) {
     document.getElementById('tabRegistrations').style.display = 'none';
     document.querySelector('.ww-tab[data-tab="registrations"]').style.display = 'none';
     document.getElementById('registerNewWorkerBtn').style.display = 'none';
+  } else if (isAdmin()) {
+    const releaseBtn = document.getElementById('releaseAllWorkersBtn');
+    if (releaseBtn) releaseBtn.style.display = '';
   }
 
   await loadWorkers();
@@ -193,6 +196,37 @@ function wireButtons() {
     document.getElementById('registerForm').reset();
     document.getElementById('regSpecialty').value = 'Builder';
     openWorkerModal('registerModal');
+  });
+
+  // TEMPORARY (evaluation/defense): release all active assignments. Remove after defense.
+  var releaseAllBtn = document.getElementById('releaseAllWorkersBtn');
+  if (releaseAllBtn) releaseAllBtn.addEventListener('click', function() {
+    if (!isAdmin()) return;
+    openWorkerModal('releaseAllModal');
+  });
+  var releaseAllConfirmBtn = document.getElementById('releaseAllConfirmBtn');
+  if (releaseAllConfirmBtn) releaseAllConfirmBtn.addEventListener('click', async function() {
+    if (!isAdmin()) return;
+    var btn = document.getElementById('releaseAllConfirmBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Releasing...';
+    try {
+      var token = await getToken();
+      var res = await fetch(API_BASE + '/workers/release-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+      });
+      var body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Unable to release workers');
+      closeWorkerModal('releaseAllModal');
+      showToast('Released ' + (body.releasedAssignments || 0) + ' active assignment(s). ' + (body.reactivatedWorkers || 0) + ' worker(s) reactivated.', 'success');
+      await loadWorkers();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-clock"></i> Release All Workers';
+    }
   });
 
   var regForm = document.getElementById('registerForm');

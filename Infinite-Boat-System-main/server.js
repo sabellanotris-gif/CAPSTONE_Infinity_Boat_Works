@@ -2425,6 +2425,35 @@ app.post("/api/workers/release-phase/:orderId", authenticate, requireAdminOrMana
   }
 });
 
+// TEMPORARY (evaluation/defense): release all active worker assignments for a clean slate.
+// Remove this endpoint after defense.
+app.post("/api/workers/release-all", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    const { data: released, error: relErr } = await adminDb
+      .from("project_workers")
+      .update({ status: "Completed", completedAt: now, updatedAt: now, endDate: now })
+      .eq("status", "Active")
+      .select("id");
+    if (relErr) return res.status(500).json({ error: relErr.message });
+
+    const { data: reactivated, error: actErr } = await adminDb
+      .from("workers")
+      .update({ status: "Active" })
+      .neq("status", "Active")
+      .select("id");
+    if (actErr) return res.status(500).json({ error: actErr.message });
+
+    res.json({
+      released: true,
+      releasedAssignments: (released || []).length,
+      reactivatedWorkers: (reactivated || []).length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete("/api/workers/:id", authenticate, requireAdminOrManager, async (req, res) => {
   try {
     const { error } = await adminDb.from("project_workers").delete().eq("id", req.params.id);
