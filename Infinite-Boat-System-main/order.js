@@ -187,7 +187,7 @@ function showApprovedDesignSummary(order) {
             ${order.customConfig.led ? `<div class="summary-row"><span>LED</span><strong>&#8369;${Number(order.customConfig.led).toLocaleString()}</strong></div>` : ''}
             `}
             <div class="summary-row"><span>Hull Color</span><strong>${order.customConfig.color}</strong></div>
-            ${order.customConfig.boatName ? `<div class="summary-row"><span>Boat Name</span><strong>${order.customConfig.boatName}${Array.isArray(order.customConfig.boatNamePlacements) && order.customConfig.boatNamePlacements.length ? ' (' + order.customConfig.boatNamePlacements.join(', ') + ')' : ''}</strong></div>` : ''}
+            ${order.customConfig.boatName ? `<div class="summary-row"><span>Boat Name</span><strong>${order.customConfig.boatName}${order.customConfig.boatNameSize != null ? ' · ' + order.customConfig.boatNameSize + '% size' : ''}${order.customConfig.boatNamePosition != null ? ' · ' + order.customConfig.boatNamePosition + '% position' : ''}</strong></div>` : ''}
             ${order.customConfig.flagType && order.customConfig.flagType !== 'none' ? `<div class="summary-row"><span>Flag</span><strong>${order.customConfig.flagType === 'ph' ? 'Philippine Flag' : 'Custom Upload'}${Array.isArray(order.customConfig.flagPlacements) && order.customConfig.flagPlacements.length ? ' (' + order.customConfig.flagPlacements.join(', ') + ')' : ''}</strong></div>` : ''}
             ` : ""}
             ${order.reviewFeedback ? `

@@ -113,6 +113,7 @@ export function createBoatViewer(container, options = {}) {
     onReady: null,
     onError: null,
     onAutoRotateChange: null,
+    onNameTransformChange: null,
     ...options,
   };
 
@@ -152,6 +153,32 @@ export function createBoatViewer(container, options = {}) {
     'z-index:2', 'pointer-events:none', 'text-align:center', 'padding:12px',
   ].join(';');
   el.appendChild(overlay);
+
+  // Selection UI for direct name manipulation (desktop mouse, Canva-like).
+  const nameOverlay = document.createElement('div');
+  nameOverlay.style.cssText = 'position:absolute;inset:0;z-index:3;pointer-events:none;display:none;';
+  const nameBox = document.createElement('div');
+  nameBox.style.cssText = 'position:absolute;border:2px solid #2563eb;border-radius:3px;box-shadow:0 0 0 1px rgba(255,255,255,.7);pointer-events:auto;cursor:move;box-sizing:border-box;';
+  const makeHandle = (pos, cursor) => {
+    const h = document.createElement('div');
+    const base = 'position:absolute;width:12px;height:12px;background:#fff;border:2px solid #2563eb;border-radius:2px;pointer-events:auto;box-shadow:0 1px 3px rgba(0,0,0,.2);';
+    const posCss = {
+      nw: 'left:-7px;top:-7px;', ne: 'right:-7px;top:-7px;',
+      sw: 'left:-7px;bottom:-7px;', se: 'right:-7px;bottom:-7px;',
+    }[pos] || '';
+    h.style.cssText = base + posCss + `cursor:${cursor};`;
+    h.dataset.handle = pos;
+    nameBox.appendChild(h);
+    return h;
+  };
+  const nameHandles = {
+    nw: makeHandle('nw', 'nwse-resize'),
+    ne: makeHandle('ne', 'nesw-resize'),
+    sw: makeHandle('sw', 'nesw-resize'),
+    se: makeHandle('se', 'nwse-resize'),
+  };
+  nameOverlay.appendChild(nameBox);
+  el.appendChild(nameOverlay);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -283,12 +310,25 @@ export function createBoatViewer(container, options = {}) {
   // Decals live at scene level and are re-projected whenever the model's
   // dimensions finish easing, so they stay glued to the hull while stretching.
   let localBox = null;
+  // Model-local Y bounds for name lettering: bottom = top of the lower hull
+  // stripe, top = top of the painted hull body (just under the rails/roof).
+  let lowerHullTopY = null;
+  let hullSideTopY = null;
+  const NAME_SIZE_MIN = 0.6;
+  const NAME_SIZE_MAX = 4.0;
   const anchors = {}; // scene-local anchor transforms captured at load
   let nameGroup = null;
   let flagGroup = null;
   let pendingName = null;
   let pendingFlag = null;
   let decalRebuildPending = false; // set when dimensions change; decals are re-snapped once the ease settles
+  let nameSelected = false;
+  let nameDrag = null; // { mode: 'move'|'resize', ... }
+  let nameDragRaf = 0;
+  let nameDragPending = null;
+  let nameHitMesh = null;
+  let namePoseLocal = null;
+  const nameRaycaster = new THREE.Raycaster();
 
   function makeTextTexture(text, font, color) {
     const fontPx = 96;
@@ -365,8 +405,9 @@ export function createBoatViewer(container, options = {}) {
       transparent: true,
       depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: -4,
-      polygonOffsetUnits: -4,
+      polygonOffsetFactor: -6,
+      polygonOffsetUnits: -6,
+      side: THREE.DoubleSide,
     });
   }
 
@@ -392,52 +433,99 @@ export function createBoatViewer(container, options = {}) {
     const lenSize = la === 'x' ? size.x : size.z;
     const beamSize = bm === 'x' ? size.x : size.z;
     const isStern = part.startsWith('stern');
-    const maxW = isStern ? beamSize * 0.72 : lenSize * 0.42;
-    const maxH = size.y * (isStern ? 0.2 : 0.15);
+    // Name-only options: default above lower hull, but user can place freely.
+    const minBottomY = opts.minBottomY;
+    const maxTopY = opts.maxTopY;
+    const nameAnchored = Number.isFinite(minBottomY) && Number.isFinite(maxTopY);
+    const textScale = nameAnchored
+      ? Math.min(NAME_SIZE_MAX, Math.max(NAME_SIZE_MIN, opts.sizeScale ?? 1))
+      : 1;
+    const maxW = (isStern ? beamSize * 0.72 : lenSize * (nameAnchored ? 0.72 : 0.42)) * textScale;
+    const maxH = size.y * (nameAnchored ? 0.22 : (isStern ? 0.2 : 0.15)) * textScale;
     let ph = maxH;
     let pw = ph * textureAspect;
     if (pw > maxW) {
       pw = maxW;
       ph = pw / textureAspect;
     }
+    let y = center.y + (opts.yLift ?? 0);
+    if (nameAnchored) {
+      const maxPh = Math.max(0.01, maxTopY - minBottomY);
+      if (ph > maxPh) {
+        ph = maxPh;
+        pw = ph * textureAspect;
+      }
+      const defaultBottom = Number.isFinite(opts.defaultBottomY) ? opts.defaultBottomY : minBottomY;
+      const defaultY = defaultBottom + ph / 2;
+      y = Number.isFinite(opts.y) ? opts.y : defaultY;
+      const minY = minBottomY + ph / 2;
+      const maxY = maxTopY - ph / 2;
+      y = Math.min(maxY, Math.max(minY, y));
+    }
 
     // Exact placement wins: use Blender anchor empties when available.
-    const anchor = opts.anchor ? anchors[opts.anchor] : null;
+    // 'around' decals ignore anchors so the slider stays continuous.
+    const anchor = part === 'around' ? null : (opts.anchor ? anchors[opts.anchor] : null);
     if (anchor) {
-      return { pos: anchor.position.clone(), quat: anchor.quaternion.clone(), pw, ph, scale: anchor.scale || 1 };
+      const pos = anchor.position.clone();
+      if (nameAnchored) pos.y = y;
+      return { pos, quat: anchor.quaternion.clone(), pw, ph, scale: anchor.scale || 1 };
     }
 
     const offset = Math.max(size.x, size.y, size.z) * 0.004 + 0.002;
-    const yLift = opts.yLift ?? 0;
     const pos = new THREE.Vector3();
     const quat = new THREE.Quaternion();
     const e = new THREE.Euler();
 
-    if (part === 'side' || part === 'side-flag') {
+    if (part === 'around') {
+      // One decal travelling around the hull: 0% starboard midship,
+      // 25% bow, 50% port, 75% stern, all at the same height.
+      const angle = Math.min(1, Math.max(0, opts.position ?? 0)) * Math.PI * 2;
+      const laRadius = lenSize * 0.45;
+      const bmRadius = beamSize * 0.47;
+      const laPos = center[la] + laRadius * Math.sin(angle);
+      const bmPos = center[bm] + bmRadius * Math.cos(angle);
+      if (la === 'x') pos.set(laPos, y, bmPos);
+      else pos.set(bmPos, y, laPos);
+
+      // Outward normal of the horizontal ellipse in model axes.
+      const nLa = Math.sin(angle) / laRadius;
+      const nBm = Math.cos(angle) / bmRadius;
+      const outward = new THREE.Vector3();
+      if (la === 'x') outward.set(nLa, 0, nBm);
+      else outward.set(nBm, 0, nLa);
+      outward.normalize();
+      // Z = outward, Y = up, X = up × Z keeps lettering readable from
+      // outside at every angle (including the port side).
+      const xAxis = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), outward).normalize();
+      const yAxis = new THREE.Vector3().crossVectors(outward, xAxis).normalize();
+      quat.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, outward));
+      pos.addScaledVector(outward, offset);
+    } else if (part === 'side' || part === 'side-flag') {
       const side = opts.side ?? 1; // +1 or -1 along beam axis
       const bmPos = (side > 0 ? localBox.max[bm] + offset : localBox.min[bm] - offset);
-      if (la === 'x') pos.set(center.x, center.y + yLift, bmPos);
-      else pos.set(bmPos, center.y + yLift, center.z);
+      if (la === 'x') pos.set(center.x, y, bmPos);
+      else pos.set(bmPos, y, center.z);
       const rot = bm === 'z'
         ? (side > 0 ? 0 : Math.PI)                        // faces ±z
         : (side > 0 ? Math.PI / 2 : -Math.PI / 2);        // faces ±x
       quat.setFromEuler(e.set(0, rot, 0));
     } else if (isStern) {
       const stPos = localBox.min[la] - offset;
-      if (la === 'x') pos.set(stPos, center.y + yLift, center.z);
-      else pos.set(center.x, center.y + yLift, stPos);
+      if (la === 'x') pos.set(stPos, y, center.z);
+      else pos.set(center.x, y, stPos);
       quat.setFromEuler(e.set(0, la === 'x' ? -Math.PI / 2 : Math.PI, 0));
     } else { // bow flanks — aimed at a point ahead of and outboard of the bow
       const bowLa = localBox.max[la] - lenSize * 0.16;
       const side = opts.side ?? 1;
       const beamPos = (side > 0 ? localBox.max[bm] : localBox.min[bm]) * 0.78;
-      if (la === 'x') pos.set(bowLa, center.y + yLift, beamPos);
-      else pos.set(beamPos, center.y + yLift, bowLa);
+      if (la === 'x') pos.set(bowLa, y, beamPos);
+      else pos.set(beamPos, y, bowLa);
       const ahead = localBox.max[la] + lenSize * 0.6;
       const outward = beamPos * 1.9;
       const target = new THREE.Vector3();
-      if (la === 'x') target.set(ahead, center.y + yLift, outward);
-      else target.set(outward, center.y + yLift, ahead);
+      if (la === 'x') target.set(ahead, y, outward);
+      else target.set(outward, y, ahead);
       const dummy = new THREE.Object3D();
       dummy.position.copy(pos);
       dummy.lookAt(target);
@@ -465,20 +553,83 @@ export function createBoatViewer(container, options = {}) {
     return hull;
   }
 
+  // Read the stripe's upper edge from the model itself so the name always
+  // lands on the boundary between the lower hull and the painted hull.
+  // Returns a model-local Y, independent of the centering/scale applied later.
+  function captureLowerHullTopY() {
+    model.updateMatrixWorld(true);
+    const invModel = model.matrixWorld.clone().invert();
+    let top = null;
+    model.traverse((obj) => {
+      if (top !== null || !obj.isMesh) return;
+      const isLowerHull = materialsOf(obj).some((mat) => {
+        const name = (mat && mat.name || '').toLowerCase();
+        return name.includes('lower') || name.includes('stripe');
+      });
+      if (!isLowerHull) return;
+      const positions = obj.geometry && obj.geometry.getAttribute('position');
+      if (!positions) return;
+      const box = new THREE.Box3().setFromBufferAttribute(positions);
+      box.applyMatrix4(obj.matrixWorld.clone().premultiply(invModel));
+      top = box.max.y;
+    });
+    return top;
+  }
+
+  // Upper bound for name lettering: the top of the body mesh in model space.
+  function captureHullSideTopY() {
+    const hull = findHullMesh();
+    const positions = hull && hull.geometry && hull.geometry.getAttribute('position');
+    if (!positions) return null;
+    model.updateMatrixWorld(true);
+    const invModel = model.matrixWorld.clone().invert();
+    const box = new THREE.Box3().setFromBufferAttribute(positions);
+    box.applyMatrix4(hull.matrixWorld.clone().premultiply(invModel));
+    return box.max.y;
+  }
+
   // Build ONE decal from a texture: projected onto the hull via
   // DecalGeometry so the artwork hugs the curved surface like real vinyl,
   // with a flat-plane fallback when projection can't be built.
   function addDecalPlane(group, texture, aspect, part, opts = {}) {
     const pose = computeDecalPose(aspect, part, opts);
-    const { p, q } = poseToWorld(pose);
     const size = localBox.getSize(new THREE.Vector3());
+    // For around-hull name, snap the plane to the actual hull surface so it
+    // never ends up inside the body mesh (which made it invisible).
+    if (part === 'around') {
+      const hull = findHullMesh();
+      if (hull) {
+        model.updateMatrixWorld(true);
+        const outwardLocal = new THREE.Vector3(0, 0, 1).applyQuaternion(pose.quat).normalize();
+        const outwardWorld = outwardLocal.clone().transformDirection(model.matrixWorld);
+        const originLocal = pose.pos.clone().addScaledVector(outwardLocal, -Math.max(size.x, size.y, size.z));
+        const originWorld = model.localToWorld(originLocal.clone());
+        nameRaycaster.set(originWorld, outwardWorld);
+        const hits = nameRaycaster.intersectObject(hull, true);
+        if (hits.length) {
+          const hit = hits[hits.length - 1]; // outermost intersection
+          // Keep text outside hull; preserve fixed Y band.
+          const push = Math.max(0.035, size.y * 0.015);
+          const hitLocal = model.worldToLocal(hit.point.clone());
+          pose.pos.x = hitLocal.x + outwardLocal.x * push;
+          pose.pos.z = hitLocal.z + outwardLocal.z * push;
+          // keep pose.pos.y from computeDecalPose (fixed above lower hull)
+        } else {
+          pose.pos.addScaledVector(outwardLocal, Math.max(0.035, size.y * 0.015));
+        }
+      } else {
+        const outwardLocal = new THREE.Vector3(0, 0, 1).applyQuaternion(pose.quat).normalize();
+        pose.pos.addScaledVector(outwardLocal, size.y * 0.015);
+      }
+    }
+    const { p, q } = poseToWorld(pose);
     const decalW = pose.pw * (pose.scale || 1);
     const decalH = pose.ph * (pose.scale || 1);
 
-    // Project where the hull cross-section is generous (sides, bow). The
-    // transom is too tapered for a reliable projection, so the stern decal
-    // uses the flat plane (still visible and correctly placed).
-    const wantProject = !part.startsWith('stern');
+    // Project decals onto the hull so they stick to the 3D surface.
+    // Stern uses a flat plane fallback because the transom is tapered.
+    // During drag preview we skip projection for responsiveness.
+    const wantProject = !part.startsWith('stern') && opts.projected !== false;
     const hull = wantProject ? findHullMesh() : null;
     if (hull) {
       const depth = Math.max(size.x, size.y, size.z) * 0.9 + 0.5;
@@ -488,6 +639,8 @@ export function createBoatViewer(container, options = {}) {
         if (geo && geo.getAttribute('position') && geo.getAttribute('position').count > 0) {
           const mesh = new THREE.Mesh(geo, decalMaterial(texture));
           mesh.renderOrder = 6;
+          mesh.frustumCulled = false;
+          mesh.userData.decalPose = pose;
           group.add(mesh);
           return mesh;
         }
@@ -500,8 +653,10 @@ export function createBoatViewer(container, options = {}) {
     const geo = new THREE.PlaneGeometry(decalW, decalH);
     const mesh = new THREE.Mesh(geo, decalMaterial(texture));
     mesh.renderOrder = 6;
+    mesh.frustumCulled = false;
     mesh.position.copy(p);
     mesh.quaternion.copy(q);
+    mesh.userData.decalPose = pose;
     group.add(mesh);
     return mesh;
   }
@@ -512,33 +667,38 @@ export function createBoatViewer(container, options = {}) {
     return t;
   }
 
-  function buildNameGroup({ text, font, color, placements }) {
+  function buildNameGroup({ text, font, color, sizeScale = 1, position = 0, y = null, projected = true }) {
     const group = new THREE.Group();
     const clean = (text || '').trim().toUpperCase();
     if (!clean || !localBox) return group;
     const { texture, aspect } = makeTextTexture(clean, font, color);
     const size = localBox.getSize(new THREE.Vector3());
-    const want = (p) => placements.includes(p);
-    if (want('sides')) {
-      [1, -1].forEach((side) => {
-        addDecalPlane(group, cloneTexture(texture), aspect, 'side', {
-          side,
-          yLift: size.y * 0.06,
-          anchor: side > 0 ? 'name_sider' : 'name_sidel',
-        });
-      });
+    // Default above lower hull, but allow placing lower if user drags there.
+    const defaultBottomY = lowerHullTopY + size.y * 0.012;
+    let minBottomY = localBox.min.y + size.y * 0.01;
+    let maxTopY = Number.isFinite(hullSideTopY)
+      ? hullSideTopY - size.y * 0.01
+      : localBox.max.y - size.y * 0.02;
+    if (maxTopY <= minBottomY + size.y * 0.04) {
+      maxTopY = minBottomY + size.y * 0.3;
     }
-    if (want('stern')) {
-      addDecalPlane(group, cloneTexture(texture), aspect, 'stern', { yLift: size.y * 0.07, anchor: 'name_stern' });
-    }
-    if (want('bow')) {
-      [1, -1].forEach((side) => {
-        addDecalPlane(group, cloneTexture(texture), aspect, 'bow', {
-          side,
-          yLift: size.y * 0.07,
-          anchor: side > 0 ? 'name_bowr' : 'name_bowl',
-        });
-      });
+    const mesh = addDecalPlane(group, texture, aspect, 'around', {
+      minBottomY, maxTopY, defaultBottomY, sizeScale, position, y, projected,
+    });
+    namePoseLocal = mesh?.userData?.decalPose || null;
+    nameHitMesh = mesh || null;
+    // Invisible, slightly larger hit target makes selection easier.
+    if (namePoseLocal) {
+      const { p, q } = poseToWorld(namePoseLocal);
+      const hit = new THREE.Mesh(
+        new THREE.PlaneGeometry(namePoseLocal.pw * 1.08, namePoseLocal.ph * 1.25),
+        new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+      );
+      hit.position.copy(p);
+      hit.quaternion.copy(q);
+      hit.userData.nameHit = true;
+      group.add(hit);
+      nameHitMesh = hit;
     }
     return group;
   }
@@ -582,13 +742,266 @@ export function createBoatViewer(container, options = {}) {
     if (pendingFlag) applyFlagDecal(pendingFlag);
   }
 
-  function applyNameDecal({ text, font, color, placements = [] } = {}) {
-    pendingName = { text, font, color, placements };
+  function applyNameDecal({ text, font, color, placements = [], sizeScale = 1, position = 0, y = null, projected = true } = {}) {
+    pendingName = { text, font, color, placements, sizeScale, position, y };
     if (!model || !localBox) return;
     disposeGroup(nameGroup);
-    nameGroup = buildNameGroup(pendingName);
+    nameGroup = null;
+    nameHitMesh = null;
+    namePoseLocal = null;
+    nameGroup = buildNameGroup({ ...pendingName, projected });
     scene.add(nameGroup);
+    const hasText = !!String(text || '').trim();
+    if (!hasText) setNameSelection(false);
+    else if (!nameSelected) setNameSelection(true);
+    updateNameOverlay();
   }
+
+  function isNameActive() {
+    return !!(pendingName && String(pendingName.text || '').trim() && localBox && namePoseLocal);
+  }
+
+  function notifyNameTransform() {
+    if (!pendingName) return;
+    try {
+      opts.onNameTransformChange?.({
+        sizeScale: pendingName.sizeScale ?? 1,
+        position: pendingName.position ?? 0,
+        y: pendingName.y ?? null,
+      });
+    } catch (e) { /* non-fatal */ }
+  }
+
+  function setNameSelection(on) {
+    nameSelected = !!(on && isNameActive());
+    nameOverlay.style.display = nameSelected ? 'block' : 'none';
+    if (!nameSelected) nameDrag = null;
+  }
+
+  function updateNameOverlay() {
+    if (!nameSelected || !isNameActive() || !namePoseLocal) {
+      nameOverlay.style.display = 'none';
+      return;
+    }
+    nameOverlay.style.display = 'block';
+    const pose = namePoseLocal;
+    const hw = pose.pw / 2;
+    const hh = pose.ph / 2;
+    const corners = [
+      new THREE.Vector3(-hw, -hh, 0),
+      new THREE.Vector3(hw, -hh, 0),
+      new THREE.Vector3(hw, hh, 0),
+      new THREE.Vector3(-hw, hh, 0),
+    ].map((v) => v.applyQuaternion(pose.quat).add(pose.pos));
+    model.updateMatrixWorld(true);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let behind = false;
+    corners.forEach((c) => {
+      const world = model.localToWorld(c.clone());
+      const cam = world.clone().applyMatrix4(camera.matrixWorldInverse);
+      if (cam.z > -0.01) { behind = true; return; }
+      const w = world.project(camera);
+      const x = (w.x * 0.5 + 0.5) * width;
+      const y = (-w.y * 0.5 + 0.5) * height;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    });
+    if (behind || !Number.isFinite(minX)) { nameOverlay.style.display = 'none'; return; }
+    const pad = 4;
+    nameBox.style.left = (minX - pad) + 'px';
+    nameBox.style.top = (minY - pad) + 'px';
+    nameBox.style.width = Math.max(24, maxX - minX + pad * 2) + 'px';
+    nameBox.style.height = Math.max(16, maxY - minY + pad * 2) + 'px';
+  }
+
+  function pointerNdc(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    return new THREE.Vector2(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((event.clientY - rect.top) / rect.height) * 2 - 1)
+    );
+  }
+
+  function nameWorldPosAtAngle(t) {
+    const center = localBox.getCenter(new THREE.Vector3());
+    const y = namePoseLocal?.pos?.y ?? (lowerHullTopY + (localBox.getSize(new THREE.Vector3()).y * 0.08));
+    const lenSize = lengthAxis === 'x' ? localBox.getSize(new THREE.Vector3()).x : localBox.getSize(new THREE.Vector3()).z;
+    const beamSize = beamAxis === 'x' ? localBox.getSize(new THREE.Vector3()).x : localBox.getSize(new THREE.Vector3()).z;
+    const angle = t * Math.PI * 2;
+    const laPos = center[lengthAxis] + lenSize * 0.45 * Math.sin(angle);
+    const bmPos = center[beamAxis] + beamSize * 0.47 * Math.cos(angle);
+    const pos = new THREE.Vector3();
+    if (lengthAxis === 'x') pos.set(laPos, y, bmPos);
+    else pos.set(bmPos, y, laPos);
+    return model.localToWorld(pos);
+  }
+
+  function screenPxPerAngle(t) {
+    if (!model || !localBox) return width * 0.8;
+    model.updateMatrixWorld(true);
+    const eps = 0.002;
+    const p0 = nameWorldPosAtAngle(t).project(camera);
+    const p1 = nameWorldPosAtAngle(t + eps).project(camera);
+    const dx = (p1.x - p0.x) * 0.5 * width;
+    const dy = (p1.y - p0.y) * -0.5 * height;
+    const len = Math.sqrt(dx * dx + dy * dy) / eps;
+    return Number.isFinite(len) && len > 10 ? len : width * 0.8;
+  }
+
+  function nameAngleFromEvent(event) {
+    if (!model || !localBox) return pendingName?.position ?? 0;
+    nameRaycaster.setFromCamera(pointerNdc(event), camera);
+    const center = localBox.getCenter(new THREE.Vector3());
+    const worldY = model.localToWorld(new THREE.Vector3(center.x, namePoseLocal?.pos?.y ?? center.y, center.z)).y;
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -worldY);
+    const hit = new THREE.Vector3();
+    if (!nameRaycaster.ray.intersectPlane(plane, hit)) return pendingName?.position ?? 0;
+    model.updateMatrixWorld(true);
+    const local = model.worldToLocal(hit.clone());
+    const la = lengthAxis, bm = beamAxis;
+    const angle = Math.atan2(local[la] - center[la], local[bm] - center[bm]);
+    let t = angle / (Math.PI * 2);
+    t -= Math.floor(t);
+    return t;
+  }
+
+  function pickName(event) {
+    if (!isNameActive() || !nameHitMesh) return false;
+    nameRaycaster.setFromCamera(pointerNdc(event), camera);
+    const hits = nameRaycaster.intersectObject(nameHitMesh, false);
+    return hits.length > 0;
+  }
+
+  function onNamePointerDown(event) {
+    if (!opts.interactive || event.button !== 0) return;
+    const handleEl = event.target.closest?.('[data-handle]');
+    if (handleEl && nameBox.contains(handleEl)) {
+      if (!isNameActive()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      controls.enabled = false;
+      nameDrag = {
+        mode: 'resize',
+        handle: handleEl.dataset.handle || 'se',
+        startX: event.clientX,
+        startY: event.clientY,
+        startScale: pendingName?.sizeScale ?? 1,
+      };
+      setNameSelection(true);
+      return;
+    }
+    if (event.target === nameBox || nameBox.contains(event.target)) {
+      if (!isNameActive()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      controls.enabled = false;
+      nameDrag = {
+        mode: 'move',
+        startX: event.clientX,
+        startY: event.clientY,
+        startPos: pendingName?.position ?? 0,
+      };
+      setNameSelection(true);
+      return;
+    }
+    if (pickName(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      controls.enabled = false;
+      nameDrag = {
+        mode: 'move',
+        startX: event.clientX,
+        startY: event.clientY,
+        startPos: pendingName?.position ?? 0,
+      };
+      setNameSelection(true);
+      return;
+    }
+    if (nameSelected) setNameSelection(false);
+  }
+
+  function scheduleNameDragApply() {
+    if (nameDragRaf) return;
+    nameDragRaf = requestAnimationFrame(() => {
+      nameDragRaf = 0;
+      if (!nameDragPending || !pendingName) return;
+      applyNameDecal({ ...pendingName, ...nameDragPending, projected: false });
+      notifyNameTransform();
+    });
+  }
+
+  function onNamePointerMove(event) {
+    if (!nameDrag || !pendingName) return;
+    event.preventDefault();
+    if (nameDrag.mode === 'move') {
+      model.updateMatrixWorld(true);
+      nameRaycaster.setFromCamera(pointerNdc(event), camera);
+      const hits = nameRaycaster.intersectObject(model, true);
+      let pos = pendingName?.position ?? 0;
+      let y = pendingName?.y ?? null;
+      if (hits.length) {
+        const local = model.worldToLocal(hits[0].point.clone());
+        const center = localBox.getCenter(new THREE.Vector3());
+        const la = lengthAxis, bm = beamAxis;
+        const angle = Math.atan2(local[la] - center[la], local[bm] - center[bm]);
+        pos = angle / (Math.PI * 2);
+        pos -= Math.floor(pos);
+        y = local.y;
+      } else {
+        // Fallback: screen-tangent drag
+        const startPos = nameDrag.startPos ?? pendingName?.position ?? 0;
+        const eps = 0.002;
+        const p0 = nameWorldPosAtAngle(startPos).project(camera);
+        const p1 = nameWorldPosAtAngle(startPos + eps).project(camera);
+        const tdx = (p1.x - p0.x) * 0.5 * width;
+        const tdy = (p1.y - p0.y) * -0.5 * height;
+        const pxPerUnit = Math.sqrt(tdx * tdx + tdy * tdy) / eps;
+        if (Number.isFinite(pxPerUnit) && pxPerUnit > 10) {
+          const ndx = tdx / (pxPerUnit * eps);
+          const ndy = tdy / (pxPerUnit * eps);
+          const pdx = event.clientX - nameDrag.startX;
+          const pdy = event.clientY - nameDrag.startY;
+          pos = startPos + (pdx * ndx + pdy * ndy) / pxPerUnit;
+          pos -= Math.floor(pos);
+        }
+      }
+      nameDragPending = { position: pos, y };
+    } else if (nameDrag.mode === 'resize') {
+      const dx = event.clientX - nameDrag.startX;
+      const dy = event.clientY - nameDrag.startY;
+      const h = nameDrag.handle || 'se';
+      // Corner behavior: dragging outward grows, inward shrinks.
+      const sx = h.includes('e') ? dx : -dx;
+      const sy = h.includes('s') ? dy : -dy;
+      const delta = (sx + sy) / 260;
+      const scale = Math.min(NAME_SIZE_MAX, Math.max(NAME_SIZE_MIN, nameDrag.startScale + delta));
+      nameDragPending = { sizeScale: scale };
+    }
+    scheduleNameDragApply();
+  }
+
+  function onNamePointerUp() {
+    if (!nameDrag) return;
+    if (nameDragRaf) { cancelAnimationFrame(nameDragRaf); nameDragRaf = 0; }
+    const finalState = nameDragPending;
+    nameDrag = null;
+    nameDragPending = null;
+    controls.enabled = opts.interactive;
+    if (finalState && pendingName) {
+      applyNameDecal({ ...pendingName, ...finalState, projected: true });
+      notifyNameTransform();
+    } else if (pendingName) {
+      // Ensure final state is projected/stuck to 3D.
+      applyNameDecal({ ...pendingName, projected: true });
+    }
+  }
+
+  renderer.domElement.addEventListener('pointerdown', onNamePointerDown);
+  window.addEventListener('pointermove', onNamePointerMove);
+  window.addEventListener('pointerup', onNamePointerUp);
+  nameBox.addEventListener('pointerdown', onNamePointerDown);
 
   function applyFlagDecal({ type, imageDataUrl, placements = [] } = {}) {
     pendingFlag = { type, imageDataUrl, placements };
@@ -642,6 +1055,7 @@ export function createBoatViewer(container, options = {}) {
     }
     controls.update();
     renderer.render(scene, camera);
+    updateNameOverlay();
   }
 
   let resizeObserver = null;
@@ -661,6 +1075,13 @@ export function createBoatViewer(container, options = {}) {
         }
         model = gltf.scene;
         localBox = new THREE.Box3().setFromObject(model);
+        // Where name lettering starts: the top of the lower hull stripe.
+        // Fallback matches this model's stripe ratio if the material is absent.
+        lowerHullTopY = captureLowerHullTopY();
+        if (!Number.isFinite(lowerHullTopY)) {
+          lowerHullTopY = localBox.min.y + localBox.getSize(new THREE.Vector3()).y * 0.14;
+        }
+        hullSideTopY = captureHullSideTopY();
 
         // Capture Blender-exported anchor empties (Anchor_Name_* /
         // Anchor_Flag_*). Anchors are recorded in SCENE-LOCAL space so decal
@@ -764,13 +1185,14 @@ export function createBoatViewer(container, options = {}) {
       scene.background = new THREE.Color(hex);
       el.dataset.viewerBackground = hex;
     },
-    // Boat name decal: text drawn to a canvas texture, anchored to the
-    // model's local bounding box. Safe to call before the model loads.
-    setName(text, font, color, placements = ['sides']) {
-      applyNameDecal({ text, font, color, placements });
+    // Boat name decal: one text decal pinned above the lower hull stripe.
+    // Safe to call before load.
+    // options: { sizeScale: 0.6..1.6, position: 0..1 around the hull }
+    setName(text, font, color, placements = ['sides'], options = {}) {
+      applyNameDecal({ text, font, color, placements, ...options });
     },
     clearName() {
-      applyNameDecal({ text: '', font: 'Impact', color: '#ffffff', placements: [] });
+      applyNameDecal({ text: '', font: 'Impact', color: '#ffffff', placements: [], sizeScale: 1, position: 0, y: null });
     },
     // Flag decal: type 'ph' (procedurally-drawn Philippine flag) or 'custom'
     // (customer-uploaded image data URL). Safe to call before the model loads.
@@ -863,6 +1285,13 @@ export function createBoatViewer(container, options = {}) {
       if (destroyed) return;
       destroyed = true;
       cancelAnimationFrame(frameId);
+      if (nameDragRaf) { cancelAnimationFrame(nameDragRaf); nameDragRaf = 0; }
+      nameDrag = null;
+      nameDragPending = null;
+      try { renderer.domElement.removeEventListener('pointerdown', onNamePointerDown); } catch (e) { /* non-fatal */ }
+      try { window.removeEventListener('pointermove', onNamePointerMove); } catch (e) { /* non-fatal */ }
+      try { window.removeEventListener('pointerup', onNamePointerUp); } catch (e) { /* non-fatal */ }
+      try { nameBox.removeEventListener('pointerdown', onNamePointerDown); } catch (e) { /* non-fatal */ }
       try { resizeObserver?.disconnect(); } catch (e) { /* non-fatal */ }
       try { controls.dispose(); } catch (e) { /* non-fatal */ }
       try {
@@ -881,6 +1310,7 @@ export function createBoatViewer(container, options = {}) {
         if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
       } catch (e) { /* non-fatal */ }
       try { overlay.remove(); } catch (e) { /* non-fatal */ }
+      try { nameOverlay.remove(); } catch (e) { /* non-fatal */ }
     },
   };
 

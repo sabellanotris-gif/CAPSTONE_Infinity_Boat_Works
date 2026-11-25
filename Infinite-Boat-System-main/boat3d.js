@@ -10,6 +10,7 @@ const pendingColors = {};
 const pendingDimensions = { lengthFactor: 1, beamFactor: 1 };
 let pendingBackground = null;
 let autoRotateListener = null;
+let nameTransformListener = null;
 
 export let initialized = false;
 
@@ -24,6 +25,14 @@ function notifyAutoRotate(state) {
 
 export function setAutoRotateListener(fn) {
   autoRotateListener = typeof fn === 'function' ? fn : null;
+}
+
+function notifyNameTransform(state) {
+  try { nameTransformListener?.(state); } catch (e) { /* non-fatal */ }
+}
+
+export function setNameTransformListener(fn) {
+  nameTransformListener = typeof fn === 'function' ? fn : null;
 }
 
 export function initThreeViewer() {
@@ -48,11 +57,12 @@ export function initThreeViewer() {
     // orbitable by dragging (the spin pauses during the drag, then resumes).
     autoRotate: true,
     onAutoRotateChange: notifyAutoRotate,
+    onNameTransformChange: notifyNameTransform,
   };
   if (pendingBackground) viewerOptions.background = pendingBackground;
   viewer = createBoatViewer(container, viewerOptions);
   // Replay any name/flag set before the viewer existed.
-  if (pendingName) viewer.setName(pendingName.text, pendingName.font, pendingName.color, pendingName.placements);
+  if (pendingName) viewer.setName(pendingName.text, pendingName.font, pendingName.color, pendingName.placements, pendingName.options);
   if (pendingFlag) viewer.setFlag(pendingFlag.type, pendingFlag.imageDataUrl, pendingFlag.placements);
   initialized = true;
 }
@@ -116,12 +126,12 @@ export function setThreeBackground(hex) {
 let pendingName = null;
 let pendingFlag = null;
 
-export function setBoatName(text, font, color, placements = []) {
-  pendingName = { text, font, color, placements };
-  if (viewer) viewer.setName(text, font, color, placements);
+export function setBoatName(text, font, color, placements = [], options = {}) {
+  pendingName = { text, font, color, placements, options };
+  if (viewer) viewer.setName(text, font, color, placements, options);
 }
 export function clearBoatName() {
-  pendingName = { text: '', font: 'Impact', color: '#ffffff', placements: [] };
+  pendingName = { text: '', font: 'Impact', color: '#ffffff', placements: [], options: {} };
   if (viewer) viewer.clearName();
 }
 export function setBoatFlag(type, imageDataUrl, placements = []) {

@@ -1,6 +1,6 @@
 import { supabase, handleDbError, sendEmailNotification, getCustomerIdentity, landingForRole, ADMIN_EMAIL } from "./supabase.js";
 import { getBoatSpecs } from "./boatData.js";
-import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setThreeBackground, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions, setBoatName, setBoatFlag } from "./boat3d.js";
+import { showThreeView, setDeckColor, setFloorColor, setLowerHullColor, setRailColor, setBodyColor, setRoofColor, setThreeBackground, rotateThree, zoomThree, resetThree, setAutoRotateListener, captureThreePreview, setDimensions, setBoatName, setBoatFlag, setNameTransformListener } from "./boat3d.js";
 import { createColorWheel } from "./colorWheel.js";
 
 // Staff must not browse the customer boat composer. Customers and unauthenticated
@@ -34,6 +34,9 @@ const DEFAULT_RAIL_HEX = '#F0F0F0';
 const DEFAULT_ROOF_HEX = '#D9DDE0';
 const DEFAULT_FLOOR_HEX = '#8B7355';
 const DEFAULT_BACKGROUND_HEX = '#87ceeb';
+// Lettering defaults: 100% size, sitting right above the lower hull.
+const DEFAULT_NAME_SIZE = 100;
+const DEFAULT_NAME_POSITION = 0;
 
 // Free, visual-only presets for the 3D stage. They are never priced and are
 // not part of the saved boat configuration.
@@ -396,6 +399,9 @@ const NAME_COLOR_SWATCHES = [
 ];
 let selectedNameColor = '#ffffff';
 let uploadedFlagImage = ''; // data URL of the custom-uploaded flag (empty = none)
+let boatNameSizePercent = DEFAULT_NAME_SIZE;
+let boatNamePositionPercent = DEFAULT_NAME_POSITION;
+let boatNameY = null;
 
 const totalPrice = document.getElementById('totalPrice');
 const safetyBox = document.getElementById('safetyBox');
@@ -414,12 +420,17 @@ const flagDisplay = document.getElementById('flagDisplay');
 const getCheckedValues = (name) =>
   Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(el => el.value);
 
+const clampNameSize = (n) => Number.isFinite(n) ? Math.min(400, Math.max(60, n)) : DEFAULT_NAME_SIZE;
+const clampNamePosition = (n) => Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : DEFAULT_NAME_POSITION;
+
 function getBoatNameState() {
   return {
     text: (boatNameText?.value || '').trim().toUpperCase(),
     font: boatNameFont?.value || 'Impact',
     color: selectedNameColor,
-    placements: getCheckedValues('namePlacement'),
+    sizeScale: clampNameSize(boatNameSizePercent) / 100,
+    position: clampNamePosition(boatNamePositionPercent) / 100,
+    y: Number.isFinite(boatNameY) ? boatNameY : null,
   };
 }
 
@@ -441,7 +452,13 @@ const computeNameFlagFees = () => ({
 
 function applyNameFlagTo3D() {
   const name = getBoatNameState();
-  if (typeof setBoatName === 'function') setBoatName(name.text, name.font, name.color, name.placements);
+  if (typeof setBoatName === 'function') {
+    setBoatName(name.text, name.font, name.color, [], {
+      sizeScale: name.sizeScale,
+      position: name.position,
+      y: name.y,
+    });
+  }
   const flag = getFlagState();
   if (typeof setBoatFlag === 'function') setBoatFlag(flag.type, flag.imageDataUrl, flag.placements);
 }
@@ -475,8 +492,12 @@ boatNameText?.addEventListener('input', () => {
   }, 220);
 });
 boatNameFont?.addEventListener('change', () => { applyNameFlagTo3D(); refreshSummary(); });
-document.querySelectorAll('input[name="namePlacement"]').forEach(el =>
-  el.addEventListener('change', () => { applyNameFlagTo3D(); refreshSummary(); }));
+setNameTransformListener(({ sizeScale, position, y } = {}) => {
+  if (Number.isFinite(sizeScale)) boatNameSizePercent = clampNameSize(Math.round(sizeScale * 100));
+  if (Number.isFinite(position)) boatNamePositionPercent = clampNamePosition(Math.round(position * 100));
+  if (Number.isFinite(y)) boatNameY = y;
+  else if (y === null) boatNameY = null;
+});
 document.querySelectorAll('input[name="flagType"]').forEach(el =>
   el.addEventListener('change', () => {
     const type = document.querySelector('input[name="flagType"]:checked')?.value || 'none';
@@ -911,7 +932,9 @@ document.querySelector('.reset-btn').addEventListener('click', () => {
   if (boatNameFont) boatNameFont.value = 'Impact';
   selectedNameColor = '#ffffff';
   boatNameColorsBox?.querySelectorAll('.name-swatch').forEach(el => el.classList.toggle('active', el.dataset.hex === '#ffffff'));
-  document.querySelectorAll('input[name="namePlacement"]').forEach(el => { el.checked = el.value === 'sides'; });
+  boatNameSizePercent = DEFAULT_NAME_SIZE;
+  boatNamePositionPercent = DEFAULT_NAME_POSITION;
+  boatNameY = null;
   // Reset custom flag
   uploadedFlagImage = '';
   if (flagFile) flagFile.value = '';
@@ -1019,7 +1042,9 @@ document.getElementById('saveQuoteBtn')?.addEventListener('click', () => {
     boatName: nameState.text,
     boatNameFont: nameState.font,
     boatNameColor: nameState.color,
-    boatNamePlacements: nameState.placements,
+    boatNameSize: clampNameSize(boatNameSizePercent),
+    boatNamePosition: clampNamePosition(boatNamePositionPercent),
+    boatNameY: Number.isFinite(boatNameY) ? boatNameY : null,
     boatNameFee: String(nameFee),
     flagType: flagState.type,
     flagImage: flagState.type === 'custom' ? uploadedFlagImage : '',
@@ -1156,9 +1181,11 @@ async function loadRevisionOrder(orderId) {
       selectedNameColor = cfg.boatNameColor;
       boatNameColorsBox?.querySelectorAll('.name-swatch').forEach(el => el.classList.toggle('active', el.dataset.hex === cfg.boatNameColor));
     }
-    const namePlacements = Array.isArray(cfg.boatNamePlacements) ? cfg.boatNamePlacements : ['sides'];
-    document.querySelectorAll('input[name="namePlacement"]').forEach(el => { el.checked = namePlacements.includes(el.value); });
   }
+  // Legacy configs without lettering size/position simply fall back to defaults.
+  boatNameSizePercent = clampNameSize(Number(cfg.boatNameSize ?? DEFAULT_NAME_SIZE));
+  boatNamePositionPercent = clampNamePosition(Number(cfg.boatNamePosition ?? DEFAULT_NAME_POSITION));
+  boatNameY = Number.isFinite(Number(cfg.boatNameY)) ? Number(cfg.boatNameY) : null;
   if (cfg.flagType && cfg.flagType !== 'none') {
     const flagRadio = document.querySelector('input[name="flagType"][value="' + cfg.flagType + '"]');
     if (flagRadio) flagRadio.checked = true;
@@ -1308,7 +1335,9 @@ document.getElementById('submitReviewBtn').addEventListener('click', async () =>
     boatName: nameState.text,
     boatNameFont: nameState.font,
     boatNameColor: nameState.color,
-    boatNamePlacements: nameState.placements,
+    boatNameSize: clampNameSize(boatNameSizePercent),
+    boatNamePosition: clampNamePosition(boatNamePositionPercent),
+    boatNameY: Number.isFinite(boatNameY) ? boatNameY : null,
     boatNameFee: String(nameFee),
     flagType: flagState.type,
     flagImage: flagState.type === 'custom' ? uploadedFlagImage : '',
